@@ -33,6 +33,9 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Artefatos de release gerados localmente (anexar no GitHub Releases)
+/dist/
+
 # Symbolication related
 app.*.symbols
 
