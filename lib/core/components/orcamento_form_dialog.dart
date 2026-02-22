@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../utils/currency_input_formatter.dart';
 import 'package:provider/provider.dart';
@@ -47,6 +48,11 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
   final _descontoController = TextEditingController();
   bool _aplicarDesconto = false;
 
+  void _onDescontoChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
   final NumberFormat _currencyFmt = NumberFormat.currency(
     locale: 'pt_BR',
     symbol: 'R\$ ',
@@ -65,6 +71,8 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
   void initState() {
     super.initState();
 
+    _descontoController.addListener(_onDescontoChanged);
+
     // ✅ Preenche dados na edição e resolve cliente/veículo usando provider depois do build
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<AppProvider>(context, listen: false);
@@ -74,6 +82,16 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
         setState(() {
           _itens = List.from(o.itens);
           _observacoesController.text = o.observacoes ?? '';
+
+          final subtotal = _itens.fold<double>(0, (sum, item) => sum + item.valor);
+          final desconto = (subtotal - o.valorTotal).clamp(0.0, subtotal);
+          if (desconto > 0) {
+            _aplicarDesconto = true;
+            _descontoController.text = _formatValor(desconto);
+          } else {
+            _aplicarDesconto = false;
+            _descontoController.clear();
+          }
 
           _selectedCliente =
               provider.clientes.where((c) => c.id == o.clienteId).isNotEmpty
@@ -96,6 +114,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
 
   @override
   void dispose() {
+    _descontoController.removeListener(_onDescontoChanged);
     _descricaoItemController.dispose();
     _valorItemController.dispose();
     _observacoesController.dispose();
@@ -118,13 +137,13 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
         ? AppConstants.pecas
         : AppConstants.servicos;
     final Map<String, String> itemDescriptions = _isPecaSelected
-        ? AppConstants.pecasDescricao
-        : AppConstants.servicosDescricao;
+      ? AppConstants.pecasDescricao
+      : AppConstants.servicosDescricao;
     final String itemLabel = _isPecaSelected ? 'Peça' : 'Serviço';
 
     final isEdit = widget.orcamentoEditar != null;
 
-    return ResponsiveDialog(
+    final dialog = ResponsiveDialog(
       title: isEdit ? 'Editar Orçamento' : 'Novo Orçamento',
       content: Form(
         key: _formKey,
@@ -858,6 +877,31 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
         ),
       ],
     );
+
+    return Shortcuts(
+      shortcuts: const <ShortcutActivator, Intent>{
+        SingleActivator(LogicalKeyboardKey.enter, control: true):
+            ActivateIntent(),
+        SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (intent) {
+              _salvarOrcamento();
+              return null;
+            },
+          ),
+          DismissIntent: CallbackAction<DismissIntent>(
+            onInvoke: (intent) {
+              Navigator.of(context).maybePop();
+              return null;
+            },
+          ),
+        },
+        child: Focus(autofocus: true, child: dialog),
+      ),
+    );
   }
 
   void _adicionarItem() {
@@ -934,13 +978,28 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
     final currentObs = _observacoesController.text.trim();
     final responsavel = auth.currentUser?.name;
 
+    final desconto = (_aplicarDesconto && _descontoController.text.trim().isNotEmpty)
+      ? (_parseCurrency(_descontoController.text) ?? 0.0)
+      : 0.0;
+    final descontoAplicado = desconto.clamp(0.0, _valorTotal);
+    final valorFinal = (_valorTotal - descontoAplicado).clamp(0.0, double.infinity);
+
     String? observacoesFinal;
-    if (currentObs.isEmpty && responsavel != null) {
-      observacoesFinal = 'Responsável: $responsavel';
-    } else if (currentObs.isNotEmpty && responsavel != null) {
-      observacoesFinal = '$currentObs\nResponsável: $responsavel';
-    } else {
-      observacoesFinal = currentObs.isEmpty ? null : currentObs;
+    {
+      // Evita duplicar a linha "Responsável:" a cada edição/salvamento.
+      final cleanedLines = currentObs
+          .split('\n')
+          .map((l) => l.trimRight())
+          .where((l) => l.trim().isNotEmpty)
+          .where((l) => !l.trimLeft().startsWith('Responsável:'))
+          .toList();
+
+      if (responsavel != null && responsavel.trim().isNotEmpty) {
+        cleanedLines.add('Responsável: ${responsavel.trim()}');
+      }
+
+      final joined = cleanedLines.join('\n').trim();
+      observacoesFinal = joined.isEmpty ? null : joined;
     }
 
     final novoOrcamento = OrcamentoModel(
@@ -950,7 +1009,8 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
       veiculoId: _selectedVeiculo!.id,
       veiculoDescricao: _selectedVeiculo!.descricaoCompleta,
       itens: _itens,
-      valorTotal: _valorTotal,
+      // Persistimos o total final (com desconto, se informado)
+      valorTotal: valorFinal,
       status: widget.orcamentoEditar?.status ?? OrcamentoStatus.pendente,
       dataCriacao: widget.orcamentoEditar?.dataCriacao ?? DateTime.now(),
       dataAprovacao: widget.orcamentoEditar?.dataAprovacao,

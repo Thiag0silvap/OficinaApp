@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/theme/app_theme.dart';
 import '../core/components/responsive_components.dart';
@@ -169,111 +170,280 @@ class ClientesScreen extends StatelessWidget {
     final cnpjController = TextEditingController();
     final contatoController = TextEditingController();
 
+    final nomeSeguradoraFocus = FocusNode();
+    final cnpjFocus = FocusNode();
+    final contatoFocus = FocusNode();
+    final nomeFocus = FocusNode();
+    final telefoneFocus = FocusNode();
+    final enderecoFocus = FocusNode();
+
     TipoCliente tipoSelecionado = TipoCliente.particular;
     bool isSaving = false;
 
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setState) => ResponsiveDialog(
-          title: 'Novo Cliente',
-          content: SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 600),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<TipoCliente>(
-                      initialValue: tipoSelecionado,
-                      decoration: formFieldDecoration(label: 'Tipo de Cliente *', prefixIcon: Icons.category),
-                      items: TipoCliente.values.map((tipo) => DropdownMenuItem(value: tipo, child: Text(tipo.displayName))).toList(),
-                      onChanged: (value) => setState(() => tipoSelecionado = value!),
-                    ),
-                    const SizedBox(height: 16),
-                    if (tipoSelecionado == TipoCliente.seguradora) ...[
-                      TextFormField(
-                        controller: nomeSeguradoraController,
-                        decoration: formFieldDecoration(label: 'Nome da Seguradora *', prefixIcon: Icons.business),
-                        validator: (value) {
-                          if (tipoSelecionado == TipoCliente.seguradora && (value == null || value.trim().isEmpty)) {
-                            return 'Nome da seguradora é obrigatório';
+        builder: (dialogContext, setState) {
+          Future<void> submit() async {
+            if (isSaving) return;
+            if (!formKey.currentState!.validate()) return;
+            setState(() => isSaving = true);
+            final cliente = Cliente(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              nome: nomeController.text,
+              telefone: telefoneController.text,
+              endereco: enderecoController.text.isEmpty ? null : enderecoController.text,
+              dataCadastro: DateTime.now(),
+              observacoes: observacoesController.text.isEmpty
+                  ? null
+                  : observacoesController.text,
+              tipo: tipoSelecionado,
+              nomeSeguradora: tipoSelecionado == TipoCliente.seguradora &&
+                      nomeSeguradoraController.text.isNotEmpty
+                  ? nomeSeguradoraController.text
+                  : null,
+              cnpj: tipoSelecionado == TipoCliente.seguradora &&
+                      cnpjController.text.isNotEmpty
+                  ? cnpjController.text
+                  : null,
+              contato: tipoSelecionado == TipoCliente.seguradora &&
+                      contatoController.text.isNotEmpty
+                  ? contatoController.text
+                  : null,
+            );
+            try {
+              await Provider.of<AppProvider>(scaffoldContext, listen: false)
+                  .addCliente(cliente);
+
+              if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+                Navigator.pop(dialogContext);
+              }
+
+              if (scaffoldContext.mounted) {
+                ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Cliente adicionado com sucesso!'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              }
+            } catch (e) {
+              if (scaffoldContext.mounted) {
+                ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                  SnackBar(content: Text('Erro ao adicionar cliente: $e')),
+                );
+              }
+            } finally {
+              if (dialogContext.mounted) {
+                setState(() => isSaving = false);
+              }
+            }
+          }
+
+          final dialog = ResponsiveDialog(
+            title: 'Novo Cliente',
+            content: SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<TipoCliente>(
+                        initialValue: tipoSelecionado,
+                        decoration: formFieldDecoration(
+                          label: 'Tipo de Cliente *',
+                          prefixIcon: Icons.category,
+                        ),
+                        items: TipoCliente.values
+                            .map(
+                              (tipo) => DropdownMenuItem(
+                                value: tipo,
+                                child: Text(tipo.displayName),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) => setState(() {
+                          tipoSelecionado = value!;
+                          if (tipoSelecionado == TipoCliente.seguradora) {
+                            nomeSeguradoraFocus.requestFocus();
+                          } else {
+                            nomeFocus.requestFocus();
                           }
-                          return null;
-                        },
+                        }),
                       ),
                       const SizedBox(height: 16),
-                      TextFormField(controller: cnpjController, style: const TextStyle(color: AppColors.white), decoration: formFieldDecoration(label: 'CNPJ da Seguradora', prefixIcon: Icons.numbers)),
+                      if (tipoSelecionado == TipoCliente.seguradora) ...[
+                        TextFormField(
+                          controller: nomeSeguradoraController,
+                          focusNode: nomeSeguradoraFocus,
+                          autofocus: true,
+                          textInputAction: TextInputAction.next,
+                          onFieldSubmitted: (_) => cnpjFocus.requestFocus(),
+                          decoration: formFieldDecoration(
+                            label: 'Nome da Seguradora *',
+                            prefixIcon: Icons.business,
+                          ),
+                          validator: (value) {
+                            if (tipoSelecionado == TipoCliente.seguradora &&
+                                (value == null || value.trim().isEmpty)) {
+                              return 'Nome da seguradora é obrigatório';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: cnpjController,
+                          focusNode: cnpjFocus,
+                          style: const TextStyle(color: AppColors.white),
+                          textInputAction: TextInputAction.next,
+                          onFieldSubmitted: (_) => contatoFocus.requestFocus(),
+                          decoration: formFieldDecoration(
+                            label: 'CNPJ da Seguradora',
+                            prefixIcon: Icons.numbers,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: contatoController,
+                          focusNode: contatoFocus,
+                          style: const TextStyle(color: AppColors.white),
+                          textInputAction: TextInputAction.next,
+                          onFieldSubmitted: (_) => nomeFocus.requestFocus(),
+                          decoration: formFieldDecoration(
+                            label: 'Pessoa de Contato',
+                            prefixIcon: Icons.contact_phone,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      TextFormField(
+                        controller: nomeController,
+                        focusNode: nomeFocus,
+                        autofocus: tipoSelecionado != TipoCliente.seguradora,
+                        style: const TextStyle(color: AppColors.white),
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: (_) => telefoneFocus.requestFocus(),
+                        decoration: formFieldDecoration(
+                          label: 'Nome *',
+                          prefixIcon: Icons.person,
+                        ),
+                        validator: (value) => (value?.isEmpty ?? true)
+                            ? 'Nome é obrigatório'
+                            : null,
+                      ),
                       const SizedBox(height: 16),
-                      TextFormField(controller: contatoController, style: const TextStyle(color: AppColors.white), decoration: formFieldDecoration(label: 'Pessoa de Contato', prefixIcon: Icons.contact_phone)),
+                      TextFormField(
+                        controller: telefoneController,
+                        focusNode: telefoneFocus,
+                        style: const TextStyle(color: AppColors.white),
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: (_) => enderecoFocus.requestFocus(),
+                        decoration: formFieldDecoration(
+                          label: 'Telefone *',
+                          prefixIcon: Icons.phone,
+                        ),
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [PhoneInputFormatter()],
+                        validator: (value) => (value?.isEmpty ?? true)
+                            ? 'Telefone é obrigatório'
+                            : null,
+                      ),
                       const SizedBox(height: 16),
+                      TextFormField(
+                        controller: enderecoController,
+                        focusNode: enderecoFocus,
+                        style: const TextStyle(color: AppColors.white),
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: (_) =>
+                            FocusScope.of(dialogContext).nextFocus(),
+                        decoration: formFieldDecoration(
+                          label: 'Endereço',
+                          prefixIcon: Icons.location_on,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: observacoesController,
+                        style: const TextStyle(color: AppColors.white),
+                        decoration: formFieldDecoration(
+                          label: 'Observações',
+                          prefixIcon: Icons.note,
+                        ),
+                        maxLines: 3,
+                      ),
                     ],
-                    TextFormField(controller: nomeController, style: const TextStyle(color: AppColors.white), decoration: formFieldDecoration(label: 'Nome *', prefixIcon: Icons.person), validator: (value) => (value?.isEmpty ?? true) ? 'Nome é obrigatório' : null),
-                    const SizedBox(height: 16),
-                    TextFormField(controller: telefoneController, style: const TextStyle(color: AppColors.white), decoration: formFieldDecoration(label: 'Telefone *', prefixIcon: Icons.phone), keyboardType: TextInputType.phone, inputFormatters: [PhoneInputFormatter()], validator: (value) => (value?.isEmpty ?? true) ? 'Telefone é obrigatório' : null),
-                    const SizedBox(height: 16),
-                    TextFormField(controller: enderecoController, style: const TextStyle(color: AppColors.white), decoration: formFieldDecoration(label: 'Endereço', prefixIcon: Icons.location_on)),
-                    const SizedBox(height: 16),
-                    TextFormField(controller: observacoesController, style: const TextStyle(color: AppColors.white), decoration: formFieldDecoration(label: 'Observações', prefixIcon: Icons.note), maxLines: 3),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-          actions: [
-            OutlinedButton(onPressed: isSaving ? null : () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
-            ElevatedButton(
-              onPressed: isSaving
-                  ? null
-                  : () async {
-                      if (!formKey.currentState!.validate()) return;
-                      setState(() => isSaving = true);
-                      final cliente = Cliente(
-                        id: DateTime.now().millisecondsSinceEpoch.toString(),
-                        nome: nomeController.text,
-                        telefone: telefoneController.text,
-                        endereco: enderecoController.text.isEmpty ? null : enderecoController.text,
-                        dataCadastro: DateTime.now(),
-                        observacoes: observacoesController.text.isEmpty ? null : observacoesController.text,
-                        tipo: tipoSelecionado,
-                        nomeSeguradora: tipoSelecionado == TipoCliente.seguradora && nomeSeguradoraController.text.isNotEmpty ? nomeSeguradoraController.text : null,
-                        cnpj: tipoSelecionado == TipoCliente.seguradora && cnpjController.text.isNotEmpty ? cnpjController.text : null,
-                        contato: tipoSelecionado == TipoCliente.seguradora && contatoController.text.isNotEmpty ? contatoController.text : null,
-                      );
-                      try {
-                        await Provider.of<AppProvider>(scaffoldContext, listen: false).addCliente(cliente);
+            actions: [
+              OutlinedButton(
+                onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: isSaving ? null : submit,
+                child: isSaving
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Salvar'),
+              ),
+            ],
+          );
 
-                        if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
-                          Navigator.pop(dialogContext);
-                        }
-
-                        if (scaffoldContext.mounted) {
-                          ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                            const SnackBar(
-                              content: Text('Cliente adicionado com sucesso!'),
-                              backgroundColor: AppColors.success,
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (scaffoldContext.mounted) {
-                          ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                            SnackBar(content: Text('Erro ao adicionar cliente: $e')),
-                          );
-                        }
-                      } finally {
-                        if (dialogContext.mounted) {
-                          setState(() => isSaving = false);
-                        }
-                      }
-                    },
-              child: isSaving ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Salvar'),
+          return Shortcuts(
+            shortcuts: const <ShortcutActivator, Intent>{
+              SingleActivator(LogicalKeyboardKey.enter, control: true):
+                  ActivateIntent(),
+              SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+            },
+            child: Actions(
+              actions: <Type, Action<Intent>>{
+                ActivateIntent: CallbackAction<ActivateIntent>(
+                  onInvoke: (intent) {
+                    submit();
+                    return null;
+                  },
+                ),
+                DismissIntent: CallbackAction<DismissIntent>(
+                  onInvoke: (intent) {
+                    if (!isSaving) {
+                      Navigator.of(dialogContext).maybePop();
+                    }
+                    return null;
+                  },
+                ),
+              },
+              child: Focus(autofocus: true, child: dialog),
             ),
-          ],
-        ),
+          );
+        },
       ),
-    );
+    ).then((_) {
+      // Evita dispose durante a animação de fechamento do dialog.
+      Future.delayed(const Duration(milliseconds: 350), () {
+        nomeController.dispose();
+        telefoneController.dispose();
+        enderecoController.dispose();
+        observacoesController.dispose();
+        nomeSeguradoraController.dispose();
+        cnpjController.dispose();
+        contatoController.dispose();
+
+        nomeSeguradoraFocus.dispose();
+        cnpjFocus.dispose();
+        contatoFocus.dispose();
+        nomeFocus.dispose();
+        telefoneFocus.dispose();
+        enderecoFocus.dispose();
+      });
+    });
   }
 
   void _showEditClienteDialog(BuildContext context, Cliente cliente) {
@@ -287,110 +457,281 @@ class ClientesScreen extends StatelessWidget {
     final cnpjController = TextEditingController(text: cliente.cnpj ?? '');
     final contatoController = TextEditingController(text: cliente.contato ?? '');
 
+    final nomeSeguradoraFocus = FocusNode();
+    final cnpjFocus = FocusNode();
+    final contatoFocus = FocusNode();
+    final nomeFocus = FocusNode();
+    final telefoneFocus = FocusNode();
+    final enderecoFocus = FocusNode();
+
     TipoCliente tipoSelecionado = cliente.tipo;
     bool isSaving = false;
 
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setState) => ResponsiveDialog(
-          title: 'Editar Cliente',
-          content: SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 600),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    DropdownButtonFormField<TipoCliente>(
-                      initialValue: tipoSelecionado,
-                      decoration: formFieldDecoration(label: 'Tipo de Cliente *', prefixIcon: Icons.category),
-                      items: TipoCliente.values.map((tipo) => DropdownMenuItem(value: tipo, child: Text(tipo.displayName))).toList(),
-                      onChanged: (value) => setState(() => tipoSelecionado = value!),
-                    ),
-                    const SizedBox(height: 16),
-                    if (tipoSelecionado == TipoCliente.seguradora) ...[
-                      TextFormField(
-                        controller: nomeSeguradoraController,
-                        style: const TextStyle(color: AppColors.white),
-                        decoration: formFieldDecoration(label: 'Nome da Seguradora *', prefixIcon: Icons.business),
-                        validator: (value) {
-                          if (tipoSelecionado == TipoCliente.seguradora && (value == null || value.trim().isEmpty)) {
-                            return 'Nome da seguradora é obrigatório';
+        builder: (dialogContext, setState) {
+          Future<void> submit() async {
+            if (isSaving) return;
+            if (!formKey.currentState!.validate()) return;
+            setState(() => isSaving = true);
+            final updated = cliente.copyWith(
+              nome: nomeController.text,
+              telefone: telefoneController.text,
+              endereco: enderecoController.text.isEmpty
+                  ? null
+                  : enderecoController.text,
+              observacoes: observacoesController.text.isEmpty
+                  ? null
+                  : observacoesController.text,
+              tipo: tipoSelecionado,
+              nomeSeguradora: tipoSelecionado == TipoCliente.seguradora &&
+                      nomeSeguradoraController.text.isNotEmpty
+                  ? nomeSeguradoraController.text
+                  : null,
+              cnpj: tipoSelecionado == TipoCliente.seguradora &&
+                      cnpjController.text.isNotEmpty
+                  ? cnpjController.text
+                  : null,
+              contato: tipoSelecionado == TipoCliente.seguradora &&
+                      contatoController.text.isNotEmpty
+                  ? contatoController.text
+                  : null,
+            );
+            try {
+              await Provider.of<AppProvider>(scaffoldContext, listen: false)
+                  .updateCliente(updated);
+
+              if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+                Navigator.pop(dialogContext);
+              }
+
+              if (scaffoldContext.mounted) {
+                ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Cliente atualizado com sucesso!'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              }
+            } catch (e) {
+              if (scaffoldContext.mounted) {
+                ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                  SnackBar(content: Text('Erro ao atualizar cliente: $e')),
+                );
+              }
+            } finally {
+              if (dialogContext.mounted) {
+                setState(() => isSaving = false);
+              }
+            }
+          }
+
+          final dialog = ResponsiveDialog(
+            title: 'Editar Cliente',
+            content: SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DropdownButtonFormField<TipoCliente>(
+                        initialValue: tipoSelecionado,
+                        decoration: formFieldDecoration(
+                          label: 'Tipo de Cliente *',
+                          prefixIcon: Icons.category,
+                        ),
+                        items: TipoCliente.values
+                            .map(
+                              (tipo) => DropdownMenuItem(
+                                value: tipo,
+                                child: Text(tipo.displayName),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: (value) => setState(() {
+                          tipoSelecionado = value!;
+                          if (tipoSelecionado == TipoCliente.seguradora) {
+                            nomeSeguradoraFocus.requestFocus();
+                          } else {
+                            nomeFocus.requestFocus();
                           }
-                          return null;
-                        },
+                        }),
                       ),
                       const SizedBox(height: 16),
-                      TextFormField(controller: cnpjController, style: const TextStyle(color: AppColors.white), decoration: formFieldDecoration(label: 'CNPJ da Seguradora', prefixIcon: Icons.numbers)),
+                      if (tipoSelecionado == TipoCliente.seguradora) ...[
+                        TextFormField(
+                          controller: nomeSeguradoraController,
+                          focusNode: nomeSeguradoraFocus,
+                          autofocus: true,
+                          style: const TextStyle(color: AppColors.white),
+                          textInputAction: TextInputAction.next,
+                          onFieldSubmitted: (_) => cnpjFocus.requestFocus(),
+                          decoration: formFieldDecoration(
+                            label: 'Nome da Seguradora *',
+                            prefixIcon: Icons.business,
+                          ),
+                          validator: (value) {
+                            if (tipoSelecionado == TipoCliente.seguradora &&
+                                (value == null || value.trim().isEmpty)) {
+                              return 'Nome da seguradora é obrigatório';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: cnpjController,
+                          focusNode: cnpjFocus,
+                          style: const TextStyle(color: AppColors.white),
+                          textInputAction: TextInputAction.next,
+                          onFieldSubmitted: (_) => contatoFocus.requestFocus(),
+                          decoration: formFieldDecoration(
+                            label: 'CNPJ da Seguradora',
+                            prefixIcon: Icons.numbers,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: contatoController,
+                          focusNode: contatoFocus,
+                          style: const TextStyle(color: AppColors.white),
+                          textInputAction: TextInputAction.next,
+                          onFieldSubmitted: (_) => nomeFocus.requestFocus(),
+                          decoration: formFieldDecoration(
+                            label: 'Pessoa de Contato',
+                            prefixIcon: Icons.contact_phone,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      TextFormField(
+                        controller: nomeController,
+                        focusNode: nomeFocus,
+                        autofocus: tipoSelecionado != TipoCliente.seguradora,
+                        style: const TextStyle(color: AppColors.white),
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: (_) => telefoneFocus.requestFocus(),
+                        decoration: formFieldDecoration(
+                          label: 'Nome *',
+                          prefixIcon: Icons.person,
+                        ),
+                        validator: (value) => (value?.isEmpty ?? true)
+                            ? 'Nome é obrigatório'
+                            : null,
+                      ),
                       const SizedBox(height: 16),
-                      TextFormField(controller: contatoController, style: const TextStyle(color: AppColors.white), decoration: formFieldDecoration(label: 'Pessoa de Contato', prefixIcon: Icons.contact_phone)),
+                      TextFormField(
+                        controller: telefoneController,
+                        focusNode: telefoneFocus,
+                        style: const TextStyle(color: AppColors.white),
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: (_) => enderecoFocus.requestFocus(),
+                        decoration: formFieldDecoration(
+                          label: 'Telefone *',
+                          prefixIcon: Icons.phone,
+                        ),
+                        keyboardType: TextInputType.phone,
+                        inputFormatters: [PhoneInputFormatter()],
+                        validator: (value) => (value?.isEmpty ?? true)
+                            ? 'Telefone é obrigatório'
+                            : null,
+                      ),
                       const SizedBox(height: 16),
+                      TextFormField(
+                        controller: enderecoController,
+                        focusNode: enderecoFocus,
+                        style: const TextStyle(color: AppColors.white),
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: (_) =>
+                            FocusScope.of(dialogContext).nextFocus(),
+                        decoration: formFieldDecoration(
+                          label: 'Endereço',
+                          prefixIcon: Icons.location_on,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: observacoesController,
+                        style: const TextStyle(color: AppColors.white),
+                        decoration: formFieldDecoration(
+                          label: 'Observações',
+                          prefixIcon: Icons.note,
+                        ),
+                        maxLines: 3,
+                      ),
                     ],
-                    TextFormField(controller: nomeController, style: const TextStyle(color: AppColors.white), decoration: formFieldDecoration(label: 'Nome *', prefixIcon: Icons.person), validator: (value) => (value?.isEmpty ?? true) ? 'Nome é obrigatório' : null),
-                    const SizedBox(height: 16),
-                    TextFormField(controller: telefoneController, style: const TextStyle(color: AppColors.white), decoration: formFieldDecoration(label: 'Telefone *', prefixIcon: Icons.phone), keyboardType: TextInputType.phone, inputFormatters: [PhoneInputFormatter()], validator: (value) => (value?.isEmpty ?? true) ? 'Telefone é obrigatório' : null),
-                    const SizedBox(height: 16),
-                    TextFormField(controller: enderecoController, style: const TextStyle(color: AppColors.white), decoration: formFieldDecoration(label: 'Endereço', prefixIcon: Icons.location_on)),
-                    const SizedBox(height: 16),
-                    TextFormField(controller: observacoesController, style: const TextStyle(color: AppColors.white), decoration: formFieldDecoration(label: 'Observações', prefixIcon: Icons.note), maxLines: 3),
-                  ],
+                  ),
                 ),
               ),
             ),
-          ),
-          actions: [
-            OutlinedButton(onPressed: isSaving ? null : () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
-            ElevatedButton(
-              onPressed: isSaving
-                  ? null
-                  : () async {
-                      if (!formKey.currentState!.validate()) return;
-                      setState(() => isSaving = true);
-                      final updated = cliente.copyWith(
-                        nome: nomeController.text,
-                        telefone: telefoneController.text,
-                        endereco: enderecoController.text.isEmpty ? null : enderecoController.text,
-                        observacoes: observacoesController.text.isEmpty ? null : observacoesController.text,
-                        tipo: tipoSelecionado,
-                        nomeSeguradora: tipoSelecionado == TipoCliente.seguradora && nomeSeguradoraController.text.isNotEmpty ? nomeSeguradoraController.text : null,
-                        cnpj: tipoSelecionado == TipoCliente.seguradora && cnpjController.text.isNotEmpty ? cnpjController.text : null,
-                        contato: tipoSelecionado == TipoCliente.seguradora && contatoController.text.isNotEmpty ? contatoController.text : null,
-                      );
-                      try {
-                        await Provider.of<AppProvider>(scaffoldContext, listen: false).updateCliente(updated);
+            actions: [
+              OutlinedButton(
+                onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: isSaving ? null : submit,
+                child: isSaving
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Salvar'),
+              ),
+            ],
+          );
 
-                        if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
-                          Navigator.pop(dialogContext);
-                        }
-
-                        if (scaffoldContext.mounted) {
-                          ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                            const SnackBar(
-                              content: Text('Cliente atualizado com sucesso!'),
-                              backgroundColor: AppColors.success,
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (scaffoldContext.mounted) {
-                          ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                            SnackBar(content: Text('Erro ao atualizar cliente: $e')),
-                          );
-                        }
-                      } finally {
-                        if (dialogContext.mounted) {
-                          setState(() => isSaving = false);
-                        }
-                      }
-                    },
-              child: isSaving ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Salvar'),
+          return Shortcuts(
+            shortcuts: const <ShortcutActivator, Intent>{
+              SingleActivator(LogicalKeyboardKey.enter, control: true):
+                  ActivateIntent(),
+              SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+            },
+            child: Actions(
+              actions: <Type, Action<Intent>>{
+                ActivateIntent: CallbackAction<ActivateIntent>(
+                  onInvoke: (intent) {
+                    submit();
+                    return null;
+                  },
+                ),
+                DismissIntent: CallbackAction<DismissIntent>(
+                  onInvoke: (intent) {
+                    if (!isSaving) {
+                      Navigator.of(dialogContext).maybePop();
+                    }
+                    return null;
+                  },
+                ),
+              },
+              child: Focus(autofocus: true, child: dialog),
             ),
-          ],
-        ),
+          );
+        },
       ),
-    );
+    ).then((_) {
+      // Evita dispose durante a animação de fechamento do dialog.
+      Future.delayed(const Duration(milliseconds: 350), () {
+        nomeController.dispose();
+        telefoneController.dispose();
+        enderecoController.dispose();
+        observacoesController.dispose();
+        nomeSeguradoraController.dispose();
+        cnpjController.dispose();
+        contatoController.dispose();
+
+        nomeSeguradoraFocus.dispose();
+        cnpjFocus.dispose();
+        contatoFocus.dispose();
+        nomeFocus.dispose();
+        telefoneFocus.dispose();
+        enderecoFocus.dispose();
+      });
+    });
   }
 
   void _showDeleteClienteDialog(BuildContext context, Cliente cliente, AppProvider provider) {
@@ -399,49 +740,89 @@ class ClientesScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setState) => AlertDialog(
-          backgroundColor: AppColors.secondaryGray,
-          title: const Text('Excluir Cliente', style: TextStyle(color: AppColors.error)),
-          content: Text('Tem certeza que deseja excluir o cliente ${cliente.nome}? Esta ação não pode ser desfeita.', style: const TextStyle(color: AppColors.white)),
-          actions: [
-            OutlinedButton(onPressed: isDeleting ? null : () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
-            ElevatedButton(
-              onPressed: isDeleting
-                  ? null
-                  : () async {
-                      setState(() => isDeleting = true);
-                      try {
-                        await provider.deleteCliente(cliente.id);
-
-                        if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
-                          Navigator.pop(dialogContext);
-                        }
-
-                        if (scaffoldContext.mounted) {
-                          ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                            const SnackBar(
-                              content: Text('Cliente excluído com sucesso!'),
-                              backgroundColor: AppColors.success,
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (scaffoldContext.mounted) {
-                          ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                            SnackBar(content: Text('Erro ao excluir cliente: $e')),
-                          );
-                        }
-                      } finally {
-                        if (dialogContext.mounted) {
-                          setState(() => isDeleting = false);
-                        }
-                      }
-                    },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-              child: isDeleting ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.white)) : const Text('Excluir'),
+        builder: (dialogContext, setState) {
+          final dialog = AlertDialog(
+            backgroundColor: AppColors.secondaryGray,
+            title: const Text(
+              'Excluir Cliente',
+              style: TextStyle(color: AppColors.error),
             ),
-          ],
-        ),
+            content: Text(
+              'Tem certeza que deseja excluir o cliente ${cliente.nome}? Esta ação não pode ser desfeita.',
+              style: const TextStyle(color: AppColors.white),
+            ),
+            actions: [
+              OutlinedButton(
+                onPressed: isDeleting ? null : () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: isDeleting
+                    ? null
+                    : () async {
+                        setState(() => isDeleting = true);
+                        try {
+                          await provider.deleteCliente(cliente.id);
+
+                          if (dialogContext.mounted &&
+                              Navigator.of(dialogContext).canPop()) {
+                            Navigator.pop(dialogContext);
+                          }
+
+                          if (scaffoldContext.mounted) {
+                            ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                              const SnackBar(
+                                content: Text('Cliente excluído com sucesso!'),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (scaffoldContext.mounted) {
+                            ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                              SnackBar(content: Text('Erro ao excluir cliente: $e')),
+                            );
+                          }
+                        } finally {
+                          if (dialogContext.mounted) {
+                            setState(() => isDeleting = false);
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                child: isDeleting
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.white,
+                        ),
+                      )
+                    : const Text('Excluir'),
+              ),
+            ],
+          );
+
+          return Shortcuts(
+            shortcuts: const <ShortcutActivator, Intent>{
+              SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+            },
+            child: Actions(
+              actions: <Type, Action<Intent>>{
+                DismissIntent: CallbackAction<DismissIntent>(
+                  onInvoke: (intent) {
+                    if (!isDeleting) {
+                      Navigator.of(dialogContext).maybePop();
+                    }
+                    return null;
+                  },
+                ),
+              },
+              child: Focus(autofocus: true, child: dialog),
+            ),
+          );
+        },
       ),
     );
   }
@@ -462,21 +843,99 @@ class ClientesScreen extends StatelessWidget {
     final anoController = TextEditingController();
     final observacoesController = TextEditingController();
 
+    final corFocus = FocusNode();
+    final placaFocus = FocusNode();
+    final anoFocus = FocusNode();
+
     bool isSaving = false;
 
     showDialog(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setState) => ResponsiveDialog(
-          title: 'Novo Veículo - ${cliente.nome}',
-          content: SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 600),
-              child: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+        builder: (dialogContext, setState) {
+          Future<void> submit() async {
+            if (isSaving) return;
+            if (!formKey.currentState!.validate()) return;
+            setState(() => isSaving = true);
+
+            final provider = Provider.of<AppProvider>(scaffoldContext, listen: false);
+
+            final marcaFinal = (selectedMarca == otherOptionValue)
+                ? marcaCustomController.text.trim()
+                : (selectedMarca ?? '').trim();
+            final modeloFinal = (selectedMarca == otherOptionValue)
+                ? modeloCustomController.text.trim()
+                : (selectedModelo == otherOptionValue)
+                    ? modeloCustomController.text.trim()
+                    : (selectedModelo ?? '').trim();
+
+            final anoText = anoController.text.trim();
+            final anoValue = anoText.isEmpty ? null : int.tryParse(anoText);
+            if (anoText.isNotEmpty && anoValue == null) {
+              if (scaffoldContext.mounted) {
+                ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                  const SnackBar(content: Text('Ano inválido. Use apenas números.')),
+                );
+              }
+              if (dialogContext.mounted) {
+                setState(() => isSaving = false);
+              }
+              return;
+            }
+
+            final veiculo = Veiculo(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              clienteId: cliente.id,
+              marca: marcaFinal,
+              modelo: modeloFinal,
+              cor: corController.text,
+              placa: placaController.text,
+              ano: anoValue,
+              observacoes:
+                  observacoesController.text.isEmpty ? null : observacoesController.text,
+            );
+            try {
+              await provider.addMarcaModeloCustom(
+                marca: marcaFinal,
+                modelo: modeloFinal,
+              );
+              await provider.addVeiculo(veiculo);
+
+              if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+                Navigator.pop(dialogContext);
+              }
+
+              if (scaffoldContext.mounted) {
+                ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('Veículo adicionado com sucesso!'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              }
+            } catch (e) {
+              if (scaffoldContext.mounted) {
+                ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                  SnackBar(content: Text('Erro ao adicionar veículo: $e')),
+                );
+              }
+            } finally {
+              if (dialogContext.mounted) {
+                setState(() => isSaving = false);
+              }
+            }
+          }
+
+          final dialog = ResponsiveDialog(
+            title: 'Novo Veículo - ${cliente.nome}',
+            content: SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                     DropdownButtonFormField<String>(
                       isExpanded: true,
                       initialValue: selectedMarca,
@@ -583,96 +1042,114 @@ class ClientesScreen extends StatelessWidget {
                     ],
 
                     const SizedBox(height: 16),
-                    TextFormField(controller: corController, decoration: formFieldDecoration(label: 'Cor *', prefixIcon: Icons.color_lens), validator: (value) => (value?.isEmpty ?? true) ? 'Cor é obrigatória' : null),
+                    TextFormField(
+                      controller: corController,
+                      focusNode: corFocus,
+                      textInputAction: TextInputAction.next,
+                      onFieldSubmitted: (_) => placaFocus.requestFocus(),
+                      decoration: formFieldDecoration(
+                        label: 'Cor *',
+                        prefixIcon: Icons.color_lens,
+                      ),
+                      validator: (value) =>
+                          (value?.isEmpty ?? true) ? 'Cor é obrigatória' : null,
+                    ),
                     const SizedBox(height: 16),
-                    TextFormField(controller: placaController, decoration: formFieldDecoration(label: 'Placa *', prefixIcon: Icons.confirmation_number), validator: (value) => (value?.isEmpty ?? true) ? 'Placa é obrigatória' : null),
+                    TextFormField(
+                      controller: placaController,
+                      focusNode: placaFocus,
+                      textInputAction: TextInputAction.next,
+                      onFieldSubmitted: (_) => anoFocus.requestFocus(),
+                      decoration: formFieldDecoration(
+                        label: 'Placa *',
+                        prefixIcon: Icons.confirmation_number,
+                      ),
+                      validator: (value) => (value?.isEmpty ?? true)
+                          ? 'Placa é obrigatória'
+                          : null,
+                    ),
                     const SizedBox(height: 16),
-                    TextFormField(controller: anoController, decoration: formFieldDecoration(label: 'Ano', prefixIcon: Icons.calendar_today), keyboardType: TextInputType.number),
+                    TextFormField(
+                      controller: anoController,
+                      focusNode: anoFocus,
+                      textInputAction: TextInputAction.next,
+                      onFieldSubmitted: (_) =>
+                          FocusScope.of(dialogContext).nextFocus(),
+                      decoration: formFieldDecoration(
+                        label: 'Ano',
+                        prefixIcon: Icons.calendar_today,
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
                     const SizedBox(height: 16),
                     TextFormField(controller: observacoesController, decoration: formFieldDecoration(label: 'Observações', prefixIcon: Icons.note), maxLines: 3),
                   ],
                 ),
               ),
             ),
-          ),
-          actions: [
-            OutlinedButton(onPressed: isSaving ? null : () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
-            ElevatedButton(
-              onPressed: isSaving
-                  ? null
-                  : () async {
-                      if (!formKey.currentState!.validate()) return;
-                      setState(() => isSaving = true);
-
-                      final provider = Provider.of<AppProvider>(scaffoldContext, listen: false);
-
-                      final marcaFinal = (selectedMarca == otherOptionValue)
-                        ? marcaCustomController.text.trim()
-                        : (selectedMarca ?? '').trim();
-                      final modeloFinal = (selectedMarca == otherOptionValue)
-                        ? modeloCustomController.text.trim()
-                        : (selectedModelo == otherOptionValue)
-                          ? modeloCustomController.text.trim()
-                          : (selectedModelo ?? '').trim();
-
-                      final anoText = anoController.text.trim();
-                      final anoValue = anoText.isEmpty ? null : int.tryParse(anoText);
-                      if (anoText.isNotEmpty && anoValue == null) {
-                        if (scaffoldContext.mounted) {
-                          ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                            const SnackBar(content: Text('Ano inválido. Use apenas números.')),
-                          );
-                        }
-                        if (dialogContext.mounted) {
-                          setState(() => isSaving = false);
-                        }
-                        return;
-                      }
-
-                      final veiculo = Veiculo(
-                        id: DateTime.now().millisecondsSinceEpoch.toString(),
-                        clienteId: cliente.id,
-                        marca: marcaFinal,
-                        modelo: modeloFinal,
-                        cor: corController.text,
-                        placa: placaController.text,
-                        ano: anoValue,
-                        observacoes: observacoesController.text.isEmpty ? null : observacoesController.text,
-                      );
-                      try {
-                        await provider.addMarcaModeloCustom(marca: marcaFinal, modelo: modeloFinal);
-                        await provider.addVeiculo(veiculo);
-
-                        if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
-                          Navigator.pop(dialogContext);
-                        }
-
-                        if (scaffoldContext.mounted) {
-                          ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                            const SnackBar(
-                              content: Text('Veículo adicionado com sucesso!'),
-                              backgroundColor: AppColors.success,
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (scaffoldContext.mounted) {
-                          ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                            SnackBar(content: Text('Erro ao adicionar veículo: $e')),
-                          );
-                        }
-                      } finally {
-                        if (dialogContext.mounted) {
-                          setState(() => isSaving = false);
-                        }
-                      }
-                    },
-              child: isSaving ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('Salvar'),
             ),
-          ],
-        ),
+            actions: [
+              OutlinedButton(
+                onPressed:
+                    isSaving ? null : () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: isSaving ? null : submit,
+                child: isSaving
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Salvar'),
+              ),
+            ],
+          );
+
+          return Shortcuts(
+            shortcuts: const <ShortcutActivator, Intent>{
+              SingleActivator(LogicalKeyboardKey.enter, control: true):
+                  ActivateIntent(),
+              SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+            },
+            child: Actions(
+              actions: <Type, Action<Intent>>{
+                ActivateIntent: CallbackAction<ActivateIntent>(
+                  onInvoke: (intent) {
+                    submit();
+                    return null;
+                  },
+                ),
+                DismissIntent: CallbackAction<DismissIntent>(
+                  onInvoke: (intent) {
+                    if (!isSaving) {
+                      Navigator.of(dialogContext).maybePop();
+                    }
+                    return null;
+                  },
+                ),
+              },
+              child: Focus(autofocus: true, child: dialog),
+            ),
+          );
+        },
       ),
-    );
+    ).then((_) {
+      // Evita dispose durante a animação de fechamento do dialog.
+      Future.delayed(const Duration(milliseconds: 350), () {
+        marcaCustomController.dispose();
+        modeloCustomController.dispose();
+        corController.dispose();
+        placaController.dispose();
+        anoController.dispose();
+        observacoesController.dispose();
+
+        corFocus.dispose();
+        placaFocus.dispose();
+        anoFocus.dispose();
+      });
+    });
   }
 
   void _showCreateOrcamentoDialog(BuildContext context, Cliente cliente) {
@@ -689,48 +1166,94 @@ class ClientesScreen extends StatelessWidget {
 
     showDialog(
       context: context,
-      builder: (context) => ResponsiveDialog(
-        title: cliente.nome,
-        content: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDetailRow(Icons.phone, 'Telefone', cliente.telefone),
-              if (cliente.endereco != null) _buildDetailRow(Icons.location_on, 'Endereço', cliente.endereco!),
-              if (cliente.observacoes != null) _buildDetailRow(Icons.note, 'Observações', cliente.observacoes!),
-              const SizedBox(height: 16),
-              const Divider(),
-              const SizedBox(height: 16),
-              ResponsiveText('Veículos (${veiculos.length})', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryYellow)),
-              const SizedBox(height: 8),
-              if (veiculos.isEmpty)
-                const ResponsiveText('Nenhum veículo cadastrado')
-              else
-                ...veiculos.map((v) => Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: ResponsiveText('• ${v.descricaoCompleta}'))),
-              const SizedBox(height: 16),
-              ResponsiveText('Orçamentos (${orcamentos.length})', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryYellow)),
-              const SizedBox(height: 8),
-              if (orcamentos.isEmpty)
-                const ResponsiveText('Nenhum orçamento criado')
-              else
-                ...orcamentos.map(
-                  (o) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: ResponsiveText('• ${o.status} - ${Formatters.currency(o.valorTotal)}'),
+      builder: (context) {
+        final dialog = ResponsiveDialog(
+          title: cliente.nome,
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildDetailRow(Icons.phone, 'Telefone', cliente.telefone),
+                if (cliente.endereco != null)
+                  _buildDetailRow(Icons.location_on, 'Endereço', cliente.endereco!),
+                if (cliente.observacoes != null)
+                  _buildDetailRow(Icons.note, 'Observações', cliente.observacoes!),
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 16),
+                ResponsiveText(
+                  'Veículos (${veiculos.length})',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryYellow,
                   ),
                 ),
-            ],
+                const SizedBox(height: 8),
+                if (veiculos.isEmpty)
+                  const ResponsiveText('Nenhum veículo cadastrado')
+                else
+                  ...veiculos.map(
+                    (v) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: ResponsiveText('• ${v.descricaoCompleta}'),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                ResponsiveText(
+                  'Orçamentos (${orcamentos.length})',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryYellow,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (orcamentos.isEmpty)
+                  const ResponsiveText('Nenhum orçamento criado')
+                else
+                  ...orcamentos.map(
+                    (o) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: ResponsiveText(
+                        '• ${o.status} - ${Formatters.currency(o.valorTotal)}',
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Fechar')),
-          ElevatedButton(onPressed: () {
-            Navigator.pop(context);
-            _showEditClienteDialog(context, cliente);
-          }, child: const Text('Editar')),
-        ],
-      ),
+          actions: [
+            OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fechar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _showEditClienteDialog(context, cliente);
+              },
+              child: const Text('Editar'),
+            ),
+          ],
+        );
+
+        return Shortcuts(
+          shortcuts: const <ShortcutActivator, Intent>{
+            SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+          },
+          child: Actions(
+            actions: <Type, Action<Intent>>{
+              DismissIntent: CallbackAction<DismissIntent>(
+                onInvoke: (intent) {
+                  Navigator.of(context).maybePop();
+                  return null;
+                },
+              ),
+            },
+            child: Focus(autofocus: true, child: dialog),
+          ),
+        );
+      },
     );
   }
 

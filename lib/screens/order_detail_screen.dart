@@ -11,6 +11,8 @@ import '../models/orcamento.dart';
 import '../providers/app_provider.dart';
 import '../core/theme/app_theme.dart';
 import '../core/utils/formatters.dart';
+import '../core/widgets/pdf_preview_dialog.dart';
+import '../core/components/orcamento_form_dialog.dart';
 import '../services/pdf_service.dart';
 
 class OrderDetailScreen extends StatelessWidget {
@@ -36,6 +38,36 @@ class OrderDetailScreen extends StatelessWidget {
           appBar: AppBar(
             title: const Text('Detalhe da Ordem'),
             actions: [
+              if (status == OrcamentoStatus.pendente)
+                IconButton(
+                  tooltip: 'Editar orçamento',
+                  icon: const Icon(Icons.edit),
+                  onPressed: () async {
+                    await showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (_) => OrcamentoFormDialog(
+                        orcamentoEditar: current,
+                      ),
+                    );
+                  },
+                ),
+              IconButton(
+                tooltip: 'Pré-visualizar / Imprimir',
+                icon: const Icon(Icons.print),
+                onPressed: () async {
+                  final filename = current.status == OrcamentoStatus.concluido
+                      ? 'nota_servico_${current.id}.pdf'
+                      : 'orcamento_${current.id}.pdf';
+                  final title = current.status == OrcamentoStatus.concluido ? 'Nota de Serviço' : 'Orçamento';
+                  await showPdfPreviewDialog(
+                    context,
+                    title: title,
+                    fileName: filename,
+                    buildPdf: (_) => PDFService.generateOrcamentoPdf(current),
+                  );
+                },
+              ),
               IconButton(
                 tooltip: 'Enviar/Compartilhar PDF',
                 icon: const Icon(Icons.picture_as_pdf),
@@ -395,30 +427,44 @@ class _ActionsCard extends StatelessWidget {
 
     // ✅ fluxo claro
     if (status == OrcamentoStatus.pendente) {
-      actions.addAll([
-        Expanded(
-          child: OutlinedButton.icon(
-            icon: const Icon(Icons.cancel),
-            label: const Text('Cancelar'),
-            style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
-            onPressed: () async {
-              final ok = await _confirm(context, 'Cancelar orçamento?', 'Essa ação muda o status para cancelado.');
-              if (ok) await provider.cancelarOrcamento(orcamento.id);
-            },
-          ),
+      actions.add(
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                icon: const Icon(Icons.cancel),
+                label: const Text('Cancelar'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                ),
+                onPressed: () async {
+                  final ok = await _confirm(
+                    context,
+                    'Cancelar orçamento?',
+                    'Essa ação muda o status para cancelado.',
+                  );
+                  if (ok) await provider.cancelarOrcamento(orcamento.id);
+                },
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.check),
+                label: const Text('Aprovar'),
+                onPressed: () async {
+                  final ok = await _confirm(
+                    context,
+                    'Aprovar orçamento?',
+                    'Deseja aprovar este orçamento?',
+                  );
+                  if (ok) await provider.aprovarOrcamento(orcamento.id);
+                },
+              ),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.check),
-            label: const Text('Aprovar'),
-            onPressed: () async {
-              final ok = await _confirm(context, 'Aprovar orçamento?', 'Deseja aprovar este orçamento?');
-              if (ok) await provider.aprovarOrcamento(orcamento.id);
-            },
-          ),
-        ),
-      ]);
+      );
     }
 
     if (status == OrcamentoStatus.aprovado) {

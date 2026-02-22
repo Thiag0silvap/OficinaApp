@@ -237,13 +237,38 @@ class PDFService {
                 borderRadius: pw.BorderRadius.circular(8),
                 border: pw.Border.all(color: PdfColors.grey300),
               ),
-              child: pw.Text(
-                'Total: ${moneyFormat.format(o.valorTotal)}',
-                style: pw.TextStyle(
-                  fontSize: 14,
-                  fontWeight: pw.FontWeight.bold,
-                ),
-              ),
+              child: () {
+                final subtotal = o.itens.fold<double>(0, (sum, i) => sum + i.valor);
+                final desconto = (subtotal - o.valorTotal).clamp(0.0, subtotal);
+                final hasDesconto = desconto > 0.005;
+
+                if (!hasDesconto) {
+                  return pw.Text(
+                    'Total: ${moneyFormat.format(o.valorTotal)}',
+                    style: pw.TextStyle(
+                      fontSize: 14,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  );
+                }
+
+                return pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.end,
+                  children: [
+                    pw.Text('Subtotal: ${moneyFormat.format(subtotal)}'),
+                    pw.SizedBox(height: 3),
+                    pw.Text('Desconto: - ${moneyFormat.format(desconto)}'),
+                    pw.SizedBox(height: 6),
+                    pw.Text(
+                      'Total: ${moneyFormat.format(o.valorTotal)}',
+                      style: pw.TextStyle(
+                        fontSize: 14,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                );
+              }(),
             ),
           ),
 

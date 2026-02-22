@@ -32,9 +32,15 @@ class MyApp extends StatelessWidget {
 
     return MultiProvider(
       providers: [
-        // ✅ importante: init() é async, mas pode ser chamado assim mesmo
-        ChangeNotifierProvider(create: (_) => AppProvider()..init()),
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, AppProvider>(
+          create: (_) => AppProvider()..initApp(),
+          update: (_, auth, app) {
+            app ??= AppProvider()..initApp();
+            app.syncAuthUser(auth.currentUser);
+            return app;
+          },
+        ),
       ],
       child: MaterialApp(
         title: AppConstants.appName,

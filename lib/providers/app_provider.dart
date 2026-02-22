@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -9,9 +10,13 @@ import '../models/orcamento.dart';
 import '../models/transacao.dart';
 import '../services/db_service.dart';
 import '../models/nota.dart';
+import '../models/user.dart';
 
 class AppProvider extends ChangeNotifier {
   bool _isLoading = false;
+
+  String? _activeUserId;
+  bool _activeUserIsAdmin = false;
 
   static const _prefsKeyCustomMarcas = 'custom_vehicle_marcas';
   static const _prefsKeyCustomModelosPorMarca = 'custom_vehicle_modelos_por_marca';
@@ -34,6 +39,41 @@ class AppProvider extends ChangeNotifier {
   List<Transacao> get transacoes => _transacoes;
 
   bool get isLoading => _isLoading;
+
+  String? get activeUserId => _activeUserId;
+
+  Future<void> _ensureUserDbSelected() async {
+    final userId = _activeUserId;
+    if (userId == null || userId.trim().isEmpty) {
+      throw StateError('Usuário não autenticado');
+    }
+    await _db.setActiveUserId(userId);
+  }
+
+  // ===================== AUTH SYNC =====================
+
+  /// Called whenever authentication changes.
+  ///
+  /// This keeps all app data (SQLite) isolated per user.
+  void syncAuthUser(User? user) {
+    final normalized = user?.id.trim();
+    final next = (normalized == null || normalized.isEmpty) ? null : normalized;
+    final nextIsAdmin = user?.role == UserRole.admin;
+    if (next == _activeUserId) return;
+
+    _activeUserId = next;
+    _activeUserIsAdmin = nextIsAdmin;
+
+    // Clear immediately to avoid showing previous user's data.
+    _clientes.clear();
+    _veiculos.clear();
+    _orcamentos.clear();
+    _transacoes.clear();
+    notifyListeners();
+
+    // Switch DB + reload in background.
+    unawaited(_reloadForActiveUser());
+  }
 
   // ===================== CATÁLOGO VEÍCULOS (MARCA/MODELO) =====================
 
@@ -190,6 +230,7 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> addCliente(Cliente cliente) async {
     try {
+      await _ensureUserDbSelected();
       await _db.insertCliente(cliente);
       _clientes.add(cliente);
       notifyListeners();
@@ -201,6 +242,7 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> updateCliente(Cliente cliente) async {
     try {
+      await _ensureUserDbSelected();
       await _db.updateCliente(cliente);
       final index = _clientes.indexWhere((c) => c.id == cliente.id);
       if (index != -1) {
@@ -215,6 +257,7 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> deleteCliente(String id) async {
     try {
+      await _ensureUserDbSelected();
       await _db.deleteCliente(id);
       _clientes.removeWhere((c) => c.id == id);
       _veiculos.removeWhere((v) => v.clienteId == id);
@@ -242,12 +285,14 @@ class AppProvider extends ChangeNotifier {
   // ===================== VEÍCULOS =====================
 
   Future<void> addVeiculo(Veiculo veiculo) async {
+    await _ensureUserDbSelected();
     await _db.insertVeiculo(veiculo);
     _veiculos.add(veiculo);
     notifyListeners();
   }
 
   Future<void> updateVeiculo(Veiculo veiculo) async {
+    await _ensureUserDbSelected();
     await _db.updateVeiculo(veiculo);
     final index = _veiculos.indexWhere((v) => v.id == veiculo.id);
     if (index != -1) {
@@ -257,6 +302,7 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> deleteVeiculo(String id) async {
+    await _ensureUserDbSelected();
     await _db.deleteVeiculo(id);
     _veiculos.removeWhere((v) => v.id == id);
     notifyListeners();
@@ -268,12 +314,14 @@ class AppProvider extends ChangeNotifier {
   // ===================== ORÇAMENTOS =====================
 
   Future<void> addOrcamento(Orcamento o) async {
+    await _ensureUserDbSelected();
     await _db.insertOrcamento(o);
     _orcamentos.add(o);
     notifyListeners();
   }
 
   Future<void> updateOrcamento(Orcamento o) async {
+    await _ensureUserDbSelected();
     await _db.updateOrcamento(o);
     final index = _orcamentos.indexWhere((x) => x.id == o.id);
     if (index != -1) {
@@ -283,6 +331,7 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> deleteOrcamento(String id) async {
+    await _ensureUserDbSelected();
     await _db.deleteOrcamento(id);
     _orcamentos.removeWhere((o) => o.id == id);
     _transacoes.removeWhere((t) => t.orcamentoId == id);
@@ -301,6 +350,7 @@ class AppProvider extends ChangeNotifier {
       dataAprovacao: DateTime.now(),
     );
 
+    await _ensureUserDbSelected();
     await _db.updateOrcamento(atualizado);
     _orcamentos[index] = atualizado;
     notifyListeners();
@@ -315,6 +365,7 @@ class AppProvider extends ChangeNotifier {
 
     final atualizado = atual.copyWith(status: OrcamentoStatus.emAndamento);
 
+    await _ensureUserDbSelected();
     await _db.updateOrcamento(atualizado);
     _orcamentos[index] = atualizado;
     notifyListeners();
@@ -335,6 +386,7 @@ class AppProvider extends ChangeNotifier {
       dataConclusao: DateTime.now(),
     );
 
+    await _ensureUserDbSelected();
     await _db.updateOrcamento(atualizado);
 
     // 🔒 Gera nota uma única vez
@@ -359,6 +411,7 @@ class AppProvider extends ChangeNotifier {
       dataPagamento: DateTime.now(),
     );
 
+    await _ensureUserDbSelected();
     await _db.updateOrcamento(atualizado);
 
     final transacao = Transacao(
@@ -387,6 +440,8 @@ class AppProvider extends ChangeNotifier {
     if (atual.status == OrcamentoStatus.cancelado) return;
 
     final atualizado = atual.copyWith(status: OrcamentoStatus.cancelado);
+
+    await _ensureUserDbSelected();
     await _db.updateOrcamento(atualizado);
     _orcamentos[index] = atualizado;
     notifyListeners();
@@ -399,48 +454,67 @@ class AppProvider extends ChangeNotifier {
   // ===================== TRANSAÇÕES =====================
 
   Future<void> addTransacao(Transacao t) async {
+    await _ensureUserDbSelected();
     await _db.insertTransacao(t);
     _transacoes.add(t);
     notifyListeners();
   }
 
   Future<void> deleteTransacao(String id) async {
+    await _ensureUserDbSelected();
     await _db.deleteTransacao(id);
     _transacoes.removeWhere((t) => t.id == id);
     notifyListeners();
   }
 
-  // ===================== INIT =====================
 
-  Future<void> init() async {
+  // ===================== INIT / RELOAD =====================
+
+  Future<void> initApp() async {
+    try {
+      await _loadVehicleCatalogFromPrefs();
+    } catch (e) {
+      debugPrint('Erro ao inicializar preferências do AppProvider: $e');
+    }
+  }
+
+  Future<void> _reloadForActiveUser() async {
     _isLoading = true;
     notifyListeners();
 
     try {
-      await _loadVehicleCatalogFromPrefs();
+      await _db.setActiveUserId(
+        _activeUserId,
+        migrateLegacyIfNeeded: _activeUserIsAdmin,
+      );
+
+      if (_activeUserId == null) {
+        // Not authenticated: keep empty in-memory lists.
+        return;
+      }
 
       final clientesDB = await _db.getClientes();
       final veiculosDB = await _db.getVeiculos();
       final orcamentosDB = await _db.getOrcamentos();
       final transacoesDB = await _db.getTransacoes();
 
+      // If user changed mid-flight, don't apply stale results.
+      if (_activeUserId == null) return;
+
       _clientes
         ..clear()
         ..addAll(clientesDB);
-
       _veiculos
         ..clear()
         ..addAll(veiculosDB);
-
       _orcamentos
         ..clear()
         ..addAll(orcamentosDB);
-
       _transacoes
         ..clear()
         ..addAll(transacoesDB);
     } catch (e) {
-      debugPrint('Erro ao inicializar AppProvider: $e');
+      debugPrint('Erro ao recarregar dados do AppProvider: $e');
     } finally {
       _isLoading = false;
       notifyListeners();

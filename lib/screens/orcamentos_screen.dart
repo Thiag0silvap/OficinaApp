@@ -10,6 +10,7 @@ import '../core/utils/formatters.dart';
 import '../providers/app_provider.dart';
 import '../models/orcamento.dart';
 import '../services/pdf_service.dart';
+import '../core/widgets/pdf_preview_dialog.dart';
 import 'order_detail_screen.dart'; // ✅ abre a tela de detalhes
 
 class OrcamentosScreen extends StatelessWidget {
@@ -204,6 +205,20 @@ class OrcamentosScreen extends StatelessWidget {
         actions.addAll([
           TextButton.icon(
             onPressed: () async {
+              await showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => OrcamentoFormDialog(orcamentoEditar: orcamento),
+              );
+            },
+            icon: const Icon(Icons.edit, size: 16),
+            label: const Text('Editar'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.primaryYellow,
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () async {
               await provider.aprovarOrcamento(orcamento.id);
               if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
@@ -327,6 +342,27 @@ class OrcamentosScreen extends StatelessWidget {
         },
         icon: const Icon(Icons.picture_as_pdf, size: 16),
         label: const Text('Enviar PDF'),
+        style: TextButton.styleFrom(foregroundColor: AppColors.primaryYellow),
+      ),
+    );
+
+    // ✅ Pré-visualizar / Imprimir (sem precisar salvar)
+    actions.add(
+      TextButton.icon(
+        onPressed: () async {
+          final filename = orcamento.status == OrcamentoStatus.concluido
+              ? 'nota_servico_${orcamento.id}.pdf'
+              : 'orcamento_${orcamento.id}.pdf';
+          final title = orcamento.status == OrcamentoStatus.concluido ? 'Nota de Serviço' : 'Orçamento';
+          await showPdfPreviewDialog(
+            context,
+            title: title,
+            fileName: filename,
+            buildPdf: (_) => PDFService.generateOrcamentoPdf(orcamento),
+          );
+        },
+        icon: const Icon(Icons.print, size: 16),
+        label: const Text('Imprimir'),
         style: TextButton.styleFrom(foregroundColor: AppColors.primaryYellow),
       ),
     );

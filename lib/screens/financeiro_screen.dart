@@ -89,12 +89,52 @@ class FinanceiroScreen extends StatelessWidget {
 
                 /// LISTA
                 provider.transacoes.isEmpty
-                    ? const Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(40),
-                          child: Text(
-                            'Nenhuma transação registrada',
-                            style: TextStyle(color: Colors.grey),
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 520),
+                            child: ResponsiveCard(
+                              padding: const EdgeInsets.all(20),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryYellow.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: const Icon(
+                                      Icons.receipt_long,
+                                      color: AppColors.primaryYellow,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'Nenhuma transação registrada',
+                                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'Clique em “Nova” para adicionar a primeira entrada ou saída.',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodyMedium
+                                              ?.copyWith(color: Colors.grey),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       )
@@ -171,128 +211,155 @@ class FinanceiroScreen extends StatelessWidget {
   /// ================= DIALOG ADD =================
 
   void _showAddDialog(BuildContext context) {
-    final formKey = GlobalKey<FormState>();
-    final descricao = TextEditingController();
-    final valor = TextEditingController();
-
-    double? parseCurrencyInput(String input) {
-      var s = input.trim().replaceAll(' ', '');
-      if (s.isEmpty) return null;
-
-      // Handles:
-      // - 1.234,56 -> 1234.56
-      // - 1234,56  -> 1234.56
-      // - 1234.56  -> 1234.56
-      if (s.contains(',') && s.contains('.')) {
-        s = s.replaceAll('.', '');
-        s = s.replaceAll(',', '.');
-      } else if (s.contains(',')) {
-        s = s.replaceAll(',', '.');
-      }
-
-      return double.tryParse(s);
-    }
-
-    TipoTransacao tipo = TipoTransacao.entrada;
-    String categoria = 'Serviço';
-
     showDialog(
       context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          backgroundColor: AppColors.secondaryGray,
-          title: const Text('Nova Transação'),
-          content: SingleChildScrollView(
-            child: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SegmentedButton<TipoTransacao>(
-                    segments: const [
-                      ButtonSegment(
-                        value: TipoTransacao.entrada,
-                        label: Text('Entrada'),
-                      ),
-                      ButtonSegment(
-                        value: TipoTransacao.saida,
-                        label: Text('Saída'),
-                      ),
-                    ],
-                    selected: {tipo},
-                    onSelectionChanged: (v) => setState(() => tipo = v.first),
+      builder: (_) => const _NovaTransacaoDialog(),
+    );
+  }
+}
+
+class _NovaTransacaoDialog extends StatefulWidget {
+  const _NovaTransacaoDialog();
+
+  @override
+  State<_NovaTransacaoDialog> createState() => _NovaTransacaoDialogState();
+}
+
+class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _descricaoController = TextEditingController();
+  final _valorController = TextEditingController();
+  final _valorFocus = FocusNode();
+
+  TipoTransacao _tipo = TipoTransacao.entrada;
+  final String _categoria = 'Serviço';
+
+  @override
+  void dispose() {
+    _descricaoController.dispose();
+    _valorController.dispose();
+    _valorFocus.dispose();
+    super.dispose();
+  }
+
+  double? _parseCurrencyInput(String input) {
+    var s = input.trim().replaceAll(' ', '');
+    if (s.isEmpty) return null;
+
+    // Handles:
+    // - 1.234,56 -> 1234.56
+    // - 1234,56  -> 1234.56
+    // - 1234.56  -> 1234.56
+    if (s.contains(',') && s.contains('.')) {
+      s = s.replaceAll('.', '');
+      s = s.replaceAll(',', '.');
+    } else if (s.contains(',')) {
+      s = s.replaceAll(',', '.');
+    }
+
+    return double.tryParse(s);
+  }
+
+  void _submit() {
+    if (!_formKey.currentState!.validate()) return;
+
+    final parsed = _parseCurrencyInput(_valorController.text);
+    if (parsed == null || parsed <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Valor inválido.')),
+      );
+      return;
+    }
+
+    final transacao = Transacao(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      tipo: _tipo,
+      descricao: _descricaoController.text,
+      valor: parsed,
+      categoria: _categoria,
+      data: DateTime.now(),
+    );
+
+    Provider.of<AppProvider>(
+      context,
+      listen: false,
+    ).addTransacao(transacao);
+
+    Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppColors.secondaryGray,
+      title: const Text('Nova Transação'),
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SegmentedButton<TipoTransacao>(
+                segments: const [
+                  ButtonSegment(
+                    value: TipoTransacao.entrada,
+                    label: Text('Entrada'),
                   ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: descricao,
-                    decoration: const InputDecoration(labelText: 'Descrição *'),
-                    validator: (v) =>
-                        v == null || v.isEmpty ? 'Obrigatório' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: valor,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
-                    ],
-                    decoration: const InputDecoration(
-                      labelText: 'Valor *',
-                      prefixText: 'R\$ ',
-                    ),
-                    validator: (v) {
-                      if (v == null || v.isEmpty) return 'Obrigatório';
-                      final parsed = parseCurrencyInput(v);
-                      if (parsed == null || parsed <= 0) {
-                        return 'Valor inválido';
-                      }
-                      return null;
-                    },
+                  ButtonSegment(
+                    value: TipoTransacao.saida,
+                    label: Text('Saída'),
                   ),
                 ],
+                selected: {_tipo},
+                onSelectionChanged: (v) => setState(() => _tipo = v.first),
               ),
-            ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _descricaoController,
+                textInputAction: TextInputAction.next,
+                onFieldSubmitted: (_) => _valorFocus.requestFocus(),
+                decoration: const InputDecoration(labelText: 'Descrição *'),
+                validator: (v) => v == null || v.isEmpty ? 'Obrigatório' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _valorController,
+                focusNode: _valorFocus,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _submit(),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9,.]')),
+                ],
+                decoration: const InputDecoration(
+                  labelText: 'Valor *',
+                  prefixText: 'R\$ ',
+                ),
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Obrigatório';
+                  final parsed = _parseCurrencyInput(v);
+                  if (parsed == null || parsed <= 0) {
+                    return 'Valor inválido';
+                  }
+                  return null;
+                },
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (!formKey.currentState!.validate()) return;
-
-                final parsed = parseCurrencyInput(valor.text);
-                if (parsed == null || parsed <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Valor inválido.')),
-                  );
-                  return;
-                }
-
-                final transacao = Transacao(
-                  id: DateTime.now().millisecondsSinceEpoch.toString(),
-                  tipo: tipo,
-                  descricao: descricao.text,
-                  valor: parsed,
-                  categoria: categoria,
-                  data: DateTime.now(),
-                );
-
-                Provider.of<AppProvider>(
-                  context,
-                  listen: false,
-                ).addTransacao(transacao);
-
-                Navigator.pop(context);
-              },
-              child: const Text('Salvar'),
-            ),
-          ],
         ),
       ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: _submit,
+          child: const Text('Salvar'),
+        ),
+      ],
     );
   }
 }

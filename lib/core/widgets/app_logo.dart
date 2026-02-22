@@ -32,11 +32,16 @@ class AppLogo extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxH = constraints.maxHeight.isFinite ? constraints.maxHeight : double.infinity;
+
+        // Se o widget estiver com altura limitada, garanta que o tamanho da logo
+        // caiba dentro do espaço disponível para evitar overflow.
+        final effectiveLogoSize = maxH.isFinite ? math.min(logoSize, maxH) : logoSize;
         // Reserve approximate space for texts; if not enough height, hide texts to avoid overflow
-        final needsSpaceForText = logoSize + (showText ? (24.0 * fontMultiplier + 14.0) : 0.0);
+        final needsSpaceForText =
+            effectiveLogoSize + (showText ? (24.0 * fontMultiplier + 14.0) : 0.0);
         final showTextNow = showText && maxH >= needsSpaceForText;
 
-        final containerHeight = showTextNow ? needsSpaceForText : logoSize;
+        final containerHeight = showTextNow ? needsSpaceForText : effectiveLogoSize;
         final usedHeight = math.min(containerHeight, maxH);
 
         return SizedBox(
@@ -45,7 +50,7 @@ class AppLogo extends StatelessWidget {
             mainAxisSize: MainAxisSize.max,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _buildLogoWidget(logoSize),
+              _buildLogoWidget(effectiveLogoSize),
               if (showTextNow) ...[
                 SizedBox(height: 8 * fontMultiplier),
                 Flexible(child: _buildAppName(fontMultiplier, textColor)),

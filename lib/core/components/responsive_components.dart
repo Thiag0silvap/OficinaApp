@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_logo.dart';
+import '../constants/app_version.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/db_service.dart';
 
 // --- Responsive utilities (consolidated)
@@ -316,11 +319,45 @@ class ResponsiveLayout extends StatelessWidget {
     );
   }
 
+  Future<void> _confirmAndLogout(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Sair da conta?'),
+        content: const Text('Você precisará fazer login novamente para acessar o sistema.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Sair'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+    if (!context.mounted) return;
+    await context.read<AuthProvider>().logout();
+    if (!context.mounted) return;
+    Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+  }
+
   Widget _buildMobileLayout(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const AppBarLogo(),
         backgroundColor: AppColors.secondaryGray,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sair',
+            onPressed: () => _confirmAndLogout(context),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: body,
       bottomNavigationBar: _buildBottomNavigationBar(),
@@ -361,6 +398,11 @@ class ResponsiveLayout extends StatelessWidget {
                   ),
                   IconButton(icon: const Icon(Icons.refresh), onPressed: () {}),
                   IconButton(icon: const Icon(Icons.settings), onPressed: () {}),
+                  IconButton(
+                    icon: const Icon(Icons.logout),
+                    tooltip: 'Sair',
+                    onPressed: () => _confirmAndLogout(context),
+                  ),
                   const SizedBox(width: 16),
                 ],
               ),
@@ -406,6 +448,11 @@ class ResponsiveLayout extends StatelessWidget {
                   ),
                   IconButton(icon: const Icon(Icons.refresh), onPressed: () {}),
                   IconButton(icon: const Icon(Icons.settings), onPressed: () {}),
+                  IconButton(
+                    icon: const Icon(Icons.logout),
+                    tooltip: 'Sair',
+                    onPressed: () => _confirmAndLogout(context),
+                  ),
                   const SizedBox(width: 16),
                 ],
               ),
@@ -444,6 +491,14 @@ class ResponsiveLayout extends StatelessWidget {
       selectedLabelTextStyle: const TextStyle(color: AppColors.primaryYellow),
       unselectedIconTheme: IconThemeData(color: AppColors.white.withValues(alpha: 0.6)),
       unselectedLabelTextStyle: TextStyle(color: AppColors.white.withValues(alpha: 0.6)),
+      trailing: Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: IconButton(
+          icon: const Icon(Icons.logout, color: AppColors.white),
+          tooltip: 'Sair',
+          onPressed: () => _confirmAndLogout(context),
+        ),
+      ),
       destinations: const [
         NavigationRailDestination(icon: Icon(Icons.dashboard), label: Text('Dashboard')),
         NavigationRailDestination(icon: Icon(Icons.people), label: Text('Clientes')),
@@ -503,14 +558,20 @@ class ResponsiveLayout extends StatelessWidget {
                   title: const Text('Ajuda', style: TextStyle(color: AppColors.white)),
                   onTap: () {},
                 ),
+                const Divider(color: AppColors.lightGray),
+                ListTile(
+                  leading: const Icon(Icons.logout, color: AppColors.white),
+                  title: const Text('Sair', style: TextStyle(color: AppColors.white)),
+                  onTap: () => _confirmAndLogout(context),
+                ),
               ],
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.all(16),
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Text(
-              'Versão 1.0.0',
-              style: TextStyle(color: AppColors.lightGray, fontSize: 12),
+              'Versão ${AppVersion.current}',
+              style: const TextStyle(color: AppColors.lightGray, fontSize: 12),
               textAlign: TextAlign.center,
             ),
           ),

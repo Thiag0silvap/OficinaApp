@@ -5,6 +5,7 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../models/user.dart';
@@ -20,12 +21,62 @@ class DBService {
   factory DBService() => instance;
   DBService._internal();
 
+  static const String _legacyDbFileName = 'app_funilaria.db';
+  static const String _prefsKeyDbMigratedV1 = 'db_migrated_to_user_db_v1';
+  static const String _prefsKeyDbMigratedToUserIdV1 = 'db_migrated_to_user_db_user_id_v1';
+
+  String _activeDbFileName = _legacyDbFileName;
+
   Database? _db;
 
   Future<Database> get database async {
     if (_db != null) return _db!;
-    _db = await _initDB('app_funilaria.db');
+    _db = await _initDB(_activeDbFileName);
     return _db!;
+  }
+
+  /// Switches the active SQLite database file to be per-user.
+  ///
+  /// This prevents one user from seeing another user's data.
+  ///
+  /// Migration behavior:
+  /// - On the first time a user is set, if the legacy DB exists and the
+  ///   user-specific DB does not, it copies the legacy DB into the user's DB.
+  Future<void> setActiveUserId(String? userId, {bool migrateLegacyIfNeeded = false}) async {
+    final newFileName = (userId == null || userId.trim().isEmpty)
+        ? _legacyDbFileName
+        : 'app_funilaria_user_${userId.trim()}.db';
+
+    if (newFileName == _activeDbFileName) return;
+
+    // Close current DB handle before switching files.
+    await close();
+
+    if (migrateLegacyIfNeeded && userId != null && userId.trim().isNotEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final migrated = prefs.getBool(_prefsKeyDbMigratedV1) ?? false;
+
+        if (!migrated) {
+          final databasesPath = await getDatabasesPath();
+          final legacyPath = p.join(databasesPath, _legacyDbFileName);
+          final newPath = p.join(databasesPath, newFileName);
+
+          final legacyFile = File(legacyPath);
+          final newFile = File(newPath);
+
+          if (await legacyFile.exists() && !await newFile.exists()) {
+            await legacyFile.copy(newPath);
+            await prefs.setBool(_prefsKeyDbMigratedV1, true);
+            await prefs.setString(_prefsKeyDbMigratedToUserIdV1, userId.trim());
+          }
+        }
+      } catch (_) {
+        // ignore migration failures; app will start with empty user DB.
+      }
+    }
+
+    _activeDbFileName = newFileName;
   }
 
     Future<Database> _initDB(String fileName) async {
@@ -369,7 +420,7 @@ class DBService {
 
   Future<Map<String, String>> exportBackup() async {
     final databasesPath = await getDatabasesPath();
-    final dbFile = File(p.join(databasesPath, 'app_funilaria.db'));
+    final dbFile = File(p.join(databasesPath, _activeDbFileName));
 
     final docDir = await getApplicationDocumentsDirectory();
     final backupDir = Directory(p.join(docDir.path, 'backups'));
@@ -401,7 +452,7 @@ class DBService {
   Future<void> restoreFromBackup(String backupDbPath) async {
     await close();
     final databasesPath = await getDatabasesPath();
-    final dbPath = p.join(databasesPath, 'app_funilaria.db');
+    final dbPath = p.join(databasesPath, _activeDbFileName);
     final src = File(backupDbPath);
     if (!await src.exists()) throw Exception('Backup file not found: $backupDbPath');
     await src.copy(dbPath);

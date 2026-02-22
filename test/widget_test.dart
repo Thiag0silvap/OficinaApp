@@ -23,7 +23,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Login'), findsOneWidget);
+    expect(find.text('Acesse sua conta'), findsOneWidget);
     expect(find.text('Entrar'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

@@ -4,6 +4,7 @@ import '../core/theme/app_theme.dart';
 import '../core/components/responsive_components.dart';
 import '../core/utils/formatters.dart';
 import '../providers/app_provider.dart';
+import '../providers/auth_provider.dart';
 import 'financeiro_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
@@ -124,6 +125,10 @@ class DashboardScreen extends StatelessWidget {
 
   /// ================= HEADER =================
   Widget _buildHeader(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final name = auth.currentUser?.name.trim() ?? '';
+    final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : '?';
+
     return Row(
       children: [
         Expanded(
@@ -136,9 +141,9 @@ class DashboardScreen extends StatelessWidget {
         ),
         CircleAvatar(
           backgroundColor: AppColors.primaryYellow.withValues(alpha: 0.2),
-          child: const Text(
-            'A',
-            style: TextStyle(
+          child: Text(
+            initial,
+            style: const TextStyle(
               color: AppColors.primaryYellow,
               fontWeight: FontWeight.bold,
             ),

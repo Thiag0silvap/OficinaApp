@@ -31,24 +31,42 @@ class AuthProvider extends ChangeNotifier {
 
   List<User> get users => _service.getAllUsers();
 
-  Future<String?> login({required String name, required String password}) async {
+  Future<String?> login({
+    required String name,
+    required String password,
+    bool rememberCredentials = true,
+  }) async {
     final user = await _service.login(name, password);
     if (user == null) return 'Credenciais inválidas';
     _currentUser = user;
     await _saveSession();
     await _saveLastActive();
-    await _saveCredentials(name: name, password: password);
+
+    if (rememberCredentials) {
+      await _saveCredentials(name: name, password: password);
+    } else {
+      await _clearSavedCredentials();
+    }
     notifyListeners();
     return null;
   }
 
-  Future<String?> register({required String name, required String password}) async {
+  Future<String?> register({
+    required String name,
+    required String password,
+    bool rememberCredentials = true,
+  }) async {
     final user = await _service.register(name: name, password: password);
     if (user == null) return 'Usuário já cadastrado';
     _currentUser = user;
     await _saveSession();
     await _saveLastActive();
-    await _saveCredentials(name: name, password: password);
+
+    if (rememberCredentials) {
+      await _saveCredentials(name: name, password: password);
+    } else {
+      await _clearSavedCredentials();
+    }
     notifyListeners();
     return null;
   }
@@ -77,6 +95,11 @@ class AuthProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     final map = {'name': name, 'password': password};
     await prefs.setString(_savedCredsKey, jsonEncode(map));
+  }
+
+  Future<void> _clearSavedCredentials() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_savedCredsKey);
   }
 
   /// Returns saved credentials if any (may be null)
