@@ -7,7 +7,8 @@ class AppConstants {
   /// URL de um JSON público com a última versão disponível.
   /// Exemplo de formato em `tool/update_manifest_example.json`.
   /// Deixe vazio para desativar o check automático.
-  static const String updateManifestUrl = '';
+    static const String updateManifestUrl =
+      'https://thiag0silvap.github.io/OficinaApp/update_manifest.json';
   
   // Logo paths
   // Update to your actual logo file placed in assets/images/
