@@ -19,5 +19,6 @@ Este diretório é publicado pelo GitHub Pages.
 
 3) A cada release
 - Gere o zip: `bash tool/release_linux.sh build`
-- Publique o zip (ex.: GitHub Releases)
-- Atualize `docs/update_manifest.json` apontando `downloadUrl` para o zip.
+- Publique o zip no GitHub Releases (o script já gera o `downloadUrl` no formato correto).
+- O script também atualiza automaticamente `docs/update_manifest.json`.
+- Faça commit/push para o GitHub Pages refletir a nova versão.
