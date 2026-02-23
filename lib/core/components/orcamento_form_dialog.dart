@@ -83,7 +83,10 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
           _itens = List.from(o.itens);
           _observacoesController.text = o.observacoes ?? '';
 
-          final subtotal = _itens.fold<double>(0, (sum, item) => sum + item.valor);
+          final subtotal = _itens.fold<double>(
+            0,
+            (sum, item) => sum + item.valor,
+          );
           final desconto = (subtotal - o.valorTotal).clamp(0.0, subtotal);
           if (desconto > 0) {
             _aplicarDesconto = true;
@@ -137,8 +140,8 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
         ? AppConstants.pecas
         : AppConstants.servicos;
     final Map<String, String> itemDescriptions = _isPecaSelected
-      ? AppConstants.pecasDescricao
-      : AppConstants.servicosDescricao;
+        ? AppConstants.pecasDescricao
+        : AppConstants.servicosDescricao;
     final String itemLabel = _isPecaSelected ? 'Peça' : 'Serviço';
 
     final isEdit = widget.orcamentoEditar != null;
@@ -340,7 +343,9 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                             },
                             borderRadius: BorderRadius.circular(8),
                             selectedColor: AppColors.primaryYellow,
-                            fillColor: AppColors.primaryYellow.withValues(alpha: 0.1),
+                            fillColor: AppColors.primaryYellow.withValues(
+                              alpha: 0.1,
+                            ),
                             children: const [
                               Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 12),
@@ -431,9 +436,9 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                                     CurrencyTextInputFormatter(),
                                   ],
                                   decoration: formFieldDecoration(
-                                    label: 'Valor (R\$)',
+                                    label: 'Valor',
                                     dense: true,
-                                  ),
+                                  ).copyWith(prefixText: 'R\$ '),
                                   validator: (v) {
                                     if (v == null || v.isEmpty) return null;
                                     return _parseCurrency(v) == null
@@ -486,8 +491,8 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                                   ),
                                 ),
                                 const SizedBox(width: 16),
-                                Expanded(
-                                  flex: 1,
+                                SizedBox(
+                                  width: 160,
                                   child: TextFormField(
                                     controller: _valorItemController,
                                     keyboardType:
@@ -498,9 +503,9 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                                       CurrencyTextInputFormatter(),
                                     ],
                                     decoration: formFieldDecoration(
-                                      label: 'Valor (R\$)',
+                                      label: 'Valor',
                                       dense: true,
-                                    ),
+                                    ).copyWith(prefixText: 'R\$ '),
                                     validator: (v) {
                                       if (v == null || v.isEmpty) return null;
                                       return _parseCurrency(v) == null
@@ -978,11 +983,15 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
     final currentObs = _observacoesController.text.trim();
     final responsavel = auth.currentUser?.name;
 
-    final desconto = (_aplicarDesconto && _descontoController.text.trim().isNotEmpty)
-      ? (_parseCurrency(_descontoController.text) ?? 0.0)
-      : 0.0;
+    final desconto =
+        (_aplicarDesconto && _descontoController.text.trim().isNotEmpty)
+        ? (_parseCurrency(_descontoController.text) ?? 0.0)
+        : 0.0;
     final descontoAplicado = desconto.clamp(0.0, _valorTotal);
-    final valorFinal = (_valorTotal - descontoAplicado).clamp(0.0, double.infinity);
+    final valorFinal = (_valorTotal - descontoAplicado).clamp(
+      0.0,
+      double.infinity,
+    );
 
     String? observacoesFinal;
     {

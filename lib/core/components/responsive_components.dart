@@ -27,9 +27,12 @@ class ResponsiveUtils {
     return DeviceType.desktop;
   }
 
-  static bool isMobile(BuildContext context) => getDeviceType(context) == DeviceType.mobile;
-  static bool isTablet(BuildContext context) => getDeviceType(context) == DeviceType.tablet;
-  static bool isDesktop(BuildContext context) => getDeviceType(context) == DeviceType.desktop;
+  static bool isMobile(BuildContext context) =>
+      getDeviceType(context) == DeviceType.mobile;
+  static bool isTablet(BuildContext context) =>
+      getDeviceType(context) == DeviceType.tablet;
+  static bool isDesktop(BuildContext context) =>
+      getDeviceType(context) == DeviceType.desktop;
   static bool isMobileOrTablet(BuildContext context) => !isDesktop(context);
 
   static double getContentWidth(BuildContext context) {
@@ -208,7 +211,9 @@ class ResponsiveText extends StatelessWidget {
   Widget build(BuildContext context) {
     final multiplier = ResponsiveUtils.getFontSizeMultiplier(context);
     final base = style ?? const TextStyle(fontSize: 14);
-    final adjusted = base.copyWith(fontSize: (base.fontSize ?? 14) * multiplier);
+    final adjusted = base.copyWith(
+      fontSize: (base.fontSize ?? 14) * multiplier,
+    );
 
     return Text(
       text,
@@ -240,19 +245,20 @@ class ResponsiveCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cardPadding = padding ?? ResponsiveUtils.getCardPadding(context);
 
+    // Mantém consistência com o CardTheme (premium) definido no AppTheme.
+    // Evita elevação “pesada” e padroniza bordas/raio.
+    final radius = BorderRadius.circular(18);
+
     return Card(
-      color: color ?? AppColors.secondaryGray,
-      elevation: elevation ?? 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      color: color,
+      elevation: elevation, // default do tema (0)
+      shape: RoundedRectangleBorder(borderRadius: radius),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: cardPadding,
-            child: child,
-          ),
+          borderRadius: radius,
+          child: Padding(padding: cardPadding, child: child),
         ),
       ),
     );
@@ -277,8 +283,8 @@ class ResponsiveStatsGrid extends StatelessWidget {
     final crossAxisCount = isDesktop
         ? 4
         : isTablet
-            ? 2
-            : 1;
+        ? 2
+        : 1;
 
     return GridView.builder(
       shrinkWrap: true,
@@ -288,7 +294,8 @@ class ResponsiveStatsGrid extends StatelessWidget {
         crossAxisCount: crossAxisCount,
         crossAxisSpacing: spacing,
         mainAxisSpacing: spacing,
-        childAspectRatio: childAspectRatio ?? (ResponsiveUtils.isMobile(context) ? 1.9 : 1.6),
+        childAspectRatio:
+            childAspectRatio ?? (ResponsiveUtils.isMobile(context) ? 1.9 : 1.6),
       ),
       itemBuilder: (context, index) => children[index],
     );
@@ -324,7 +331,9 @@ class ResponsiveLayout extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Sair da conta?'),
-        content: const Text('Você precisará fazer login novamente para acessar o sistema.'),
+        content: const Text(
+          'Você precisará fazer login novamente para acessar o sistema.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -349,7 +358,7 @@ class ResponsiveLayout extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const AppBarLogo(),
-        backgroundColor: AppColors.secondaryGray,
+        backgroundColor: AppColors.surface,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -379,7 +388,7 @@ class ResponsiveLayout extends StatelessWidget {
                     Text(title),
                   ],
                 ),
-                backgroundColor: AppColors.secondaryGray,
+                backgroundColor: AppColors.surface,
                 automaticallyImplyLeading: false,
                 actions: [
                   IconButton(
@@ -387,17 +396,29 @@ class ResponsiveLayout extends StatelessWidget {
                     tooltip: 'Backup manual',
                     onPressed: () async {
                       final messenger = ScaffoldMessenger.of(context);
-                      messenger.showSnackBar(const SnackBar(content: Text('Iniciando backup...')));
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Iniciando backup...')),
+                      );
                       try {
-                        final res = await DBService.instance.exportBackupToUserDocuments();
-                        messenger.showSnackBar(SnackBar(content: Text('Backup salvo em: ${res['db']}')));
+                        final res = await DBService.instance
+                            .exportBackupToUserDocuments();
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text('Backup salvo em: ${res['db']}'),
+                          ),
+                        );
                       } catch (e) {
-                        messenger.showSnackBar(SnackBar(content: Text('Erro ao gerar backup: $e')));
+                        messenger.showSnackBar(
+                          SnackBar(content: Text('Erro ao gerar backup: $e')),
+                        );
                       }
                     },
                   ),
                   IconButton(icon: const Icon(Icons.refresh), onPressed: () {}),
-                  IconButton(icon: const Icon(Icons.settings), onPressed: () {}),
+                  IconButton(
+                    icon: const Icon(Icons.settings),
+                    onPressed: () {},
+                  ),
                   IconButton(
                     icon: const Icon(Icons.logout),
                     tooltip: 'Sair',
@@ -429,7 +450,7 @@ class ResponsiveLayout extends StatelessWidget {
                     Text(title),
                   ],
                 ),
-                backgroundColor: AppColors.secondaryGray,
+                backgroundColor: AppColors.surface,
                 automaticallyImplyLeading: false,
                 actions: [
                   IconButton(
@@ -437,17 +458,29 @@ class ResponsiveLayout extends StatelessWidget {
                     tooltip: 'Backup manual',
                     onPressed: () async {
                       final messenger = ScaffoldMessenger.of(context);
-                      messenger.showSnackBar(const SnackBar(content: Text('Iniciando backup...')));
+                      messenger.showSnackBar(
+                        const SnackBar(content: Text('Iniciando backup...')),
+                      );
                       try {
-                        final res = await DBService.instance.exportBackupToUserDocuments();
-                        messenger.showSnackBar(SnackBar(content: Text('Backup salvo em: ${res['db']}')));
+                        final res = await DBService.instance
+                            .exportBackupToUserDocuments();
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text('Backup salvo em: ${res['db']}'),
+                          ),
+                        );
                       } catch (e) {
-                        messenger.showSnackBar(SnackBar(content: Text('Erro ao gerar backup: $e')));
+                        messenger.showSnackBar(
+                          SnackBar(content: Text('Erro ao gerar backup: $e')),
+                        );
                       }
                     },
                   ),
                   IconButton(icon: const Icon(Icons.refresh), onPressed: () {}),
-                  IconButton(icon: const Icon(Icons.settings), onPressed: () {}),
+                  IconButton(
+                    icon: const Icon(Icons.settings),
+                    onPressed: () {},
+                  ),
                   IconButton(
                     icon: const Icon(Icons.logout),
                     tooltip: 'Sair',
@@ -469,28 +502,40 @@ class ResponsiveLayout extends StatelessWidget {
       currentIndex: currentIndex,
       onTap: onTap,
       type: BottomNavigationBarType.fixed,
-      backgroundColor: AppColors.secondaryGray,
+      backgroundColor: AppColors.surface,
       selectedItemColor: AppColors.primaryYellow,
       unselectedItemColor: AppColors.white.withValues(alpha: 0.6),
       items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Dashboard'),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.dashboard),
+          label: 'Dashboard',
+        ),
         BottomNavigationBarItem(icon: Icon(Icons.people), label: 'Clientes'),
-        BottomNavigationBarItem(icon: Icon(Icons.description), label: 'Orçamentos'),
-        BottomNavigationBarItem(icon: Icon(Icons.attach_money), label: 'Financeiro'),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.description),
+          label: 'Orçamentos',
+        ),
+        BottomNavigationBarItem(
+          icon: Icon(Icons.attach_money),
+          label: 'Financeiro',
+        ),
       ],
     );
   }
 
   Widget _buildSideNavigationRail(BuildContext context) {
     return NavigationRail(
-      backgroundColor: AppColors.secondaryGray,
+      backgroundColor: AppColors.surface,
       selectedIndex: currentIndex,
       onDestinationSelected: onTap,
       labelType: NavigationRailLabelType.all,
       selectedIconTheme: const IconThemeData(color: AppColors.primaryYellow),
-      selectedLabelTextStyle: const TextStyle(color: AppColors.primaryYellow),
-      unselectedIconTheme: IconThemeData(color: AppColors.white.withValues(alpha: 0.6)),
-      unselectedLabelTextStyle: TextStyle(color: AppColors.white.withValues(alpha: 0.6)),
+      selectedLabelTextStyle: const TextStyle(
+        color: AppColors.primaryYellow,
+        fontWeight: FontWeight.w600,
+      ),
+      unselectedIconTheme: const IconThemeData(color: AppColors.textSecondary),
+      unselectedLabelTextStyle: const TextStyle(color: AppColors.textSecondary),
       trailing: Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: IconButton(
@@ -500,10 +545,22 @@ class ResponsiveLayout extends StatelessWidget {
         ),
       ),
       destinations: const [
-        NavigationRailDestination(icon: Icon(Icons.dashboard), label: Text('Dashboard')),
-        NavigationRailDestination(icon: Icon(Icons.people), label: Text('Clientes')),
-        NavigationRailDestination(icon: Icon(Icons.description), label: Text('Orçamentos')),
-        NavigationRailDestination(icon: Icon(Icons.attach_money), label: Text('Financeiro')),
+        NavigationRailDestination(
+          icon: Icon(Icons.dashboard),
+          label: Text('Dashboard'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.people),
+          label: Text('Clientes'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.description),
+          label: Text('Orçamentos'),
+        ),
+        NavigationRailDestination(
+          icon: Icon(Icons.attach_money),
+          label: Text('Financeiro'),
+        ),
       ],
     );
   }
@@ -511,57 +568,152 @@ class ResponsiveLayout extends StatelessWidget {
   Widget _buildSideNavigationDrawer(BuildContext context) {
     return Container(
       width: 280,
-      color: AppColors.secondaryGray,
+      color: AppColors.surface,
       child: Column(
         children: [
           Container(
-            height: 120,
+            height: 96,
             width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.primaryYellow, Color(0xFFFFB000)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
+              border: Border(
+                bottom: BorderSide(color: AppColors.border, width: 1),
               ),
             ),
-            child: const Center(child: DrawerLogo()),
+            child: Row(
+              children: [
+                const SizedBox(width: 4),
+                const DrawerLogo(),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text(
+                        'OficinaApp',
+                        style: TextStyle(
+                          color: AppColors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Gestão completa',
+                        style: TextStyle(
+                          color: AppColors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: ListView(
               children: [
-                _buildDrawerItem(context, icon: Icons.dashboard, title: 'Dashboard', index: 0),
-                _buildDrawerItem(context, icon: Icons.people, title: 'Clientes', index: 1),
-                _buildDrawerItem(context, icon: Icons.description, title: 'Orçamentos', index: 2),
-                _buildDrawerItem(context, icon: Icons.attach_money, title: 'Financeiro', index: 3),
-                const Divider(color: AppColors.lightGray),
+                _buildDrawerItem(
+                  context,
+                  icon: Icons.dashboard,
+                  title: 'Dashboard',
+                  index: 0,
+                ),
+                _buildDrawerItem(
+                  context,
+                  icon: Icons.people,
+                  title: 'Clientes',
+                  index: 1,
+                ),
+                _buildDrawerItem(
+                  context,
+                  icon: Icons.description,
+                  title: 'Orçamentos',
+                  index: 2,
+                ),
+                _buildDrawerItem(
+                  context,
+                  icon: Icons.attach_money,
+                  title: 'Financeiro',
+                  index: 3,
+                ),
+                const SizedBox(height: 8),
+                const Divider(color: AppColors.border, height: 1),
                 ListTile(
-                  leading: const Icon(Icons.settings, color: AppColors.white),
-                  title: const Text('Configurações', style: TextStyle(color: AppColors.white)),
+                  leading: const Icon(
+                    Icons.settings,
+                    color: AppColors.textSecondary,
+                  ),
+                  title: const Text(
+                    'Configurações',
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {},
                 ),
                 ListTile(
-                  leading: const Icon(Icons.cloud_upload, color: AppColors.white),
-                  title: const Text('Backup (manual)', style: TextStyle(color: AppColors.white)),
+                  leading: const Icon(
+                    Icons.cloud_upload,
+                    color: AppColors.textSecondary,
+                  ),
+                  title: const Text(
+                    'Backup (manual)',
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () async {
                     final messenger = ScaffoldMessenger.of(context);
-                    messenger.showSnackBar(const SnackBar(content: Text('Iniciando backup...')));
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('Iniciando backup...')),
+                    );
                     try {
-                      final res = await DBService.instance.exportBackupToUserDocuments();
-                      messenger.showSnackBar(SnackBar(content: Text('Backup salvo em: ${res['db']}')));
+                      final res = await DBService.instance
+                          .exportBackupToUserDocuments();
+                      messenger.showSnackBar(
+                        SnackBar(
+                          content: Text('Backup salvo em: ${res['db']}'),
+                        ),
+                      );
                     } catch (e) {
-                      messenger.showSnackBar(SnackBar(content: Text('Erro ao gerar backup: $e')));
+                      messenger.showSnackBar(
+                        SnackBar(content: Text('Erro ao gerar backup: $e')),
+                      );
                     }
                   },
                 ),
                 ListTile(
-                  leading: const Icon(Icons.help, color: AppColors.white),
-                  title: const Text('Ajuda', style: TextStyle(color: AppColors.white)),
+                  leading: const Icon(
+                    Icons.help,
+                    color: AppColors.textSecondary,
+                  ),
+                  title: const Text(
+                    'Ajuda',
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () {},
                 ),
-                const Divider(color: AppColors.lightGray),
+                const Divider(color: AppColors.border, height: 1),
                 ListTile(
-                  leading: const Icon(Icons.logout, color: AppColors.white),
-                  title: const Text('Sair', style: TextStyle(color: AppColors.white)),
+                  leading: const Icon(
+                    Icons.logout,
+                    color: AppColors.textSecondary,
+                  ),
+                  title: const Text(
+                    'Sair',
+                    style: TextStyle(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                   onTap: () => _confirmAndLogout(context),
                 ),
               ],
@@ -588,23 +740,56 @@ class ResponsiveLayout extends StatelessWidget {
   }) {
     final isSelected = currentIndex == index;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(
-        color: isSelected ? AppColors.primaryYellow.withValues(alpha: 0.1) : null,
-        borderRadius: BorderRadius.circular(12),
-        border: isSelected ? Border.all(color: AppColors.primaryYellow.withValues(alpha: 0.3)) : null,
-      ),
-      child: ListTile(
-        leading: Icon(icon, color: isSelected ? AppColors.primaryYellow : AppColors.white),
-        title: Text(
-          title,
-          style: TextStyle(
-            color: isSelected ? AppColors.primaryYellow : AppColors.white,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => onTap(index),
+        child: Container(
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.surface2 : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isSelected ? AppColors.border : Colors.transparent,
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                width: 4,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: isSelected
+                      ? AppColors.primaryYellow
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Icon(
+                icon,
+                color: isSelected
+                    ? AppColors.primaryYellow
+                    : AppColors.textSecondary,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    color: isSelected
+                        ? AppColors.white
+                        : AppColors.textSecondary,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        onTap: () => onTap(index),
       ),
     );
   }
@@ -677,7 +862,7 @@ class ResponsiveListCard extends StatelessWidget {
           ),
           if (actions != null && actions!.isNotEmpty) ...[
             const SizedBox(height: 16),
-            const Divider(color: AppColors.lightGray),
+            const Divider(color: AppColors.border),
             const SizedBox(height: 10),
 
             // ✅ Melhor: Wrap + largura mínima para botões não ficarem esmagados
@@ -690,10 +875,14 @@ class ResponsiveListCard extends StatelessWidget {
                   spacing: 10,
                   runSpacing: 8,
                   children: actions!
-                      .map((w) => ConstrainedBox(
-                            constraints: BoxConstraints(minWidth: isNarrow ? 140 : 160),
-                            child: w,
-                          ))
+                      .map(
+                        (w) => ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: isNarrow ? 140 : 160,
+                          ),
+                          child: w,
+                        ),
+                      )
                       .toList(),
                 );
               },
@@ -723,7 +912,7 @@ class ResponsiveDialog extends StatelessWidget {
     final fontMultiplier = ResponsiveUtils.getFontSizeMultiplier(context);
 
     return Dialog(
-      backgroundColor: AppColors.secondaryGray,
+      backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: AnimatedPadding(
         padding: MediaQuery.of(context).viewInsets,
@@ -732,7 +921,9 @@ class ResponsiveDialog extends StatelessWidget {
         child: Container(
           width: isDesktop ? 520 : ResponsiveUtils.getContentWidth(context),
           padding: EdgeInsets.all(isDesktop ? 24 : 16),
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.9),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.9,
+          ),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -755,10 +946,12 @@ class ResponsiveDialog extends StatelessWidget {
                     runSpacing: 10,
                     alignment: WrapAlignment.end,
                     children: actions!
-                        .map((a) => ConstrainedBox(
-                              constraints: const BoxConstraints(minWidth: 140),
-                              child: a,
-                            ))
+                        .map(
+                          (a) => ConstrainedBox(
+                            constraints: const BoxConstraints(minWidth: 140),
+                            child: a,
+                          ),
+                        )
                         .toList(),
                   ),
                 ],

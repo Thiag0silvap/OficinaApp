@@ -11,14 +11,42 @@ import '../models/cliente.dart';
 import '../models/veiculo.dart';
 import '../core/utils/formatters.dart';
 import '../core/utils/phone_input_formatter.dart';
+import '../core/utils/cnpj_input_formatter.dart';
 
-class ClientesScreen extends StatelessWidget {
+class ClientesScreen extends StatefulWidget {
   const ClientesScreen({super.key});
+
+  @override
+  State<ClientesScreen> createState() => _ClientesScreenState();
+}
+
+enum _SortClientes { nomeAsc, recentes }
+
+class _ClientesScreenState extends State<ClientesScreen> {
+  final TextEditingController _searchCtrl = TextEditingController();
+  TipoCliente? _tipoFiltro; // null = todos
+  _SortClientes _sort = _SortClientes.nomeAsc;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchCtrl.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Consumer<AppProvider>(
       builder: (context, provider, child) {
+        final filtered = _applyFilters(provider.clientes);
+
         return ResponsiveContainer(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -29,20 +57,245 @@ class ClientesScreen extends StatelessWidget {
                 addLabelLong: 'Novo Cliente',
                 addLabelShort: 'Novo',
               ),
+              const SizedBox(height: 12),
+              _buildToolbar(
+                context,
+                total: provider.clientes.length,
+                showing: filtered.length,
+              ),
               SizedBox(height: ResponsiveUtils.getCardSpacing(context)),
               Flexible(
                 child: provider.clientes.isEmpty
                     ? _buildEmptyState(context)
-                    : ResponsiveWidget(
-                        mobile: _buildMobileList(context, provider),
-                        tablet: _buildTabletGrid(context, provider),
-                        desktop: _buildDesktopGrid(context, provider),
-                      ),
+                    : (filtered.isEmpty
+                          ? _buildNoResults(context)
+                          : ResponsiveWidget(
+                              mobile: _buildMobileList(
+                                context,
+                                filtered,
+                                provider,
+                              ),
+                              tablet: _buildTabletGrid(
+                                context,
+                                filtered,
+                                provider,
+                              ),
+                              desktop: _buildDesktopGrid(
+                                context,
+                                filtered,
+                                provider,
+                              ),
+                            )),
               ),
             ],
           ),
         );
       },
+    );
+  }
+
+  List<Cliente> _applyFilters(List<Cliente> src) {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    var list = src.where((c) {
+      if (_tipoFiltro != null && c.tipo != _tipoFiltro) return false;
+      if (q.isEmpty) return true;
+      final nome = c.nome.toLowerCase();
+      final tel = c.telefone.toLowerCase();
+      final seg = (c.nomeSeguradora ?? '').toLowerCase();
+      return nome.contains(q) || tel.contains(q) || seg.contains(q);
+    }).toList();
+
+    switch (_sort) {
+      case _SortClientes.nomeAsc:
+        list.sort(
+          (a, b) => a.nome.toLowerCase().compareTo(b.nome.toLowerCase()),
+        );
+        break;
+      case _SortClientes.recentes:
+        list.sort((a, b) => b.dataCadastro.compareTo(a.dataCadastro));
+        break;
+    }
+    return list;
+  }
+
+  Widget _buildToolbar(
+    BuildContext context, {
+    required int total,
+    required int showing,
+  }) {
+    final isDesktop = ResponsiveUtils.isDesktop(context);
+    final isTablet = ResponsiveUtils.isTablet(context);
+    final theme = Theme.of(context);
+
+    final search = SizedBox(
+      width: isDesktop ? 420 : double.infinity,
+      child: TextField(
+        controller: _searchCtrl,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Buscar clientes por nome, telefone ou seguradora…',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _searchCtrl.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Limpar',
+                  onPressed: () {
+                    _searchCtrl.clear();
+                    FocusScope.of(context).unfocus();
+                  },
+                  icon: const Icon(Icons.close),
+                ),
+        ),
+      ),
+    );
+
+    final tipo = DropdownButtonHideUnderline(
+      child: DropdownButton<TipoCliente?>(
+        value: _tipoFiltro,
+        onChanged: (v) => setState(() => _tipoFiltro = v),
+        borderRadius: BorderRadius.circular(12),
+        items: const [
+          DropdownMenuItem<TipoCliente?>(value: null, child: Text('Todos')),
+          DropdownMenuItem<TipoCliente?>(
+            value: TipoCliente.particular,
+            child: Text('Particular'),
+          ),
+          DropdownMenuItem<TipoCliente?>(
+            value: TipoCliente.seguradora,
+            child: Text('Seguradora'),
+          ),
+          DropdownMenuItem<TipoCliente?>(
+            value: TipoCliente.frota,
+            child: Text('Frota'),
+          ),
+          DropdownMenuItem<TipoCliente?>(
+            value: TipoCliente.oficinaParceira,
+            child: Text('Oficina parceira'),
+          ),
+        ],
+      ),
+    );
+
+    final sort = DropdownButtonHideUnderline(
+      child: DropdownButton<_SortClientes>(
+        value: _sort,
+        onChanged: (v) => setState(() => _sort = v ?? _SortClientes.nomeAsc),
+        borderRadius: BorderRadius.circular(12),
+        items: const [
+          DropdownMenuItem(value: _SortClientes.nomeAsc, child: Text('A–Z')),
+          DropdownMenuItem(
+            value: _SortClientes.recentes,
+            child: Text('Recentes'),
+          ),
+        ],
+      ),
+    );
+
+    const double kToolbarHeight = 48;
+
+    final count = SizedBox(
+      height: kToolbarHeight,
+      child: Container(
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.25)),
+        ),
+        child: Text(
+          showing == total ? '$total clientes' : '$showing de $total',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+
+    if (isDesktop || isTablet) {
+      return Row(
+        children: [
+          Expanded(child: search),
+          const SizedBox(width: 12),
+          _toolbarChip(
+            context,
+            icon: Icons.filter_list,
+            child: tipo,
+            height: kToolbarHeight,
+          ),
+          const SizedBox(width: 12),
+          _toolbarChip(
+            context,
+            icon: Icons.sort,
+            child: sort,
+            height: kToolbarHeight,
+          ),
+          const SizedBox(width: 12),
+          count,
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        search,
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _toolbarChip(
+                context,
+                icon: Icons.filter_list,
+                child: tipo,
+                height: kToolbarHeight,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _toolbarChip(
+                context,
+                icon: Icons.sort,
+                child: sort,
+                height: kToolbarHeight,
+              ),
+            ),
+            const SizedBox(width: 10),
+            count,
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _toolbarChip(
+    BuildContext context, {
+    required IconData icon,
+    required Widget child,
+    double height = 48,
+  }) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      height: height,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surface,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 18,
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
+            ),
+            const SizedBox(width: 10),
+            Flexible(fit: FlexFit.loose, child: child),
+          ],
+        ),
+      ),
     );
   }
 
@@ -56,18 +309,27 @@ class ClientesScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMobileList(BuildContext context, AppProvider provider) {
+  Widget _buildMobileList(
+    BuildContext context,
+    List<Cliente> clientes,
+    AppProvider provider,
+  ) {
     return ListView.separated(
-      itemCount: provider.clientes.length,
-      separatorBuilder: (context, index) => SizedBox(height: ResponsiveUtils.getCardSpacing(context)),
+      itemCount: clientes.length,
+      separatorBuilder: (context, index) =>
+          SizedBox(height: ResponsiveUtils.getCardSpacing(context)),
       itemBuilder: (context, index) {
-        final cliente = provider.clientes[index];
+        final cliente = clientes[index];
         return _buildClienteCard(context, cliente, provider);
       },
     );
   }
 
-  Widget _buildTabletGrid(BuildContext context, AppProvider provider) {
+  Widget _buildTabletGrid(
+    BuildContext context,
+    List<Cliente> clientes,
+    AppProvider provider,
+  ) {
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
@@ -75,36 +337,62 @@ class ClientesScreen extends StatelessWidget {
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
-      itemCount: provider.clientes.length,
+      itemCount: clientes.length,
       itemBuilder: (context, index) {
-        final cliente = provider.clientes[index];
+        final cliente = clientes[index];
         return _buildClienteCard(context, cliente, provider);
       },
     );
   }
 
-  Widget _buildDesktopGrid(BuildContext context, AppProvider provider) {
+  Widget _buildDesktopGrid(
+    BuildContext context,
+    List<Cliente> clientes,
+    AppProvider provider,
+  ) {
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        childAspectRatio: 1.3,
+        // Cards um pouco mais compactos (premium / desktop)
+        childAspectRatio: 1.55,
         crossAxisSpacing: 20,
         mainAxisSpacing: 20,
       ),
-      itemCount: provider.clientes.length,
+      itemCount: clientes.length,
       itemBuilder: (context, index) {
-        final cliente = provider.clientes[index];
+        final cliente = clientes[index];
         return _buildClienteCard(context, cliente, provider);
       },
     );
   }
 
-  Widget _buildClienteCard(BuildContext context, Cliente cliente, AppProvider provider) {
+  Widget _buildNoResults(BuildContext context) {
+    return EmptyStateWidget(
+      icon: Icons.search_off,
+      title: 'Nenhum resultado',
+      subtitle: 'Tente ajustar o termo de busca ou remover filtros.',
+      actionLabel: 'Limpar filtros',
+      onAction: () {
+        setState(() {
+          _searchCtrl.clear();
+          _tipoFiltro = null;
+          _sort = _SortClientes.nomeAsc;
+        });
+      },
+    );
+  }
+
+  Widget _buildClienteCard(
+    BuildContext context,
+    Cliente cliente,
+    AppProvider provider,
+  ) {
     final isDesktop = ResponsiveUtils.isDesktop(context);
 
     return ResponsiveListCard(
       title: cliente.nome,
-      subtitle: '${cliente.telefone}${cliente.nomeSeguradora != null ? ' • ${cliente.nomeSeguradora}' : ''}',
+      subtitle:
+          '${cliente.telefone}${cliente.nomeSeguradora != null ? ' • ${cliente.nomeSeguradora}' : ''}',
       leading: CircleAvatar(
         backgroundColor: _getTipoClienteColor(cliente.tipo),
         radius: isDesktop ? 24 : 20,
@@ -135,10 +423,46 @@ class ClientesScreen extends StatelessWidget {
           }
         },
         itemBuilder: (context) => [
-          PopupMenuItem(value: 'editar', child: Row(children: const [Icon(Icons.edit, size: 20), SizedBox(width: 8), Text('Editar')])),
-          PopupMenuItem(value: 'veiculo', child: Row(children: const [Icon(Icons.directions_car, size: 20), SizedBox(width: 8), Text('Add Veículo')])),
-          PopupMenuItem(value: 'orcamento', child: Row(children: const [Icon(Icons.description, size: 20), SizedBox(width: 8), Text('Novo Orçamento')])),
-          PopupMenuItem(value: 'excluir', child: Row(children: [Icon(Icons.delete, size: 20, color: AppColors.error), const SizedBox(width: 8), const Text('Excluir', style: TextStyle(color: AppColors.error))])),
+          PopupMenuItem(
+            value: 'editar',
+            child: Row(
+              children: const [
+                Icon(Icons.edit, size: 20),
+                SizedBox(width: 8),
+                Text('Editar'),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'veiculo',
+            child: Row(
+              children: const [
+                Icon(Icons.directions_car, size: 20),
+                SizedBox(width: 8),
+                Text('Add Veículo'),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'orcamento',
+            child: Row(
+              children: const [
+                Icon(Icons.description, size: 20),
+                SizedBox(width: 8),
+                Text('Novo Orçamento'),
+              ],
+            ),
+          ),
+          PopupMenuItem(
+            value: 'excluir',
+            child: Row(
+              children: [
+                Icon(Icons.delete, size: 20, color: AppColors.error),
+                const SizedBox(width: 8),
+                const Text('Excluir', style: TextStyle(color: AppColors.error)),
+              ],
+            ),
+          ),
         ],
       ),
       onTap: () => _showClienteDetails(context, cliente, provider),
@@ -192,30 +516,38 @@ class ClientesScreen extends StatelessWidget {
               id: DateTime.now().millisecondsSinceEpoch.toString(),
               nome: nomeController.text,
               telefone: telefoneController.text,
-              endereco: enderecoController.text.isEmpty ? null : enderecoController.text,
+              endereco: enderecoController.text.isEmpty
+                  ? null
+                  : enderecoController.text,
               dataCadastro: DateTime.now(),
               observacoes: observacoesController.text.isEmpty
                   ? null
                   : observacoesController.text,
               tipo: tipoSelecionado,
-              nomeSeguradora: tipoSelecionado == TipoCliente.seguradora &&
+              nomeSeguradora:
+                  tipoSelecionado == TipoCliente.seguradora &&
                       nomeSeguradoraController.text.isNotEmpty
                   ? nomeSeguradoraController.text
                   : null,
-              cnpj: tipoSelecionado == TipoCliente.seguradora &&
+              cnpj:
+                  tipoSelecionado == TipoCliente.seguradora &&
                       cnpjController.text.isNotEmpty
                   ? cnpjController.text
                   : null,
-              contato: tipoSelecionado == TipoCliente.seguradora &&
+              contato:
+                  tipoSelecionado == TipoCliente.seguradora &&
                       contatoController.text.isNotEmpty
                   ? contatoController.text
                   : null,
             );
             try {
-              await Provider.of<AppProvider>(scaffoldContext, listen: false)
-                  .addCliente(cliente);
+              await Provider.of<AppProvider>(
+                scaffoldContext,
+                listen: false,
+              ).addCliente(cliente);
 
-              if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+              if (dialogContext.mounted &&
+                  Navigator.of(dialogContext).canPop()) {
                 Navigator.pop(dialogContext);
               }
 
@@ -304,6 +636,11 @@ class ClientesScreen extends StatelessWidget {
                             label: 'CNPJ da Seguradora',
                             prefixIcon: Icons.numbers,
                           ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            CnpjInputFormatter(),
+                          ],
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -451,11 +788,19 @@ class ClientesScreen extends StatelessWidget {
     final formKey = GlobalKey<FormState>();
     final nomeController = TextEditingController(text: cliente.nome);
     final telefoneController = TextEditingController(text: cliente.telefone);
-    final enderecoController = TextEditingController(text: cliente.endereco ?? '');
-    final observacoesController = TextEditingController(text: cliente.observacoes ?? '');
-    final nomeSeguradoraController = TextEditingController(text: cliente.nomeSeguradora ?? '');
+    final enderecoController = TextEditingController(
+      text: cliente.endereco ?? '',
+    );
+    final observacoesController = TextEditingController(
+      text: cliente.observacoes ?? '',
+    );
+    final nomeSeguradoraController = TextEditingController(
+      text: cliente.nomeSeguradora ?? '',
+    );
     final cnpjController = TextEditingController(text: cliente.cnpj ?? '');
-    final contatoController = TextEditingController(text: cliente.contato ?? '');
+    final contatoController = TextEditingController(
+      text: cliente.contato ?? '',
+    );
 
     final nomeSeguradoraFocus = FocusNode();
     final cnpjFocus = FocusNode();
@@ -485,24 +830,30 @@ class ClientesScreen extends StatelessWidget {
                   ? null
                   : observacoesController.text,
               tipo: tipoSelecionado,
-              nomeSeguradora: tipoSelecionado == TipoCliente.seguradora &&
+              nomeSeguradora:
+                  tipoSelecionado == TipoCliente.seguradora &&
                       nomeSeguradoraController.text.isNotEmpty
                   ? nomeSeguradoraController.text
                   : null,
-              cnpj: tipoSelecionado == TipoCliente.seguradora &&
+              cnpj:
+                  tipoSelecionado == TipoCliente.seguradora &&
                       cnpjController.text.isNotEmpty
                   ? cnpjController.text
                   : null,
-              contato: tipoSelecionado == TipoCliente.seguradora &&
+              contato:
+                  tipoSelecionado == TipoCliente.seguradora &&
                       contatoController.text.isNotEmpty
                   ? contatoController.text
                   : null,
             );
             try {
-              await Provider.of<AppProvider>(scaffoldContext, listen: false)
-                  .updateCliente(updated);
+              await Provider.of<AppProvider>(
+                scaffoldContext,
+                listen: false,
+              ).updateCliente(updated);
 
-              if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+              if (dialogContext.mounted &&
+                  Navigator.of(dialogContext).canPop()) {
                 Navigator.pop(dialogContext);
               }
 
@@ -734,7 +1085,11 @@ class ClientesScreen extends StatelessWidget {
     });
   }
 
-  void _showDeleteClienteDialog(BuildContext context, Cliente cliente, AppProvider provider) {
+  void _showDeleteClienteDialog(
+    BuildContext context,
+    Cliente cliente,
+    AppProvider provider,
+  ) {
     final scaffoldContext = context;
     bool isDeleting = false;
     showDialog(
@@ -753,7 +1108,9 @@ class ClientesScreen extends StatelessWidget {
             ),
             actions: [
               OutlinedButton(
-                onPressed: isDeleting ? null : () => Navigator.pop(dialogContext),
+                onPressed: isDeleting
+                    ? null
+                    : () => Navigator.pop(dialogContext),
                 child: const Text('Cancelar'),
               ),
               ElevatedButton(
@@ -780,7 +1137,9 @@ class ClientesScreen extends StatelessWidget {
                         } catch (e) {
                           if (scaffoldContext.mounted) {
                             ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                              SnackBar(content: Text('Erro ao excluir cliente: $e')),
+                              SnackBar(
+                                content: Text('Erro ao excluir cliente: $e'),
+                              ),
                             );
                           }
                         } finally {
@@ -789,7 +1148,9 @@ class ClientesScreen extends StatelessWidget {
                           }
                         }
                       },
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                ),
                 child: isDeleting
                     ? const SizedBox(
                         height: 16,
@@ -858,7 +1219,10 @@ class ClientesScreen extends StatelessWidget {
             if (!formKey.currentState!.validate()) return;
             setState(() => isSaving = true);
 
-            final provider = Provider.of<AppProvider>(scaffoldContext, listen: false);
+            final provider = Provider.of<AppProvider>(
+              scaffoldContext,
+              listen: false,
+            );
 
             final marcaFinal = (selectedMarca == otherOptionValue)
                 ? marcaCustomController.text.trim()
@@ -866,15 +1230,17 @@ class ClientesScreen extends StatelessWidget {
             final modeloFinal = (selectedMarca == otherOptionValue)
                 ? modeloCustomController.text.trim()
                 : (selectedModelo == otherOptionValue)
-                    ? modeloCustomController.text.trim()
-                    : (selectedModelo ?? '').trim();
+                ? modeloCustomController.text.trim()
+                : (selectedModelo ?? '').trim();
 
             final anoText = anoController.text.trim();
             final anoValue = anoText.isEmpty ? null : int.tryParse(anoText);
             if (anoText.isNotEmpty && anoValue == null) {
               if (scaffoldContext.mounted) {
                 ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                  const SnackBar(content: Text('Ano inválido. Use apenas números.')),
+                  const SnackBar(
+                    content: Text('Ano inválido. Use apenas números.'),
+                  ),
                 );
               }
               if (dialogContext.mounted) {
@@ -891,8 +1257,9 @@ class ClientesScreen extends StatelessWidget {
               cor: corController.text,
               placa: placaController.text,
               ano: anoValue,
-              observacoes:
-                  observacoesController.text.isEmpty ? null : observacoesController.text,
+              observacoes: observacoesController.text.isEmpty
+                  ? null
+                  : observacoesController.text,
             );
             try {
               await provider.addMarcaModeloCustom(
@@ -901,7 +1268,8 @@ class ClientesScreen extends StatelessWidget {
               );
               await provider.addVeiculo(veiculo);
 
-              if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
+              if (dialogContext.mounted &&
+                  Navigator.of(dialogContext).canPop()) {
                 Navigator.pop(dialogContext);
               }
 
@@ -936,162 +1304,204 @@ class ClientesScreen extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                    DropdownButtonFormField<String>(
-                      isExpanded: true,
-                      initialValue: selectedMarca,
-                      decoration: formFieldDecoration(label: 'Marca *', prefixIcon: Icons.directions_car),
-                      items: [
-                        ...Provider.of<AppProvider>(scaffoldContext, listen: false)
-                            .marcasDisponiveis
-                            .map<DropdownMenuItem<String>>(
-                              (m) => DropdownMenuItem<String>(value: m, child: Text(m)),
-                            ),
-                        const DropdownMenuItem<String>(
-                          value: otherOptionValue,
-                          child: Text('Outra... (digitar)'),
-                        ),
-                      ],
-                      onChanged: (v) => setState(() {
-                        selectedMarca = v;
-                        selectedModelo = null;
-                        if (v != otherOptionValue) {
-                          marcaCustomController.clear();
-                        }
-                        modeloCustomController.clear();
-                      }),
-                      validator: (v) {
-                        if (v == null) return 'Marca é obrigatória';
-                        if (v == otherOptionValue && marcaCustomController.text.trim().isEmpty) {
-                          return 'Informe a marca';
-                        }
-                        return null;
-                      },
-                    ),
-                    if (selectedMarca == otherOptionValue) ...[
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: marcaCustomController,
-                        decoration: formFieldDecoration(label: 'Digite a marca *', prefixIcon: Icons.edit),
-                        validator: (v) {
-                          if (selectedMarca != otherOptionValue) return null;
-                          return (v == null || v.trim().isEmpty) ? 'Marca é obrigatória' : null;
-                        },
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-
-                    if (selectedMarca == null)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          'Selecione a marca primeiro',
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                      )
-                    else if (selectedMarca == otherOptionValue)
-                      TextFormField(
-                        controller: modeloCustomController,
-                        decoration: formFieldDecoration(label: 'Modelo *', prefixIcon: Icons.drive_eta),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Modelo é obrigatório' : null,
-                      )
-                    else
                       DropdownButtonFormField<String>(
                         isExpanded: true,
-                        initialValue: selectedModelo,
-                        decoration: formFieldDecoration(label: 'Modelo *', prefixIcon: Icons.drive_eta),
+                        initialValue: selectedMarca,
+                        decoration: formFieldDecoration(
+                          label: 'Marca *',
+                          prefixIcon: Icons.directions_car,
+                        ),
                         items: [
-                          ...Provider.of<AppProvider>(scaffoldContext, listen: false)
-                              .modelosDisponiveis(selectedMarca)
-                              .map<DropdownMenuItem<String>>(
-                                (m) => DropdownMenuItem<String>(value: m, child: Text(m)),
-                              ),
+                          ...Provider.of<AppProvider>(
+                            scaffoldContext,
+                            listen: false,
+                          ).marcasDisponiveis.map<DropdownMenuItem<String>>(
+                            (m) => DropdownMenuItem<String>(
+                              value: m,
+                              child: Text(m),
+                            ),
+                          ),
                           const DropdownMenuItem<String>(
                             value: otherOptionValue,
-                            child: Text('Outro... (digitar)'),
+                            child: Text('Outra... (digitar)'),
                           ),
                         ],
                         onChanged: (v) => setState(() {
-                          selectedModelo = v;
+                          selectedMarca = v;
+                          selectedModelo = null;
                           if (v != otherOptionValue) {
-                            modeloCustomController.clear();
+                            marcaCustomController.clear();
                           }
+                          modeloCustomController.clear();
                         }),
                         validator: (v) {
-                          if (selectedMarca == null) return 'Selecione a marca';
-                          if (v == null) return 'Modelo é obrigatório';
-                          if (v == otherOptionValue && modeloCustomController.text.trim().isEmpty) {
-                            return 'Informe o modelo';
+                          if (v == null) return 'Marca é obrigatória';
+                          if (v == otherOptionValue &&
+                              marcaCustomController.text.trim().isEmpty) {
+                            return 'Informe a marca';
                           }
                           return null;
                         },
-                        hint: const Text('Selecione o modelo'),
                       ),
+                      if (selectedMarca == otherOptionValue) ...[
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: marcaCustomController,
+                          decoration: formFieldDecoration(
+                            label: 'Digite a marca *',
+                            prefixIcon: Icons.edit,
+                          ),
+                          validator: (v) {
+                            if (selectedMarca != otherOptionValue) return null;
+                            return (v == null || v.trim().isEmpty)
+                                ? 'Marca é obrigatória'
+                                : null;
+                          },
+                        ),
+                      ],
+                      const SizedBox(height: 16),
 
-                    if (selectedMarca != null &&
-                        selectedMarca != otherOptionValue &&
-                        selectedModelo == otherOptionValue) ...[
+                      if (selectedMarca == null)
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Selecione a marca primeiro',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        )
+                      else if (selectedMarca == otherOptionValue)
+                        TextFormField(
+                          controller: modeloCustomController,
+                          decoration: formFieldDecoration(
+                            label: 'Modelo *',
+                            prefixIcon: Icons.drive_eta,
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? 'Modelo é obrigatório'
+                              : null,
+                        )
+                      else
+                        DropdownButtonFormField<String>(
+                          isExpanded: true,
+                          initialValue: selectedModelo,
+                          decoration: formFieldDecoration(
+                            label: 'Modelo *',
+                            prefixIcon: Icons.drive_eta,
+                          ),
+                          items: [
+                            ...Provider.of<AppProvider>(
+                                  scaffoldContext,
+                                  listen: false,
+                                )
+                                .modelosDisponiveis(selectedMarca)
+                                .map<DropdownMenuItem<String>>(
+                                  (m) => DropdownMenuItem<String>(
+                                    value: m,
+                                    child: Text(m),
+                                  ),
+                                ),
+                            const DropdownMenuItem<String>(
+                              value: otherOptionValue,
+                              child: Text('Outro... (digitar)'),
+                            ),
+                          ],
+                          onChanged: (v) => setState(() {
+                            selectedModelo = v;
+                            if (v != otherOptionValue) {
+                              modeloCustomController.clear();
+                            }
+                          }),
+                          validator: (v) {
+                            if (selectedMarca == null) {
+                              return 'Selecione a marca';
+                            }
+                            if (v == null) return 'Modelo é obrigatório';
+                            if (v == otherOptionValue &&
+                                modeloCustomController.text.trim().isEmpty) {
+                              return 'Informe o modelo';
+                            }
+                            return null;
+                          },
+                          hint: const Text('Selecione o modelo'),
+                        ),
+
+                      if (selectedMarca != null &&
+                          selectedMarca != otherOptionValue &&
+                          selectedModelo == otherOptionValue) ...[
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: modeloCustomController,
+                          decoration: formFieldDecoration(
+                            label: 'Digite o modelo *',
+                            prefixIcon: Icons.edit,
+                          ),
+                          validator: (v) {
+                            if (selectedModelo != otherOptionValue) return null;
+                            return (v == null || v.trim().isEmpty)
+                                ? 'Modelo é obrigatório'
+                                : null;
+                          },
+                        ),
+                      ],
+
                       const SizedBox(height: 16),
                       TextFormField(
-                        controller: modeloCustomController,
-                        decoration: formFieldDecoration(label: 'Digite o modelo *', prefixIcon: Icons.edit),
-                        validator: (v) {
-                          if (selectedModelo != otherOptionValue) return null;
-                          return (v == null || v.trim().isEmpty) ? 'Modelo é obrigatório' : null;
-                        },
+                        controller: corController,
+                        focusNode: corFocus,
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: (_) => placaFocus.requestFocus(),
+                        decoration: formFieldDecoration(
+                          label: 'Cor *',
+                          prefixIcon: Icons.color_lens,
+                        ),
+                        validator: (value) => (value?.isEmpty ?? true)
+                            ? 'Cor é obrigatória'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: placaController,
+                        focusNode: placaFocus,
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: (_) => anoFocus.requestFocus(),
+                        decoration: formFieldDecoration(
+                          label: 'Placa *',
+                          prefixIcon: Icons.confirmation_number,
+                        ),
+                        validator: (value) => (value?.isEmpty ?? true)
+                            ? 'Placa é obrigatória'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: anoController,
+                        focusNode: anoFocus,
+                        textInputAction: TextInputAction.next,
+                        onFieldSubmitted: (_) =>
+                            FocusScope.of(dialogContext).nextFocus(),
+                        decoration: formFieldDecoration(
+                          label: 'Ano',
+                          prefixIcon: Icons.calendar_today,
+                        ),
+                        keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: observacoesController,
+                        decoration: formFieldDecoration(
+                          label: 'Observações',
+                          prefixIcon: Icons.note,
+                        ),
+                        maxLines: 3,
                       ),
                     ],
-
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: corController,
-                      focusNode: corFocus,
-                      textInputAction: TextInputAction.next,
-                      onFieldSubmitted: (_) => placaFocus.requestFocus(),
-                      decoration: formFieldDecoration(
-                        label: 'Cor *',
-                        prefixIcon: Icons.color_lens,
-                      ),
-                      validator: (value) =>
-                          (value?.isEmpty ?? true) ? 'Cor é obrigatória' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: placaController,
-                      focusNode: placaFocus,
-                      textInputAction: TextInputAction.next,
-                      onFieldSubmitted: (_) => anoFocus.requestFocus(),
-                      decoration: formFieldDecoration(
-                        label: 'Placa *',
-                        prefixIcon: Icons.confirmation_number,
-                      ),
-                      validator: (value) => (value?.isEmpty ?? true)
-                          ? 'Placa é obrigatória'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: anoController,
-                      focusNode: anoFocus,
-                      textInputAction: TextInputAction.next,
-                      onFieldSubmitted: (_) =>
-                          FocusScope.of(dialogContext).nextFocus(),
-                      decoration: formFieldDecoration(
-                        label: 'Ano',
-                        prefixIcon: Icons.calendar_today,
-                      ),
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(controller: observacoesController, decoration: formFieldDecoration(label: 'Observações', prefixIcon: Icons.note), maxLines: 3),
-                  ],
+                  ),
                 ),
               ),
             ),
-            ),
             actions: [
               OutlinedButton(
-                onPressed:
-                    isSaving ? null : () => Navigator.pop(dialogContext),
+                onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
                 child: const Text('Cancelar'),
               ),
               ElevatedButton(
@@ -1160,7 +1570,11 @@ class ClientesScreen extends StatelessWidget {
     );
   }
 
-  void _showClienteDetails(BuildContext context, Cliente cliente, AppProvider provider) {
+  void _showClienteDetails(
+    BuildContext context,
+    Cliente cliente,
+    AppProvider provider,
+  ) {
     final veiculos = provider.getVeiculosByCliente(cliente.id);
     final orcamentos = provider.getOrcamentosByCliente(cliente.id);
 
@@ -1176,9 +1590,17 @@ class ClientesScreen extends StatelessWidget {
               children: [
                 _buildDetailRow(Icons.phone, 'Telefone', cliente.telefone),
                 if (cliente.endereco != null)
-                  _buildDetailRow(Icons.location_on, 'Endereço', cliente.endereco!),
+                  _buildDetailRow(
+                    Icons.location_on,
+                    'Endereço',
+                    cliente.endereco!,
+                  ),
                 if (cliente.observacoes != null)
-                  _buildDetailRow(Icons.note, 'Observações', cliente.observacoes!),
+                  _buildDetailRow(
+                    Icons.note,
+                    'Observações',
+                    cliente.observacoes!,
+                  ),
                 const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 16),
@@ -1269,8 +1691,17 @@ class ClientesScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ResponsiveText(label, style: TextStyle(fontSize: 12, color: AppColors.white.withValues(alpha: 0.7))),
-                ResponsiveText(value, style: const TextStyle(fontWeight: FontWeight.w500)),
+                ResponsiveText(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.white.withValues(alpha: 0.7),
+                  ),
+                ),
+                ResponsiveText(
+                  value,
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                ),
               ],
             ),
           ),
