@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:provider/provider.dart';
+
 import '../core/theme/app_theme.dart';
 import '../core/components/responsive_components.dart';
 import '../core/utils/formatters.dart';
@@ -40,6 +41,16 @@ class DashboardScreen extends StatelessWidget {
           child: LayoutBuilder(
             builder: (context, constraints) {
               final spacing = ResponsiveUtils.getCardSpacing(context);
+              final isMobile = ResponsiveUtils.isMobile(context);
+
+              // Desktop: 4 cards. Tablet: 2. Mobile: 1.
+              final crossAxisCount = isMobile
+                  ? 1
+                  : (constraints.maxWidth >= 1200 ? 4 : 2);
+
+              // Ajusta altura “premium” dos cards sem distorcer
+              final cardAspectRatio =
+                  isMobile ? 3.3 : (crossAxisCount == 4 ? 2.55 : 2.7);
 
               return SingleChildScrollView(
                 child: Column(
@@ -49,10 +60,14 @@ class DashboardScreen extends StatelessWidget {
 
                     SizedBox(height: spacing),
 
-                    /// ======= CARDS RESPONSIVOS =======
-                    Wrap(
-                      spacing: spacing,
-                      runSpacing: spacing,
+                    /// ======= CARDS (GRID ALINHADO) =======
+                    GridView.count(
+                      crossAxisCount: crossAxisCount,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: spacing,
+                      crossAxisSpacing: spacing,
+                      childAspectRatio: cardAspectRatio,
                       children: [
                         _buildStatCard(
                           context,
@@ -62,14 +77,12 @@ class DashboardScreen extends StatelessWidget {
                           iconColor: AppColors.primaryYellow,
                           trend: faturamentoVar['label'],
                           trendUp: faturamentoVar['up'] ?? true,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const FinanceiroScreen(),
-                              ),
-                            );
-                          },
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const FinanceiroScreen(),
+                            ),
+                          ),
                         ),
                         _buildStatCard(
                           context,
@@ -97,18 +110,18 @@ class DashboardScreen extends StatelessWidget {
 
                     SizedBox(height: spacing * 1.5),
 
-                    /// ======= INSIGHTS (DESKTOP-FIRST) =======
+                    /// ======= INSIGHTS (CHART + RESUMO) =======
                     _buildInsights(context, provider, spacing: spacing),
 
                     SizedBox(height: spacing * 2),
 
                     /// ======= ORDENS + AGENDA =======
-                    ResponsiveUtils.isMobile(context)
+                    isMobile
                         ? Column(
                             children: [
-                              _buildRecentOrders(provider),
+                              _buildRecentOrders(context, provider),
                               SizedBox(height: spacing),
-                              _buildSchedule(provider),
+                              _buildSchedule(context, provider),
                             ],
                           )
                         : Row(
@@ -116,10 +129,12 @@ class DashboardScreen extends StatelessWidget {
                             children: [
                               Expanded(
                                 flex: 2,
-                                child: _buildRecentOrders(provider),
+                                child: _buildRecentOrders(context, provider),
                               ),
                               SizedBox(width: spacing),
-                              Expanded(child: _buildSchedule(provider)),
+                              Expanded(
+                                child: _buildSchedule(context, provider),
+                              ),
                             ],
                           ),
                   ],
@@ -133,7 +148,7 @@ class DashboardScreen extends StatelessWidget {
   }
 
   /// ================= INSIGHTS =================
-  /// Bloco que dá “cara SaaS premium”: gráfico + resumo/atalhos.
+  /// Gráfico + resumo/atalhos com layout mais “premium” (grid fixo nos botões).
   Widget _buildInsights(
     BuildContext context,
     AppProvider provider, {
@@ -172,9 +187,9 @@ class DashboardScreen extends StatelessWidget {
     final saldoHoje = entradasHoje - saidasHoje;
 
     final chart = _sectionContainer(
-      title: 'Evolução (últimos 6 meses)',
+      title: 'Evolução de Faturamento',
       child: SizedBox(
-        height: 220,
+        height: 260,
         child: _buildLineChart(
           context,
           months: months,
@@ -185,7 +200,7 @@ class DashboardScreen extends StatelessWidget {
     );
 
     final resumo = _sectionContainer(
-      title: 'Resumo rápido',
+      title: 'Resumo Diário',
       child: Column(
         children: [
           _buildMiniMetricRow(
@@ -227,36 +242,94 @@ class DashboardScreen extends StatelessWidget {
           const Divider(height: 1),
           const SizedBox(height: 14),
 
-          /// Atalhos (desktop-friendly)
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
+          // Botão principal amarelo + atalhos embaixo (como no design)
+          Row(
             children: [
-              _quickAction(
-                context,
-                icon: Icons.receipt_long,
-                label: 'Orçamentos',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const OrcamentosScreen()),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(
+                          backgroundColor: AppColors.surface,
+                          automaticallyImplyLeading: true,
+                          title: const Text('Orçamentos'),
+                        ),
+                        body: const OrcamentosScreen(),
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Novo Orçamento'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primaryYellow,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                  ),
                 ),
               ),
-              _quickAction(
-                context,
-                icon: Icons.people_alt,
-                label: 'Clientes',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ClientesScreen()),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(
+                          backgroundColor: AppColors.surface,
+                          automaticallyImplyLeading: true,
+                          title: const Text('Clientes'),
+                        ),
+                        body: const ClientesScreen(),
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.people_alt),
+                  label: const Text('Clientes'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.white,
+                    side: BorderSide(color: AppColors.border),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
                 ),
               ),
-              _quickAction(
-                context,
-                icon: Icons.attach_money,
-                label: 'Financeiro',
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const FinanceiroScreen()),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(
+                          backgroundColor: AppColors.surface,
+                          automaticallyImplyLeading: true,
+                          title: const Text('Financeiro'),
+                        ),
+                        body: const FinanceiroScreen(),
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.attach_money),
+                  label: const Text('Financeiro'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.white,
+                    side: BorderSide(color: AppColors.border),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
                 ),
               ),
             ],
@@ -285,19 +358,38 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _quickAction(
+  Widget _quickActionWide(
     BuildContext context, {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    bool filled = false,
   }) {
-    return SizedBox(
-      width: 140,
-      height: 44,
-      child: OutlinedButton.icon(
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(14),
+    );
+
+    if (filled) {
+      return FilledButton.icon(
         onPressed: onTap,
         icon: Icon(icon, size: 18),
         label: Text(label),
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.primaryYellow,
+          foregroundColor: Colors.black,
+          shape: shape,
+        ),
+      );
+    }
+
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.primaryYellow,
+        side: BorderSide(color: AppColors.border),
+        shape: shape,
       ),
     );
   }
@@ -334,16 +426,17 @@ class DashboardScreen extends StatelessWidget {
                 child: Text(
                   label,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.white.withValues(alpha: 0.75),
-                    fontWeight: FontWeight.w600,
-                  ),
+                        color: Colors.white.withValues(alpha: 0.75),
+                        fontWeight: FontWeight.w600,
+                      ),
                 ),
               ),
               Text(
                 value,
-                style: Theme.of(
-                  context,
-                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyLarge
+                    ?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -361,18 +454,12 @@ class DashboardScreen extends StatelessWidget {
     final textColor = Colors.white.withValues(alpha: 0.65);
     final gridColor = Colors.white.withValues(alpha: 0.06);
 
-    final maxY = <double>[
-      ...entradas,
-      ...saidas,
-    ].fold<double>(0, (m, v) => v > m ? v : m);
-    // fl_chart espera double? em maxY; usar double evita erro de tipo (num).
+    final maxY = <double>[...entradas, ...saidas]
+        .fold<double>(0, (m, v) => v > m ? v : m);
     final double safeMaxY = maxY <= 0 ? 100.0 : (maxY * 1.2);
 
     List<FlSpot> spotsFrom(List<double> values) {
-      return List.generate(
-        values.length,
-        (i) => FlSpot(i.toDouble(), values[i]),
-      );
+      return List.generate(values.length, (i) => FlSpot(i.toDouble(), values[i]));
     }
 
     return LineChart(
@@ -397,9 +484,8 @@ class DashboardScreen extends StatelessWidget {
               reservedSize: 46,
               interval: safeMaxY / 4,
               getTitlesWidget: (value, meta) {
-                final label = value == 0
-                    ? '0'
-                    : Formatters.compactCurrency(value);
+                final label =
+                    value == 0 ? '0' : Formatters.compactCurrency(value);
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: Text(
@@ -509,26 +595,100 @@ class DashboardScreen extends StatelessWidget {
     final auth = context.watch<AuthProvider>();
     final name = auth.currentUser?.name.trim() ?? '';
     final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : '?';
-
     return Row(
       children: [
         Expanded(
-          child: Text(
-            'Visão Geral',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Dashboard',
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineMedium
+                    ?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Visão geral da sua oficina hoje',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.white.withValues(alpha: 0.65),
+                    ),
+              ),
+            ],
           ),
         ),
-        CircleAvatar(
-          backgroundColor: AppColors.primaryYellow.withValues(alpha: 0.2),
-          child: Text(
-            initial,
-            style: const TextStyle(
-              color: AppColors.primaryYellow,
-              fontWeight: FontWeight.bold,
+
+        Row(
+          children: [
+            Container(
+              margin: const EdgeInsets.only(right: 12),
+              width: 44,
+              height: 44,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned.fill(
+                    child: Material(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        onPressed: () {},
+                        icon: Icon(Icons.notifications,
+                            color: Colors.white.withValues(alpha: 0.9)),
+                      ),
+                    ),
+                  ),
+                  // small yellow badge
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryYellow,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.surface, width: 2),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+
+            // user chip (dark background with avatar)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircleAvatar(
+                    backgroundColor: AppColors.primaryYellow,
+                    radius: 14,
+                    child: Text(
+                      initial,
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    name.isNotEmpty ? name.split(' ').first : 'Admin',
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.95)),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -545,49 +705,55 @@ class DashboardScreen extends StatelessWidget {
     bool trendUp = true,
     VoidCallback? onTap,
   }) {
-    return SizedBox(
-      width: ResponsiveUtils.isMobile(context) ? double.infinity : 260,
-      child: Material(
-        color: Colors.transparent,
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Ink(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.secondaryGray,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Icon(icon, color: iconColor, size: 26),
-                    if (trend != null)
-                      Text(
-                        trend,
-                        style: TextStyle(
-                          color: trendUp ? AppColors.success : AppColors.error,
-                          fontWeight: FontWeight.bold,
-                        ),
+        child: Ink(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.secondaryGray,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.border, width: 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Icon(icon, color: iconColor, size: 26),
+                  if (trend != null)
+                    Text(
+                      trend,
+                      style: TextStyle(
+                        color: trendUp ? AppColors.success : AppColors.error,
+                        fontWeight: FontWeight.bold,
                       ),
-                  ],
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.65),
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: 12),
-                Text(title, style: const TextStyle(color: Colors.grey)),
-                const SizedBox(height: 6),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
                 ),
-              ],
-            ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
       ),
@@ -595,23 +761,47 @@ class DashboardScreen extends StatelessWidget {
   }
 
   /// ================= ORDENS RECENTES =================
-  Widget _buildRecentOrders(AppProvider provider) {
+  Widget _buildRecentOrders(BuildContext context, AppProvider provider) {
     final orders = provider.orcamentos.take(5).toList();
 
     return _sectionContainer(
       title: 'Ordens Recentes',
       child: orders.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.all(20),
-              child: Text('Nenhuma ordem recente'),
+          ? Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Nenhuma ordem recente',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+              ),
             )
           : Column(
               children: orders
                   .map(
-                    (o) => ListTile(
-                      title: Text(o.clienteNome),
-                      subtitle: Text(o.veiculoDescricao),
-                      trailing: Text(Formatters.currency(o.valorTotal)),
+                    (o) => Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.06),
+                        ),
+                      ),
+                      child: ListTile(
+                        title: Text(
+                          o.clienteNome,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text(
+                          o.veiculoDescricao,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.7),
+                          ),
+                        ),
+                        trailing: Text(
+                          Formatters.currency(o.valorTotal),
+                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        ),
+                      ),
                     ),
                   )
                   .toList(),
@@ -620,23 +810,48 @@ class DashboardScreen extends StatelessWidget {
   }
 
   /// ================= AGENDA =================
-  Widget _buildSchedule(AppProvider provider) {
+  Widget _buildSchedule(BuildContext context, AppProvider provider) {
     final pendentes = provider.orcamentosPendentes.take(3).toList();
 
     return _sectionContainer(
       title: 'Próximos Agendamentos',
       child: pendentes.isEmpty
-          ? const Padding(
-              padding: EdgeInsets.all(20),
-              child: Text('Sem agendamentos'),
+          ? Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Sem agendamentos',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+              ),
             )
           : Column(
               children: pendentes
                   .map(
-                    (o) => ListTile(
-                      leading: const Icon(Icons.calendar_today),
-                      title: Text(o.clienteNome),
-                      subtitle: Text(o.veiculoDescricao),
+                    (o) => Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.04),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.06),
+                        ),
+                      ),
+                      child: ListTile(
+                        leading: Icon(
+                          Icons.calendar_today,
+                          color: Colors.white.withValues(alpha: 0.75),
+                          size: 18,
+                        ),
+                        title: Text(
+                          o.clienteNome,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text(
+                          o.veiculoDescricao,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ),
                     ),
                   )
                   .toList(),
@@ -645,21 +860,37 @@ class DashboardScreen extends StatelessWidget {
   }
 
   /// ================= CONTAINER PADRÃO =================
-  Widget _sectionContainer({required String title, required Widget child}) {
+  Widget _sectionContainer({
+    required String title,
+    Widget? trailing,
+    required Widget child,
+  }) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.secondaryGray,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.border, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: AppColors.white,
+                  ),
+                ),
+              ),
+              if (trailing != null) trailing,
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           child,
         ],
       ),
