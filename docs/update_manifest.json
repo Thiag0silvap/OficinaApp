@@ -1,5 +1,5 @@
-{
-  "latestVersion": "1.0.1+5",
-  "downloadUrl": "https://github.com/Thiag0silvap/OficinaApp/releases/download/v1.0.1_5/oficinaapp_linux_1.0.1_5.zip",
-  "notes": "- Melhoria geral de UX no desktop (Enter/Ctrl+Enter/Esc e foco em formulários)\n- Orçamentos: botão Editar, desconto persistido e PDF consistente\n- PDF: pré-visualização/impressão integrada\n- Segurança: dados isolados por usuário (SQLite por userId)\n- Sessão: botão global de Sair + avatar com inicial do usuário\n- Correções de estabilidade em dialogs (controllers/focus)"
+﻿{
+    "latestVersion":  "1.0.3+7",
+    "downloadUrl":  "https://github.com/Thiag0silvap/OficinaApp/releases/download/v1.0.3_7/oficinaapp_windows_1.0.3_7.zip",
+    "notes":  "- Descreva aqui as mudanÃ§as desta versÃ£o"
 }
