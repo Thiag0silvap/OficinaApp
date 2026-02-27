@@ -5,9 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user.dart';
 import '../services/auth_service.dart';
+import '../services/secure_storage_service.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _service;
+  final SecureStorageService _secureStorage = SecureStorageService();
   User? _currentUser;
   static const _prefsKey = 'auth_user';
   static const _lastActiveKey = 'auth_last_active';
@@ -73,58 +75,60 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     _currentUser = null;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_prefsKey);
-    await prefs.remove(_lastActiveKey);
+    await _secureStorage.delete(_prefsKey);
+    await _secureStorage.delete(_lastActiveKey);
     // keep saved credentials to allow quick re-login
     notifyListeners();
   }
 
   Future<void> _saveSession() async {
     if (_currentUser == null) return;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefsKey, jsonEncode(_currentUser!.toMap()));
+    await _secureStorage.write(_prefsKey, jsonEncode(_currentUser!.toMap()));
   }
 
   Future<void> _saveLastActive() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_lastActiveKey, DateTime.now().toIso8601String());
+    await _secureStorage.write(_lastActiveKey, DateTime.now().toIso8601String());
   }
 
   Future<void> _saveCredentials({required String name, required String password}) async {
-    final prefs = await SharedPreferences.getInstance();
-    final map = {'name': name, 'password': password};
-    await prefs.setString(_savedCredsKey, jsonEncode(map));
+    // Never persist plaintext passwords on disk.
+    final map = {'name': name, 'password': ''};
+    await _secureStorage.write(_savedCredsKey, jsonEncode(map));
   }
 
   Future<void> _clearSavedCredentials() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_savedCredsKey);
+    await _secureStorage.delete(_savedCredsKey);
   }
 
-  /// Returns saved credentials if any (may be null)
+  /// Returns saved credentials if any (may be null).
+  /// Note: password is intentionally blank for safety.
   Future<Map<String, String>?> getSavedCredentials() async {
+    final secureValue = await _secureStorage.read(_savedCredsKey);
+    if (secureValue != null) {
+      return _decodeCredentials(secureValue);
+    }
+
+    // Migration path from older SharedPreferences storage.
     final prefs = await SharedPreferences.getInstance();
-    final s = prefs.getString(_savedCredsKey);
-    if (s == null) return null;
+    final legacy = prefs.getString(_savedCredsKey);
+    if (legacy == null) return null;
+    await _secureStorage.write(_savedCredsKey, legacy);
+    await prefs.remove(_savedCredsKey);
+    return _decodeCredentials(legacy);
+  }
+
+  Map<String, String>? _decodeCredentials(String raw) {
     try {
-      final m = jsonDecode(s) as Map<String, dynamic>;
-      return {'name': m['name'] ?? '', 'password': m['password'] ?? ''};
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      return {'name': m['name'] ?? '', 'password': ''};
     } catch (_) {
       return null;
     }
   }
 
   Future<void> _restoreSession() async {
-    SharedPreferences prefs;
-    try {
-      prefs = await SharedPreferences.getInstance();
-    } catch (_) {
-      return;
-    }
-
-    final s = prefs.getString(_prefsKey);
-    final last = prefs.getString(_lastActiveKey);
+    final s = await _readWithMigration(_prefsKey);
+    final last = await _readWithMigration(_lastActiveKey);
 
     // If there's no saved user, nothing to restore (but keep creds)
     if (s == null) return;
@@ -150,6 +154,22 @@ class AuthProvider extends ChangeNotifier {
       _currentUser = null;
     } catch (_) {
       // ignore malformed data
+    }
+  }
+
+  Future<String?> _readWithMigration(String key) async {
+    final secureValue = await _secureStorage.read(key);
+    if (secureValue != null) return secureValue;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final legacy = prefs.getString(key);
+      if (legacy == null) return null;
+      await _secureStorage.write(key, legacy);
+      await prefs.remove(key);
+      return legacy;
+    } catch (_) {
+      return null;
     }
   }
 }

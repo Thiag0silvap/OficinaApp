@@ -28,7 +28,12 @@ class OrcamentoFormDialog extends StatefulWidget {
 }
 
 class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
+  static const int _maxObsLen = 300;
+  static const int _maxItemDescLen = 200;
+  static const double _maxCurrencyValue = 100000000.0;
+
   final _formKey = GlobalKey<FormState>();
+  final _itemFormKey = GlobalKey<FormState>();
 
   Cliente? _selectedCliente;
   Veiculo? _selectedVeiculo;
@@ -150,6 +155,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
       title: isEdit ? 'Editar Orçamento' : 'Novo Orçamento',
       content: Form(
         key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: ResponsiveUtils.isMobile(context)
@@ -318,8 +324,11 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                       color: AppColors.lightGray.withValues(alpha: 0.3),
                     ),
                   ),
-                  child: Column(
-                    children: [
+                  child: Form(
+                    key: _itemFormKey,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    child: Column(
+                      children: [
                       Row(
                         children: [
                           const Text(
@@ -398,6 +407,12 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                                       }
                                     });
                                   },
+                                  validator: (value) {
+                                    if (value == null || value.isEmpty) {
+                                      return 'Selecione um ${itemLabel.toLowerCase()}';
+                                    }
+                                    return null;
+                                  },
                                 ),
                                 const SizedBox(height: 12),
 
@@ -440,10 +455,17 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                                     dense: true,
                                   ).copyWith(prefixText: 'R\$ '),
                                   validator: (v) {
-                                    if (v == null || v.isEmpty) return null;
-                                    return _parseCurrency(v) == null
-                                        ? 'Valor inválido'
-                                        : null;
+                                    if (v == null || v.isEmpty) {
+                                      return 'Informe o valor';
+                                    }
+                                    final parsed = _parseCurrency(v);
+                                    if (parsed == null || parsed <= 0) {
+                                      return 'Valor inválido';
+                                    }
+                                    if (parsed > _maxCurrencyValue) {
+                                      return 'Valor muito alto';
+                                    }
+                                    return null;
                                   },
                                 ),
                               ],
@@ -488,6 +510,12 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                                         }
                                       });
                                     },
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Selecione um ${itemLabel.toLowerCase()}';
+                                      }
+                                      return null;
+                                    },
                                   ),
                                 ),
                                 const SizedBox(width: 16),
@@ -507,10 +535,17 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                                       dense: true,
                                     ).copyWith(prefixText: 'R\$ '),
                                     validator: (v) {
-                                      if (v == null || v.isEmpty) return null;
-                                      return _parseCurrency(v) == null
-                                          ? 'Valor inválido'
-                                          : null;
+                                        if (v == null || v.isEmpty) {
+                                          return 'Informe o valor';
+                                        }
+                                        final parsed = _parseCurrency(v);
+                                        if (parsed == null || parsed <= 0) {
+                                          return 'Valor inválido';
+                                        }
+                                        if (parsed > _maxCurrencyValue) {
+                                          return 'Valor muito alto';
+                                        }
+                                        return null;
                                     },
                                   ),
                                 ),
@@ -548,10 +583,21 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                           Expanded(
                             child: TextFormField(
                               controller: _descricaoItemController,
+                              inputFormatters: [
+                                LengthLimitingTextInputFormatter(_maxItemDescLen),
+                              ],
                               decoration: formFieldDecoration(
                                 label: 'Detalhes do item',
                                 dense: true,
                               ),
+                              validator: (value) {
+                                final v = value?.trim() ?? '';
+                                if (v.isEmpty) return 'Detalhe é obrigatório';
+                                if (v.length > _maxItemDescLen) {
+                                  return 'Detalhe muito longo';
+                                }
+                                return null;
+                              },
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -573,7 +619,8 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                           ),
                         ],
                       ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
 
@@ -715,6 +762,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                         if (v == null || v.isEmpty) return null;
                         final parsed = _parseCurrency(v) ?? 0.0;
                         if (parsed < 0) return 'Desconto inválido';
+                        if (parsed > _maxCurrencyValue) return 'Valor muito alto';
                         if (parsed > _valorTotal) return 'Maior que total';
                         return null;
                       },
@@ -755,6 +803,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                               if (v == null || v.isEmpty) return null;
                               final parsed = _parseCurrency(v) ?? 0.0;
                               if (parsed < 0) return 'Desconto inválido';
+                              if (parsed > _maxCurrencyValue) return 'Valor muito alto';
                               if (parsed > _valorTotal) {
                                 return 'Maior que total';
                               }
@@ -865,6 +914,13 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                     prefixIcon: Icons.note,
                   ),
                   maxLines: 2,
+                  maxLength: _maxObsLen,
+                  maxLengthEnforcement: MaxLengthEnforcement.enforced,
+                  validator: (value) {
+                    final v = value?.trim() ?? '';
+                    if (v.length > _maxObsLen) return 'Observações muito longas';
+                    return null;
+                  },
                 ),
               ],
             ),
@@ -910,27 +966,18 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
   }
 
   void _adicionarItem() {
-    if (_servicoSelecionado == null || _valorItemController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Preencha o serviço e o valor')),
-      );
-      return;
-    }
+    if (!(_itemFormKey.currentState?.validate() ?? false)) return;
 
     // ✅ parse correto (R$ 1.234,56)
     final valor = _parseCurrency(_valorItemController.text);
-    if (valor == null) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Valor inválido')));
-      return;
-    }
+    if (valor == null || valor <= 0 || valor > _maxCurrencyValue) return;
 
     setState(() {
+      final desc = _descricaoItemController.text.trim();
       final descricaoFinal =
           (_pecaSelecionada != null && _pecaSelecionada!.isNotEmpty)
-          ? '${_pecaSelecionada!} - ${_descricaoItemController.text}'.trim()
-          : _descricaoItemController.text.trim();
+          ? '${_pecaSelecionada!} - $desc'.trim()
+          : desc;
 
       final novoItem = ItemOrcamento(
         servico: _servicoSelecionado!,
@@ -956,13 +1003,6 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
 
   void _salvarOrcamento() {
     if (!_formKey.currentState!.validate()) return;
-
-    if (_selectedCliente == null || _selectedVeiculo == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecione cliente e veículo')),
-      );
-      return;
-    }
 
     if (_itens.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(

@@ -7,6 +7,7 @@ import '../components/responsive_components.dart';
 class AppLogo extends StatelessWidget {
   final double? size;
   final bool showText;
+  final bool showSlogan;
   final bool vertical;
   final Color? textColor;
 
@@ -14,6 +15,7 @@ class AppLogo extends StatelessWidget {
     super.key,
     this.size,
     this.showText = true,
+    this.showSlogan = true,
     this.vertical = false,
     this.textColor,
   });
@@ -37,8 +39,10 @@ class AppLogo extends StatelessWidget {
         // caiba dentro do espaço disponível para evitar overflow.
         final effectiveLogoSize = maxH.isFinite ? math.min(logoSize, maxH) : logoSize;
         // Reserve approximate space for texts; if not enough height, hide texts to avoid overflow
-        final needsSpaceForText =
-            effectiveLogoSize + (showText ? (24.0 * fontMultiplier + 14.0) : 0.0);
+        final textHeight = showText
+          ? 24.0 * fontMultiplier + (showSlogan ? 14.0 : 0.0)
+          : 0.0;
+        final needsSpaceForText = effectiveLogoSize + textHeight;
         final showTextNow = showText && maxH >= needsSpaceForText;
 
         final containerHeight = showTextNow ? needsSpaceForText : effectiveLogoSize;
@@ -54,7 +58,7 @@ class AppLogo extends StatelessWidget {
               if (showTextNow) ...[
                 SizedBox(height: 8 * fontMultiplier),
                 Flexible(child: _buildAppName(fontMultiplier, textColor)),
-                Flexible(child: _buildSlogan(fontMultiplier, textColor)),
+                if (showSlogan) Flexible(child: _buildSlogan(fontMultiplier, textColor)),
               ],
             ],
           ),
@@ -75,7 +79,7 @@ class AppLogo extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               _buildAppName(fontMultiplier, textColor),
-              _buildSlogan(fontMultiplier, textColor),
+              if (showSlogan) _buildSlogan(fontMultiplier, textColor),
             ],
           ),
         ],
@@ -184,7 +188,8 @@ class AppBarLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppLogo(
       size: ResponsiveUtils.isMobile(context) ? 32 : 40,
-      showText: !ResponsiveUtils.isMobile(context),
+      showText: false,
+      showSlogan: false,
       vertical: false,
       textColor: AppColors.primaryYellow,
     );

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -108,6 +109,14 @@ class DBService {
     final now = DateTime.now();
     String two(int v) => v.toString().padLeft(2, '0');
     return '${now.year}-${two(now.month)}-${two(now.day)}_${two(now.hour)}-${two(now.minute)}-${two(now.second)}';
+  }
+
+  static Future<Map<String, dynamic>> _checksumForFile(File file) async {
+    final bytes = await file.readAsBytes();
+    return {
+      'sha256': sha256.convert(bytes).toString(),
+      'size': bytes.length,
+    };
   }
 
   static String _encodeItens(List<dynamic> itens) {
@@ -408,14 +417,25 @@ class DBService {
 
     final dbSrc = File(exports['db']!);
     final jsonSrc = File(exports['json']!);
+    final manifestSrc = exports['manifest'] != null ? File(exports['manifest']!) : null;
 
     final dbDest = p.join(destDir.path, p.basename(exports['db']!));
     final jsonDest = p.join(destDir.path, p.basename(exports['json']!));
+    final manifestDest = manifestSrc != null
+      ? p.join(destDir.path, p.basename(exports['manifest']!))
+      : null;
 
     await dbSrc.copy(dbDest);
     await jsonSrc.copy(jsonDest);
+    if (manifestSrc != null && manifestDest != null) {
+      await manifestSrc.copy(manifestDest);
+    }
 
-    return {'db': dbDest, 'json': jsonDest};
+    return {
+      'db': dbDest,
+      'json': jsonDest,
+      if (manifestDest != null) 'manifest': manifestDest,
+    };
   }
 
   Future<Map<String, String>> exportBackup() async {
@@ -446,7 +466,25 @@ class DBService {
     final jsonPath = p.join(backupDir.path, 'app_funilaria_backup_$ts.json');
     await File(jsonPath).writeAsString(jsonEncode(exportData));
 
-    return {'db': dbBackupPath, 'json': jsonPath};
+    final dbMeta = await _checksumForFile(File(dbBackupPath));
+    final jsonMeta = await _checksumForFile(File(jsonPath));
+    final manifestPath = p.join(backupDir.path, 'app_funilaria_backup_$ts.manifest.json');
+    final manifest = {
+      'createdAt': DateTime.now().toIso8601String(),
+      'db': {
+        'file': p.basename(dbBackupPath),
+        'sha256': dbMeta['sha256'],
+        'size': dbMeta['size'],
+      },
+      'json': {
+        'file': p.basename(jsonPath),
+        'sha256': jsonMeta['sha256'],
+        'size': jsonMeta['size'],
+      },
+    };
+    await File(manifestPath).writeAsString(jsonEncode(manifest));
+
+    return {'db': dbBackupPath, 'json': jsonPath, 'manifest': manifestPath};
   }
 
   Future<void> restoreFromBackup(String backupDbPath) async {
@@ -454,7 +492,32 @@ class DBService {
     final databasesPath = await getDatabasesPath();
     final dbPath = p.join(databasesPath, _activeDbFileName);
     final src = File(backupDbPath);
-    if (!await src.exists()) throw Exception('Backup file not found: $backupDbPath');
+    if (!await src.exists()) {
+      throw Exception('Arquivo de backup não encontrado.');
+    }
+
+    // Verify checksum if a manifest exists next to the backup.
+    final manifestPath = '${p.withoutExtension(backupDbPath)}.manifest.json';
+    final manifestFile = File(manifestPath);
+    if (await manifestFile.exists()) {
+      final raw = await manifestFile.readAsString();
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        final dbInfo = decoded['db'] as Map<String, dynamic>?;
+        if (dbInfo != null) {
+          final expectedHash = dbInfo['sha256'] as String?;
+          final expectedSize = dbInfo['size'] as int?;
+          final actual = await _checksumForFile(src);
+          if (expectedHash != null && expectedHash != actual['sha256']) {
+            throw Exception('Backup corrompido (hash inválido).');
+          }
+          if (expectedSize != null && expectedSize != actual['size']) {
+            throw Exception('Backup corrompido (tamanho inválido).');
+          }
+        }
+      }
+    }
+
     await src.copy(dbPath);
     _db = null; // força reabrir
   }

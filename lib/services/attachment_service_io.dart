@@ -12,6 +12,8 @@ class AttachmentService {
   final List<Attachment> _attachments = [];
 
   static const _prefsPrefix = 'attachments_v1';
+  static const int _maxImageBytes = 8 * 1024 * 1024; // 8MB
+  static const int _maxSignatureBytes = 2 * 1024 * 1024; // 2MB
 
   static String _key({String? parentId, String? parentType}) {
     if (parentId == null || parentType == null) return _prefsPrefix;
@@ -63,6 +65,10 @@ class AttachmentService {
     String? parentId,
     String? parentType,
   }) async {
+    final size = await file.length();
+    if (size > _maxImageBytes) {
+      throw Exception('Imagem muito grande. Limite: 8MB.');
+    }
     final dir = await _attachmentsDir();
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     final ext = file.path.split('.').last;
@@ -119,6 +125,9 @@ class AttachmentService {
     String? parentId,
     String? parentType,
   }) async {
+    if (data.length > _maxSignatureBytes) {
+      throw Exception('Assinatura muito grande. Limite: 2MB.');
+    }
     final dir = await _attachmentsDir();
     final id = DateTime.now().millisecondsSinceEpoch.toString();
     final filename = 'sig_$id.png';

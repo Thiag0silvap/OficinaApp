@@ -23,6 +23,11 @@ class UpdateService {
     final url = AppConstants.updateManifestUrl.trim();
     if (url.isEmpty) return null;
 
+    final manifestUri = Uri.tryParse(url);
+    if (manifestUri == null || manifestUri.scheme != 'https' || manifestUri.host.isEmpty) {
+      return null;
+    }
+
     try {
       final jsonMap = await _fetchJson(url);
 
@@ -32,6 +37,11 @@ class UpdateService {
 
       if (latestVersion == null || latestVersion.isEmpty) return null;
       if (downloadUrl == null || downloadUrl.isEmpty) return null;
+
+      final downloadUri = Uri.tryParse(downloadUrl);
+      if (downloadUri == null || downloadUri.scheme != 'https' || downloadUri.host.isEmpty) {
+        return null;
+      }
 
       final current = AppVersion.current;
       final isNewer = VersionUtils.compare(latestVersion, current) > 0;
@@ -49,7 +59,7 @@ class UpdateService {
 
   static Future<void> openDownloadUrl(String url) async {
     final uri = Uri.tryParse(url);
-    if (uri == null) return;
+    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) return;
 
     if (Platform.isLinux) {
       await Process.run('xdg-open', [uri.toString()]);

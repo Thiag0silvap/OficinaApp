@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -26,6 +27,10 @@ enum _TipoFiltro { todos, entradas, saidas }
 enum _Ordenacao { recentes, maiorValor, menorValor }
 
 class _FinanceiroScreenState extends State<FinanceiroScreen> {
+  static const int _maxDescLen = 120;
+  static const int _maxCatLen = 40;
+  static const double _maxCurrencyValue = 100000000.0;
+
   final _searchCtrl = TextEditingController();
   _TipoFiltro _tipoFiltro = _TipoFiltro.todos;
   _Ordenacao _ordenacao = _Ordenacao.recentes;
@@ -614,6 +619,11 @@ class _NovaTransacaoDialog extends StatefulWidget {
 }
 
 class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
+  static const int _maxDescLen = 120;
+  static const int _maxCatLen = 40;
+  static const double _maxCurrencyValue = 100000000.0;
+
+  final _formKey = GlobalKey<FormState>();
   TipoTransacao _tipo = TipoTransacao.entrada;
   final _descCtrl = TextEditingController();
   final _valorCtrl = TextEditingController();
@@ -633,106 +643,133 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
     return AlertDialog(
       backgroundColor: AppColors.secondaryGray,
       title: const Text('Nova Transação'),
-      content: SizedBox(
-        width: 560,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<TipoTransacao>(
-                    initialValue: _tipo,
-                    dropdownColor: AppColors.secondaryGray,
-                    decoration: formFieldDecoration(label: 'Tipo'),
-                    items: const [
-                      DropdownMenuItem(
-                        value: TipoTransacao.entrada,
-                        child: Text('Entrada'),
-                      ),
-                      DropdownMenuItem(
-                        value: TipoTransacao.saida,
-                        child: Text('Saída'),
-                      ),
-                    ],
-                    onChanged: (v) =>
-                        setState(() => _tipo = v ?? TipoTransacao.entrada),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    readOnly: true,
-                    decoration: formFieldDecoration(
-                      label: 'Data',
-                      prefixIcon: Icons.calendar_today_outlined,
+      content: Form(
+        key: _formKey,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        child: SizedBox(
+          width: 560,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<TipoTransacao>(
+                      initialValue: _tipo,
+                      dropdownColor: AppColors.secondaryGray,
+                      decoration: formFieldDecoration(label: 'Tipo'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: TipoTransacao.entrada,
+                          child: Text('Entrada'),
+                        ),
+                        DropdownMenuItem(
+                          value: TipoTransacao.saida,
+                          child: Text('Saída'),
+                        ),
+                      ],
+                      onChanged: (v) =>
+                          setState(() => _tipo = v ?? TipoTransacao.entrada),
                     ),
-                    controller: TextEditingController(
-                      text: DateFormat('dd/MM/yyyy').format(_data),
-                    ),
-                    onTap: () async {
-                      final picked = await showDatePicker(
-                        context: context,
-                        initialDate: _data,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime(2100),
-                        builder: (ctx, child) {
-                          return Theme(
-                            data: Theme.of(ctx).copyWith(
-                              colorScheme: Theme.of(ctx).colorScheme.copyWith(
-                                primary: AppColors.primaryYellow,
-                                surface: AppColors.secondaryGray,
-                              ),
-                              dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
-                                backgroundColor: AppColors.secondaryGray,
-                              ),
-                            ),
-                            child: child!,
-                          );
-                        },
-                      );
-                      if (picked != null) setState(() => _data = picked);
-                    },
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _descCtrl,
-              decoration: formFieldDecoration(
-                label: 'Descrição',
-                prefixIcon: Icons.description_outlined,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      readOnly: true,
+                      decoration: formFieldDecoration(
+                        label: 'Data',
+                        prefixIcon: Icons.calendar_today_outlined,
+                      ),
+                      controller: TextEditingController(
+                        text: DateFormat('dd/MM/yyyy').format(_data),
+                      ),
+                      onTap: () async {
+                        final picked = await showDatePicker(
+                          context: context,
+                          initialDate: _data,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime(2100),
+                          builder: (ctx, child) {
+                            return Theme(
+                              data: Theme.of(ctx).copyWith(
+                                colorScheme: Theme.of(ctx).colorScheme.copyWith(
+                                  primary: AppColors.primaryYellow,
+                                  surface: AppColors.secondaryGray,
+                                ),
+                                dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
+                                  backgroundColor: AppColors.secondaryGray,
+                                ),
+                              ),
+                              child: child!,
+                            );
+                          },
+                        );
+                        if (picked != null) setState(() => _data = picked);
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _valorCtrl,
-                    keyboardType: TextInputType.number,
-                    inputFormatters: [CurrencyTextInputFormatter()],
-                    decoration: formFieldDecoration(
-                      label: 'Valor',
-                      prefixText: 'R\$ ',
-                      prefixIcon: Icons.payments_outlined,
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _descCtrl,
+                inputFormatters: [LengthLimitingTextInputFormatter(_maxDescLen)],
+                decoration: formFieldDecoration(
+                  label: 'Descrição',
+                  prefixIcon: Icons.description_outlined,
+                ),
+                validator: (value) {
+                  final v = value?.trim() ?? '';
+                  if (v.isEmpty) return 'Descrição é obrigatória';
+                  if (v.length > _maxDescLen) return 'Descrição muito longa';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _valorCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [CurrencyTextInputFormatter()],
+                      decoration: formFieldDecoration(
+                        label: 'Valor',
+                        prefixText: 'R\$ ',
+                        prefixIcon: Icons.payments_outlined,
+                      ),
+                      validator: (value) {
+                        final raw = (value ?? '')
+                            .replaceAll('.', '')
+                            .replaceAll(',', '.')
+                            .trim();
+                        final parsed = double.tryParse(raw) ?? 0.0;
+                        if (parsed <= 0) return 'Valor inválido';
+                        if (parsed > _maxCurrencyValue) return 'Valor muito alto';
+                        return null;
+                      },
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    controller: _catCtrl,
-                    decoration: formFieldDecoration(
-                      label: 'Categoria',
-                      prefixIcon: Icons.sell_outlined,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _catCtrl,
+                      inputFormatters: [LengthLimitingTextInputFormatter(_maxCatLen)],
+                      decoration: formFieldDecoration(
+                        label: 'Categoria',
+                        prefixIcon: Icons.sell_outlined,
+                      ),
+                      validator: (value) {
+                        final v = value?.trim() ?? '';
+                        if (v.length > _maxCatLen) return 'Categoria muito longa';
+                        return null;
+                      },
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
       actions: [
@@ -760,14 +797,7 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
     final raw = _valorCtrl.text.replaceAll('.', '').replaceAll(',', '.').trim();
     final valor = double.tryParse(raw) ?? 0.0;
 
-    if (desc.isEmpty || valor <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Preencha a descrição e um valor válido.'),
-        ),
-      );
-      return;
-    }
+    if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final t = Transacao(
       id: DateTime.now().millisecondsSinceEpoch.toString(),

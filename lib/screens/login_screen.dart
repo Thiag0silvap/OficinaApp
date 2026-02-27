@@ -32,8 +32,8 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       if (creds != null) {
         nameController.text = creds['name'] ?? '';
-        passwordController.text = creds['password'] ?? '';
-        setState(() => _rememberCredentials = true);
+        passwordController.text = '';
+        setState(() => _rememberCredentials = (creds['name'] ?? '').isNotEmpty);
       }
     });
   }
@@ -161,7 +161,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                   Expanded(
                                     child: Text(
-                                      'Lembrar credenciais neste computador',
+                                      'Lembrar usuário neste computador',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodyMedium

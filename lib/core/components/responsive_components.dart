@@ -381,51 +381,10 @@ class ResponsiveLayout extends StatelessWidget {
           Expanded(
             child: Scaffold(
               appBar: AppBar(
-                title: Row(
-                  children: [
-                    const AppBarLogo(),
-                    const SizedBox(width: 16),
-                    Text(title),
-                  ],
-                ),
+                title: Text(title),
+                centerTitle: true,
                 backgroundColor: AppColors.surface,
                 automaticallyImplyLeading: false,
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.cloud_upload),
-                    tooltip: 'Backup manual',
-                    onPressed: () async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      messenger.showSnackBar(
-                        const SnackBar(content: Text('Iniciando backup...')),
-                      );
-                      try {
-                        final res = await DBService.instance
-                            .exportBackupToUserDocuments();
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text('Backup salvo em: ${res['db']}'),
-                          ),
-                        );
-                      } catch (e) {
-                        messenger.showSnackBar(
-                          SnackBar(content: Text('Erro ao gerar backup: $e')),
-                        );
-                      }
-                    },
-                  ),
-                  IconButton(icon: const Icon(Icons.refresh), onPressed: () {}),
-                  IconButton(
-                    icon: const Icon(Icons.settings),
-                    onPressed: () {},
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.logout),
-                    tooltip: 'Sair',
-                    onPressed: () => _confirmAndLogout(context),
-                  ),
-                  const SizedBox(width: 16),
-                ],
               ),
               body: body,
             ),
@@ -443,51 +402,10 @@ class ResponsiveLayout extends StatelessWidget {
           Expanded(
             child: Scaffold(
               appBar: AppBar(
-                title: Row(
-                  children: [
-                    const AppBarLogo(),
-                    const SizedBox(width: 16),
-                    Text(title),
-                  ],
-                ),
+                title: Text(title),
+                centerTitle: true,
                 backgroundColor: AppColors.surface,
                 automaticallyImplyLeading: false,
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.cloud_upload),
-                    tooltip: 'Backup manual',
-                    onPressed: () async {
-                      final messenger = ScaffoldMessenger.of(context);
-                      messenger.showSnackBar(
-                        const SnackBar(content: Text('Iniciando backup...')),
-                      );
-                      try {
-                        final res = await DBService.instance
-                            .exportBackupToUserDocuments();
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text('Backup salvo em: ${res['db']}'),
-                          ),
-                        );
-                      } catch (e) {
-                        messenger.showSnackBar(
-                          SnackBar(content: Text('Erro ao gerar backup: $e')),
-                        );
-                      }
-                    },
-                  ),
-                  IconButton(icon: const Icon(Icons.refresh), onPressed: () {}),
-                  IconButton(
-                    icon: const Icon(Icons.settings),
-                    onPressed: () {},
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.logout),
-                    tooltip: 'Sair',
-                    onPressed: () => _confirmAndLogout(context),
-                  ),
-                  const SizedBox(width: 16),
-                ],
               ),
               body: body,
             ),
@@ -641,32 +559,16 @@ class ResponsiveLayout extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 const Divider(color: AppColors.border, height: 1),
-                ListTile(
-                  leading: const Icon(
-                    Icons.settings,
-                    color: AppColors.textSecondary,
-                  ),
-                  title: const Text(
-                    'Configurações',
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                _buildDrawerActionItem(
+                  context,
+                  icon: Icons.settings,
+                  title: 'Configurações',
                   onTap: () {},
                 ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.cloud_upload,
-                    color: AppColors.textSecondary,
-                  ),
-                  title: const Text(
-                    'Backup (manual)',
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                _buildDrawerActionItem(
+                  context,
+                  icon: Icons.cloud_upload,
+                  title: 'Backup (manual)',
                   onTap: () async {
                     final messenger = ScaffoldMessenger.of(context);
                     messenger.showSnackBar(
@@ -687,33 +589,17 @@ class ResponsiveLayout extends StatelessWidget {
                     }
                   },
                 ),
-                ListTile(
-                  leading: const Icon(
-                    Icons.help,
-                    color: AppColors.textSecondary,
-                  ),
-                  title: const Text(
-                    'Ajuda',
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                _buildDrawerActionItem(
+                  context,
+                  icon: Icons.help,
+                  title: 'Ajuda',
                   onTap: () {},
                 ),
                 const Divider(color: AppColors.border, height: 1),
-                ListTile(
-                  leading: const Icon(
-                    Icons.logout,
-                    color: AppColors.textSecondary,
-                  ),
-                  title: const Text(
-                    'Sair',
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                _buildDrawerActionItem(
+                  context,
+                  icon: Icons.logout,
+                  title: 'Sair',
                   onTap: () => _confirmAndLogout(context),
                 ),
               ],
@@ -738,58 +624,120 @@ class ResponsiveLayout extends StatelessWidget {
     required String title,
     required int index,
   }) {
-    final isSelected = currentIndex == index;
+    return _buildDrawerEntry(
+      context,
+      icon: icon,
+      title: title,
+      isSelected: currentIndex == index,
+      onTap: () => onTap(index),
+    );
+  }
+
+  Widget _buildDrawerActionItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return _buildDrawerEntry(
+      context,
+      icon: icon,
+      title: title,
+      isSelected: false,
+      onTap: onTap,
+    );
+  }
+
+  Widget _buildDrawerEntry(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    bool hovering = false;
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () => onTap(index),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.surface2 : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isSelected ? AppColors.border : Colors.transparent,
-              width: 1,
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              AnimatedContainer(
+      child: StatefulBuilder(
+        builder: (ctx, setState) {
+          return MouseRegion(
+            onEnter: (_) => setState(() => hovering = true),
+            onExit: (_) => setState(() => hovering = false),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: onTap,
+              child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                width: 4,
-                height: 22,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? AppColors.primaryYellow
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(99),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Icon(
-                icon,
-                color: isSelected
-                    ? AppColors.primaryYellow
-                    : AppColors.textSecondary,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  title,
-                  style: TextStyle(
-                    color: isSelected
-                        ? AppColors.white
-                        : AppColors.textSecondary,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+                      ? AppColors.surface2
+                      : (hovering
+                            ? AppColors.surface.withValues(alpha: 0.45)
+                            : Colors.transparent),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected ? AppColors.border : Colors.transparent,
+                    width: 1,
                   ),
+                  boxShadow: hovering && !isSelected
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.10),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      width: isSelected ? 6 : (hovering ? 6 : 4),
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppColors.primaryYellow
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Icon(
+                      icon,
+                      color: isSelected
+                          ? AppColors.primaryYellow
+                          : (hovering
+                                ? AppColors.white.withValues(alpha: 0.95)
+                                : AppColors.textSecondary),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: TextStyle(
+                          color: isSelected
+                              ? AppColors.white
+                              : (hovering
+                                    ? AppColors.white.withValues(alpha: 0.95)
+                                    : AppColors.textSecondary),
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

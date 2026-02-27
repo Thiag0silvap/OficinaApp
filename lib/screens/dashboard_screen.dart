@@ -49,8 +49,8 @@ class DashboardScreen extends StatelessWidget {
                   : (constraints.maxWidth >= 1200 ? 4 : 2);
 
               // Ajusta altura “premium” dos cards sem distorcer
-              final cardAspectRatio =
-                  isMobile ? 3.3 : (crossAxisCount == 4 ? 2.55 : 2.7);
+                final cardAspectRatio =
+                  isMobile ? 4.2 : (crossAxisCount == 4 ? 3.6 : 3.8);
 
               return SingleChildScrollView(
                 child: Column(
@@ -80,7 +80,14 @@ class DashboardScreen extends StatelessWidget {
                           onTap: () => Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const FinanceiroScreen(),
+                              builder: (_) => Scaffold(
+                                appBar: AppBar(
+                                  backgroundColor: AppColors.surface,
+                                  automaticallyImplyLeading: true,
+                                  title: const Text('Financeiro'),
+                                ),
+                                body: const FinanceiroScreen(),
+                              ),
                             ),
                           ),
                         ),
@@ -705,59 +712,74 @@ class DashboardScreen extends StatelessWidget {
     bool trendUp = true,
     VoidCallback? onTap,
   }) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Ink(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: AppColors.secondaryGray,
+    bool _hover = false;
+
+    return StatefulBuilder(builder: (ctx, setState) {
+      return MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          transform: Matrix4.identity()..scale(_hover ? 1.02 : 1.0),
+          child: Material(
+            color: Colors.transparent,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.border, width: 1),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Icon(icon, color: iconColor, size: 26),
-                  if (trend != null)
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(16),
+              child: Ink(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: AppColors.secondaryGray,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border, width: 1),
+                  boxShadow: _hover
+                      ? [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))]
+                      : null,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Icon(icon, color: iconColor, size: 22),
+                        if (trend != null)
+                          Text(
+                            trend,
+                            style: TextStyle(
+                              color: trendUp ? AppColors.success : AppColors.error,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
                     Text(
-                      trend,
+                      title,
                       style: TextStyle(
-                        color: trendUp ? AppColors.success : AppColors.error,
-                        fontWeight: FontWeight.bold,
+                        color: Colors.white.withValues(alpha: 0.65),
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                title,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.65),
-                  fontWeight: FontWeight.w600,
+                    const SizedBox(height: 2),
+                    Text(
+                      value,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                value,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
+            ),
           ),
         ),
-      ),
-    );
+      );
+    });
   }
 
   /// ================= ORDENS RECENTES =================
