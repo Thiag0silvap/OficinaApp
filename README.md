@@ -90,4 +90,4 @@ O aplicativo vem com dados de exemplo pré-carregados para demonstração:
 
 ---
 
-**Desenvolvido com ❤️ para a oficina GRAU CAR**
+**Desenvolvido para a oficina GRAU CAR**
