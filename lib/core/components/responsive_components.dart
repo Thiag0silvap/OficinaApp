@@ -64,22 +64,22 @@ class ResponsiveUtils {
   static EdgeInsets getCardPadding(BuildContext context) {
     switch (getDeviceType(context)) {
       case DeviceType.mobile:
-        return const EdgeInsets.all(16);
+        return const EdgeInsets.all(12);
       case DeviceType.tablet:
-        return const EdgeInsets.all(20);
+        return const EdgeInsets.all(14);
       case DeviceType.desktop:
-        return const EdgeInsets.all(24);
+        return const EdgeInsets.all(16);
     }
   }
 
   static double getCardSpacing(BuildContext context) {
     switch (getDeviceType(context)) {
       case DeviceType.mobile:
-        return 16;
+        return 12;
       case DeviceType.tablet:
-        return 20;
+        return 14;
       case DeviceType.desktop:
-        return 24;
+        return 16;
     }
   }
 
@@ -783,7 +783,7 @@ class ResponsiveListCard extends StatelessWidget {
                     Text(
                       title,
                       style: TextStyle(
-                        fontSize: (isDesktop ? 18 : 16) * fontMultiplier,
+                        fontSize: (isDesktop ? 17 : 15) * fontMultiplier,
                         fontWeight: FontWeight.w600,
                         color: AppColors.white,
                       ),
@@ -795,7 +795,7 @@ class ResponsiveListCard extends StatelessWidget {
                       Text(
                         subtitle!,
                         style: TextStyle(
-                          fontSize: (isDesktop ? 14 : 12) * fontMultiplier,
+                          fontSize: (isDesktop ? 13 : 11) * fontMultiplier,
                           color: AppColors.white.withValues(alpha: 0.7),
                         ),
                         maxLines: 2,
@@ -809,9 +809,9 @@ class ResponsiveListCard extends StatelessWidget {
             ],
           ),
           if (actions != null && actions!.isNotEmpty) ...[
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             const Divider(color: AppColors.border),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
 
             // ✅ Melhor: Wrap + largura mínima para botões não ficarem esmagados
             LayoutBuilder(
@@ -820,13 +820,13 @@ class ResponsiveListCard extends StatelessWidget {
                 return Wrap(
                   alignment: WrapAlignment.center,
                   runAlignment: WrapAlignment.center,
-                  spacing: 10,
-                  runSpacing: 8,
+                  spacing: 8,
+                  runSpacing: 6,
                   children: actions!
                       .map(
                         (w) => ConstrainedBox(
                           constraints: BoxConstraints(
-                            minWidth: isNarrow ? 140 : 160,
+                            minWidth: isNarrow ? 120 : 132,
                           ),
                           child: w,
                         ),

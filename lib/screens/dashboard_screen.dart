@@ -43,14 +43,60 @@ class DashboardScreen extends StatelessWidget {
               final spacing = ResponsiveUtils.getCardSpacing(context);
               final isMobile = ResponsiveUtils.isMobile(context);
 
-              // Desktop: 4 cards. Tablet: 2. Mobile: 1.
-              final crossAxisCount = isMobile
-                  ? 1
-                  : (constraints.maxWidth >= 1200 ? 4 : 2);
+              // Limita a largura máxima dos cards para evitar ficar “gigante”
+              // quando o app estiver em uma largura intermediária.
+              // (O número de colunas passa a ser determinado automaticamente.)
+              final maxCardWidth = isMobile ? constraints.maxWidth : 340.0;
 
-              // Ajusta altura “premium” dos cards sem distorcer
-                final cardAspectRatio =
-                  isMobile ? 4.2 : (crossAxisCount == 4 ? 3.6 : 3.8);
+              // Ajusta altura “premium” dos cards sem distorcer.
+              // (Menor ratio => card um pouco mais alto; ajuda a evitar overflow.)
+              final cardAspectRatio = isMobile ? 4.0 : 3.4;
+
+              final statCards = <Widget>[
+                _buildStatCard(
+                  context,
+                  title: 'Faturamento Mensal',
+                  value: Formatters.currency(faturamento),
+                  icon: Icons.monetization_on,
+                  iconColor: AppColors.primaryYellow,
+                  trend: faturamentoVar['label'],
+                  trendUp: faturamentoVar['up'] ?? true,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(
+                          backgroundColor: AppColors.surface,
+                          automaticallyImplyLeading: true,
+                          title: const Text('Financeiro'),
+                        ),
+                        body: const FinanceiroScreen(),
+                      ),
+                    ),
+                  ),
+                ),
+                _buildStatCard(
+                  context,
+                  title: 'Ordens Ativas',
+                  value: ordensAtivas.toString(),
+                  icon: Icons.build_circle,
+                  iconColor: AppColors.info,
+                ),
+                _buildStatCard(
+                  context,
+                  title: 'Concluídos Hoje',
+                  value: concluidosHoje.toString(),
+                  icon: Icons.check_circle,
+                  iconColor: AppColors.success,
+                ),
+                _buildStatCard(
+                  context,
+                  title: 'Pendentes',
+                  value: pendentes.toString(),
+                  icon: Icons.pending_actions,
+                  iconColor: AppColors.warning,
+                ),
+              ];
 
               return SingleChildScrollView(
                 child: Column(
@@ -61,58 +107,17 @@ class DashboardScreen extends StatelessWidget {
                     SizedBox(height: spacing),
 
                     /// ======= CARDS (GRID ALINHADO) =======
-                    GridView.count(
-                      crossAxisCount: crossAxisCount,
+                    GridView.builder(
+                      itemCount: statCards.length,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
-                      mainAxisSpacing: spacing,
-                      crossAxisSpacing: spacing,
-                      childAspectRatio: cardAspectRatio,
-                      children: [
-                        _buildStatCard(
-                          context,
-                          title: 'Faturamento Mensal',
-                          value: Formatters.currency(faturamento),
-                          icon: Icons.monetization_on,
-                          iconColor: AppColors.primaryYellow,
-                          trend: faturamentoVar['label'],
-                          trendUp: faturamentoVar['up'] ?? true,
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => Scaffold(
-                                appBar: AppBar(
-                                  backgroundColor: AppColors.surface,
-                                  automaticallyImplyLeading: true,
-                                  title: const Text('Financeiro'),
-                                ),
-                                body: const FinanceiroScreen(),
-                              ),
-                            ),
-                          ),
-                        ),
-                        _buildStatCard(
-                          context,
-                          title: 'Ordens Ativas',
-                          value: ordensAtivas.toString(),
-                          icon: Icons.build_circle,
-                          iconColor: AppColors.info,
-                        ),
-                        _buildStatCard(
-                          context,
-                          title: 'Concluídos Hoje',
-                          value: concluidosHoje.toString(),
-                          icon: Icons.check_circle,
-                          iconColor: AppColors.success,
-                        ),
-                        _buildStatCard(
-                          context,
-                          title: 'Pendentes',
-                          value: pendentes.toString(),
-                          icon: Icons.pending_actions,
-                          iconColor: AppColors.warning,
-                        ),
-                      ],
+                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: maxCardWidth,
+                        mainAxisSpacing: spacing,
+                        crossAxisSpacing: spacing,
+                        childAspectRatio: cardAspectRatio,
+                      ),
+                      itemBuilder: (context, index) => statCards[index],
                     ),
 
                     SizedBox(height: spacing * 1.5),
@@ -433,17 +438,16 @@ class DashboardScreen extends StatelessWidget {
                 child: Text(
                   label,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.75),
-                        fontWeight: FontWeight.w600,
-                      ),
+                    color: Colors.white.withValues(alpha: 0.75),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
               Text(
                 value,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyLarge
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -461,12 +465,17 @@ class DashboardScreen extends StatelessWidget {
     final textColor = Colors.white.withValues(alpha: 0.65);
     final gridColor = Colors.white.withValues(alpha: 0.06);
 
-    final maxY = <double>[...entradas, ...saidas]
-        .fold<double>(0, (m, v) => v > m ? v : m);
+    final maxY = <double>[
+      ...entradas,
+      ...saidas,
+    ].fold<double>(0, (m, v) => v > m ? v : m);
     final double safeMaxY = maxY <= 0 ? 100.0 : (maxY * 1.2);
 
     List<FlSpot> spotsFrom(List<double> values) {
-      return List.generate(values.length, (i) => FlSpot(i.toDouble(), values[i]));
+      return List.generate(
+        values.length,
+        (i) => FlSpot(i.toDouble(), values[i]),
+      );
     }
 
     return LineChart(
@@ -491,8 +500,9 @@ class DashboardScreen extends StatelessWidget {
               reservedSize: 46,
               interval: safeMaxY / 4,
               getTitlesWidget: (value, meta) {
-                final label =
-                    value == 0 ? '0' : Formatters.compactCurrency(value);
+                final label = value == 0
+                    ? '0'
+                    : Formatters.compactCurrency(value);
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),
                   child: Text(
@@ -610,17 +620,16 @@ class DashboardScreen extends StatelessWidget {
             children: [
               Text(
                 'Dashboard',
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineMedium
-                    ?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
                 'Visão geral da sua oficina hoje',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.white.withValues(alpha: 0.65),
-                    ),
+                  color: Colors.white.withValues(alpha: 0.65),
+                ),
               ),
             ],
           ),
@@ -641,8 +650,10 @@ class DashboardScreen extends StatelessWidget {
                       shape: const CircleBorder(),
                       child: IconButton(
                         onPressed: () {},
-                        icon: Icon(Icons.notifications,
-                            color: Colors.white.withValues(alpha: 0.9)),
+                        icon: Icon(
+                          Icons.notifications,
+                          color: Colors.white.withValues(alpha: 0.9),
+                        ),
                       ),
                     ),
                   ),
@@ -690,7 +701,9 @@ class DashboardScreen extends StatelessWidget {
                   const SizedBox(width: 10),
                   Text(
                     name.isNotEmpty ? name.split(' ').first : 'Admin',
-                    style: TextStyle(color: Colors.white.withValues(alpha: 0.95)),
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.95),
+                    ),
                   ),
                 ],
               ),
@@ -714,72 +727,90 @@ class DashboardScreen extends StatelessWidget {
   }) {
     bool _hover = false;
 
-    return StatefulBuilder(builder: (ctx, setState) {
-      return MouseRegion(
-        onEnter: (_) => setState(() => _hover = true),
-        onExit: (_) => setState(() => _hover = false),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          transform: Matrix4.identity()..scale(_hover ? 1.02 : 1.0),
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-            child: InkWell(
-              onTap: onTap,
+    return StatefulBuilder(
+      builder: (ctx, setState) {
+        return MouseRegion(
+          onEnter: (_) => setState(() => _hover = true),
+          onExit: (_) => setState(() => _hover = false),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            transform: Matrix4.identity()..scale(_hover ? 1.02 : 1.0),
+            child: Material(
+              color: Colors.transparent,
               borderRadius: BorderRadius.circular(16),
-              child: Ink(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.secondaryGray,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.border, width: 1),
-                  boxShadow: _hover
-                      ? [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))]
-                      : null,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Icon(icon, color: iconColor, size: 22),
-                        if (trend != null)
-                          Text(
-                            trend,
-                            style: TextStyle(
-                              color: trendUp ? AppColors.success : AppColors.error,
-                              fontWeight: FontWeight.bold,
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(16),
+                child: Ink(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.secondaryGray,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.border, width: 1),
+                    boxShadow: _hover
+                        ? [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.2),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
                             ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      title,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.65),
-                        fontWeight: FontWeight.w600,
+                          ]
+                        : null,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(icon, color: iconColor, size: 22),
+                          if (trend != null) ...[
+                            const Spacer(),
+                            Flexible(
+                              child: Text(
+                                trend,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.right,
+                                style: TextStyle(
+                                  color: trendUp
+                                      ? AppColors.success
+                                      : AppColors.error,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      value,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                      const SizedBox(height: 6),
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.65),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        value,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      );
-    });
+        );
+      },
+    );
   }
 
   /// ================= ORDENS RECENTES =================
