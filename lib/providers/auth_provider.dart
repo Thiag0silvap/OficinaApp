@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -20,10 +21,13 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _init() async {
-    // Seed a default admin for testing (username: admin, password: 123456)
-    try {
-      await _service.seedAdmin(password: '123456');
-    } catch (_) {}
+    // Seed a default admin only in debug builds.
+    // Shipping a predictable admin account in release is risky.
+    if (kDebugMode) {
+      try {
+        await _service.seedAdmin(password: '123456');
+      } catch (_) {}
+    }
     await _restoreSession();
     notifyListeners();
   }
@@ -87,10 +91,16 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _saveLastActive() async {
-    await _secureStorage.write(_lastActiveKey, DateTime.now().toIso8601String());
+    await _secureStorage.write(
+      _lastActiveKey,
+      DateTime.now().toIso8601String(),
+    );
   }
 
-  Future<void> _saveCredentials({required String name, required String password}) async {
+  Future<void> _saveCredentials({
+    required String name,
+    required String password,
+  }) async {
     // Never persist plaintext passwords on disk.
     final map = {'name': name, 'password': ''};
     await _secureStorage.write(_savedCredsKey, jsonEncode(map));

@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "Grau Car" "\0"
-            VALUE "FileDescription", "Grau Car" "\0"
+            VALUE "CompanyName", "OficinaApp" "\0"
+            VALUE "FileDescription", "OficinaApp" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "GrauCar" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 Grau Car. All rights reserved." "\0"
-            VALUE "OriginalFilename", "GrauCar.exe" "\0"
-            VALUE "ProductName", "Grau Car" "\0"
+            VALUE "InternalName", "OficinaApp" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 OficinaApp. All rights reserved." "\0"
+            VALUE "OriginalFilename", "OficinaApp.exe" "\0"
+            VALUE "ProductName", "OficinaApp" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

@@ -19,7 +19,8 @@ class AppProvider extends ChangeNotifier {
   bool _activeUserIsAdmin = false;
 
   static const _prefsKeyCustomMarcas = 'custom_vehicle_marcas';
-  static const _prefsKeyCustomModelosPorMarca = 'custom_vehicle_modelos_por_marca';
+  static const _prefsKeyCustomModelosPorMarca =
+      'custom_vehicle_modelos_por_marca';
 
   final List<String> _customMarcas = [];
   final Map<String, List<String>> _customModelosPorMarca = {};
@@ -94,23 +95,38 @@ class AppProvider extends ChangeNotifier {
     return list;
   }
 
-  Future<void> addMarcaModeloCustom({required String marca, String? modelo}) async {
+  Future<void> addMarcaModeloCustom({
+    required String marca,
+    String? modelo,
+  }) async {
     final fixedMarca = _prettyName(marca);
     if (fixedMarca.isEmpty) return;
 
-    final hasMarcaBase = AppConstants.marcas.any((m) => m.toLowerCase() == fixedMarca.toLowerCase());
-    final hasMarcaCustom = _customMarcas.any((m) => m.toLowerCase() == fixedMarca.toLowerCase());
+    final hasMarcaBase = AppConstants.marcas.any(
+      (m) => m.toLowerCase() == fixedMarca.toLowerCase(),
+    );
+    final hasMarcaCustom = _customMarcas.any(
+      (m) => m.toLowerCase() == fixedMarca.toLowerCase(),
+    );
     if (!hasMarcaBase && !hasMarcaCustom) {
       _customMarcas.add(fixedMarca);
     }
 
     final fixedModelo = _prettyName(modelo ?? '');
     if (fixedModelo.isNotEmpty) {
-      final baseModelos = AppConstants.modelosPorMarca[fixedMarca] ?? const <String>[];
-      final hasModeloBase = baseModelos.any((m) => m.toLowerCase() == fixedModelo.toLowerCase());
+      final baseModelos =
+          AppConstants.modelosPorMarca[fixedMarca] ?? const <String>[];
+      final hasModeloBase = baseModelos.any(
+        (m) => m.toLowerCase() == fixedModelo.toLowerCase(),
+      );
 
-      final list = _customModelosPorMarca.putIfAbsent(fixedMarca, () => <String>[]);
-      final hasModeloCustom = list.any((m) => m.toLowerCase() == fixedModelo.toLowerCase());
+      final list = _customModelosPorMarca.putIfAbsent(
+        fixedMarca,
+        () => <String>[],
+      );
+      final hasModeloCustom = list.any(
+        (m) => m.toLowerCase() == fixedModelo.toLowerCase(),
+      );
 
       if (!hasModeloBase && !hasModeloCustom) {
         list.add(fixedModelo);
@@ -133,7 +149,8 @@ class AppProvider extends ChangeNotifier {
   Future<void> _loadVehicleCatalogFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
 
-    final marcas = prefs.getStringList(_prefsKeyCustomMarcas) ?? const <String>[];
+    final marcas =
+        prefs.getStringList(_prefsKeyCustomMarcas) ?? const <String>[];
     _customMarcas
       ..clear()
       ..addAll(marcas);
@@ -151,7 +168,10 @@ class AppProvider extends ChangeNotifier {
         final value = entry.value;
         if (key.isEmpty) continue;
         if (value is List) {
-          _customModelosPorMarca[key] = value.map((e) => e.toString()).where((s) => s.trim().isNotEmpty).toList();
+          _customModelosPorMarca[key] = value
+              .map((e) => e.toString())
+              .where((s) => s.trim().isNotEmpty)
+              .toList();
         }
       }
     } catch (_) {
@@ -163,14 +183,19 @@ class AppProvider extends ChangeNotifier {
   Future<void> _saveVehicleCatalogToPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(_prefsKeyCustomMarcas, _customMarcas);
-    await prefs.setString(_prefsKeyCustomModelosPorMarca, jsonEncode(_customModelosPorMarca));
+    await prefs.setString(
+      _prefsKeyCustomModelosPorMarca,
+      jsonEncode(_customModelosPorMarca),
+    );
   }
 
-  double get totalEntradas =>
-      _transacoes.where((t) => t.tipo == TipoTransacao.entrada).fold(0, (s, t) => s + t.valor);
+  double get totalEntradas => _transacoes
+      .where((t) => t.tipo == TipoTransacao.entrada)
+      .fold(0, (s, t) => s + t.valor);
 
-  double get totalSaidas =>
-      _transacoes.where((t) => t.tipo == TipoTransacao.saida).fold(0, (s, t) => s + t.valor);
+  double get totalSaidas => _transacoes
+      .where((t) => t.tipo == TipoTransacao.saida)
+      .fold(0, (s, t) => s + t.valor);
 
   double get saldo => totalEntradas - totalSaidas;
 
@@ -180,8 +205,9 @@ class AppProvider extends ChangeNotifier {
   List<Orcamento> get orcamentosAprovados =>
       _orcamentos.where((o) => o.status == OrcamentoStatus.aprovado).toList();
 
-  List<Orcamento> get orcamentosEmAndamento =>
-      _orcamentos.where((o) => o.status == OrcamentoStatus.emAndamento).toList();
+  List<Orcamento> get orcamentosEmAndamento => _orcamentos
+      .where((o) => o.status == OrcamentoStatus.emAndamento)
+      .toList();
 
   List<Orcamento> get orcamentosConcluidos =>
       _orcamentos.where((o) => o.status == OrcamentoStatus.concluido).toList();
@@ -189,10 +215,12 @@ class AppProvider extends ChangeNotifier {
   double get entradasMesAtual {
     final now = DateTime.now();
     return _transacoes
-        .where((t) =>
-            t.tipo == TipoTransacao.entrada &&
-            t.data.month == now.month &&
-            t.data.year == now.year)
+        .where(
+          (t) =>
+              t.tipo == TipoTransacao.entrada &&
+              t.data.month == now.month &&
+              t.data.year == now.year,
+        )
         .fold(0, (sum, t) => sum + t.valor);
   }
 
@@ -200,17 +228,21 @@ class AppProvider extends ChangeNotifier {
     final now = DateTime.now();
     final prev = DateTime(now.year, now.month - 1);
     return _transacoes
-        .where((t) =>
-            t.tipo == TipoTransacao.entrada &&
-            t.data.month == prev.month &&
-            t.data.year == prev.year)
+        .where(
+          (t) =>
+              t.tipo == TipoTransacao.entrada &&
+              t.data.month == prev.month &&
+              t.data.year == prev.year,
+        )
         .fold(0, (sum, t) => sum + t.valor);
   }
 
   Map<String, dynamic> percentageChange(double current, double previous) {
     if (previous == 0) {
       if (current == 0) return {'label': '0%', 'up': true};
-      return {'label': '—', 'up': true};
+      // Quando o valor anterior é zero, a variação percentual é indefinida.
+      // Evita exibir um "traço" (—) e mostra um rótulo mais útil no dashboard.
+      return {'label': 'Novo', 'up': current >= 0};
     }
     final diff = current - previous;
     final pct = (diff / previous) * 100;
@@ -219,12 +251,13 @@ class AppProvider extends ChangeNotifier {
     return {'label': '$sign$rounded%', 'up': pct >= 0};
   }
 
-  int get pendingPaymentsCount =>
-      _orcamentos.where((o) => o.status == OrcamentoStatus.concluido && !o.pago).length;
+  int get pendingPaymentsCount => _orcamentos
+      .where((o) => o.status == OrcamentoStatus.concluido && !o.pago)
+      .length;
 
-  double get pendingPaymentsTotal =>
-      _orcamentos.where((o) => o.status == OrcamentoStatus.concluido && !o.pago)
-          .fold(0, (sum, o) => sum + o.valorTotal);
+  double get pendingPaymentsTotal => _orcamentos
+      .where((o) => o.status == OrcamentoStatus.concluido && !o.pago)
+      .fold(0, (sum, o) => sum + o.valorTotal);
 
   // ===================== CLIENTES =====================
 
@@ -269,7 +302,9 @@ class AppProvider extends ChangeNotifier {
           .toSet();
       _orcamentos.removeWhere((o) => o.clienteId == id);
       _transacoes.removeWhere(
-        (t) => t.orcamentoId != null && removedOrcamentoIds.contains(t.orcamentoId),
+        (t) =>
+            t.orcamentoId != null &&
+            removedOrcamentoIds.contains(t.orcamentoId),
       );
 
       notifyListeners();
@@ -467,7 +502,6 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-
   // ===================== INIT / RELOAD =====================
 
   Future<void> initApp() async {
@@ -479,16 +513,19 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> _reloadForActiveUser() async {
+    final userIdAtStart = _activeUserId;
+    final isAdminAtStart = _activeUserIsAdmin;
+
     _isLoading = true;
     notifyListeners();
 
     try {
       await _db.setActiveUserId(
-        _activeUserId,
-        migrateLegacyIfNeeded: _activeUserIsAdmin,
+        userIdAtStart,
+        migrateLegacyIfNeeded: isAdminAtStart,
       );
 
-      if (_activeUserId == null) {
+      if (userIdAtStart == null) {
         // Not authenticated: keep empty in-memory lists.
         return;
       }
@@ -499,7 +536,7 @@ class AppProvider extends ChangeNotifier {
       final transacoesDB = await _db.getTransacoes();
 
       // If user changed mid-flight, don't apply stale results.
-      if (_activeUserId == null) return;
+      if (_activeUserId != userIdAtStart) return;
 
       _clientes
         ..clear()

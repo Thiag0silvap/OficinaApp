@@ -46,11 +46,12 @@ class DashboardScreen extends StatelessWidget {
               // Limita a largura máxima dos cards para evitar ficar “gigante”
               // quando o app estiver em uma largura intermediária.
               // (O número de colunas passa a ser determinado automaticamente.)
-              final maxCardWidth = isMobile ? constraints.maxWidth : 340.0;
+              final maxCardWidth = isMobile ? constraints.maxWidth : 290.0;
 
-              // Ajusta altura “premium” dos cards sem distorcer.
-              // (Menor ratio => card um pouco mais alto; ajuda a evitar overflow.)
-              final cardAspectRatio = isMobile ? 4.0 : 3.4;
+              // Quando a largura do card diminui, um childAspectRatio alto pode
+              // “achatar” demais a altura e causar RenderFlex overflow.
+              // mainAxisExtent mantém uma altura estável e responsiva.
+              final statCardHeight = isMobile ? 96.0 : 100.0;
 
               final statCards = <Widget>[
                 _buildStatCard(
@@ -113,9 +114,9 @@ class DashboardScreen extends StatelessWidget {
                       physics: const NeverScrollableScrollPhysics(),
                       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                         maxCrossAxisExtent: maxCardWidth,
+                        mainAxisExtent: statCardHeight,
                         mainAxisSpacing: spacing,
                         crossAxisSpacing: spacing,
-                        childAspectRatio: cardAspectRatio,
                       ),
                       itemBuilder: (context, index) => statCards[index],
                     ),
@@ -136,18 +137,20 @@ class DashboardScreen extends StatelessWidget {
                               _buildSchedule(context, provider),
                             ],
                           )
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                flex: 2,
-                                child: _buildRecentOrders(context, provider),
-                              ),
-                              SizedBox(width: spacing),
-                              Expanded(
-                                child: _buildSchedule(context, provider),
-                              ),
-                            ],
+                        : IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Expanded(
+                                  flex: 2,
+                                  child: _buildRecentOrders(context, provider),
+                                ),
+                                SizedBox(width: spacing),
+                                Expanded(
+                                  child: _buildSchedule(context, provider),
+                                ),
+                              ],
+                            ),
                           ),
                   ],
                 ),
@@ -360,13 +363,15 @@ class DashboardScreen extends StatelessWidget {
       );
     }
 
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(flex: 2, child: chart),
-        SizedBox(width: spacing),
-        Expanded(child: resumo),
-      ],
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(flex: 2, child: chart),
+          SizedBox(width: spacing),
+          Expanded(child: resumo),
+        ],
+      ),
     );
   }
 
@@ -726,6 +731,9 @@ class DashboardScreen extends StatelessWidget {
     VoidCallback? onTap,
   }) {
     bool _hover = false;
+    final contentPadding = trend != null
+        ? const EdgeInsets.fromLTRB(10, 10, 2, 10)
+        : const EdgeInsets.all(10);
 
     return StatefulBuilder(
       builder: (ctx, setState) {
@@ -742,7 +750,7 @@ class DashboardScreen extends StatelessWidget {
                 onTap: onTap,
                 borderRadius: BorderRadius.circular(16),
                 child: Ink(
-                  padding: const EdgeInsets.all(10),
+                  padding: contentPadding,
                   decoration: BoxDecoration(
                     color: AppColors.secondaryGray,
                     borderRadius: BorderRadius.circular(16),
@@ -764,18 +772,20 @@ class DashboardScreen extends StatelessWidget {
                         children: [
                           Icon(icon, color: iconColor, size: 22),
                           if (trend != null) ...[
-                            const Spacer(),
-                            Flexible(
-                              child: Text(
-                                trend,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                textAlign: TextAlign.right,
-                                style: TextStyle(
-                                  color: trendUp
-                                      ? AppColors.success
-                                      : AppColors.error,
-                                  fontWeight: FontWeight.bold,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: Text(
+                                  trend,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: trendUp
+                                        ? AppColors.success
+                                        : AppColors.error,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ),
