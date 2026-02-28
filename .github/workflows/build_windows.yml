@@ -1,0 +1,71 @@
+name: Build Windows (Flutter)
+
+on:
+  workflow_dispatch:
+    inputs:
+      flutter_channel:
+        description: "Flutter channel"
+        required: false
+        default: "stable"
+      artifact_name:
+        description: "Artifact name"
+        required: false
+        default: "OficinaApp-windows-release"
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: ${{ inputs.flutter_channel }}
+          cache: true
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Build Windows (release)
+        run: flutter build windows --release
+
+      - name: Package (zip Release folder contents)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $root = (Get-Location).Path
+          $releaseDir = Join-Path $root 'build\windows\x64\runner\Release'
+          if (-not (Test-Path $releaseDir)) {
+            $releaseDirAlt = Join-Path $root 'build\windows\runner\Release'
+            if (Test-Path $releaseDirAlt) {
+              $releaseDir = $releaseDirAlt
+            } else {
+              throw "Release directory not found. Tried: $releaseDir and $releaseDirAlt"
+            }
+          }
+
+          $distDir = Join-Path $root 'dist'
+          New-Item -ItemType Directory -Force -Path $distDir | Out-Null
+
+          $zipPath = Join-Path $distDir 'OficinaApp_windows_release.zip'
+          if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
+
+          Compress-Archive -Path (Join-Path $releaseDir '*') -DestinationPath $zipPath -Force
+          Write-Host "Created: $zipPath"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: dist/OficinaApp_windows_release.zip
+          if-no-files-found: error
