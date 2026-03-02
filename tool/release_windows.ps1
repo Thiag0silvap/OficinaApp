@@ -116,7 +116,9 @@ $downloadUrl = "https://github.com/$RepoSlug/releases/download/$tagName/$zipName
 $manifest = [ordered]@{
   latestVersion = $version
   downloadUrl   = $downloadUrl
-  notes         = "- Descreva aqui as mudanças desta versão"
+  # Windows PowerShell 5 pode interpretar este arquivo como ANSI se estiver em UTF-8 sem BOM,
+  # o que corrompe acentos em literais. Geramos os caracteres via codepoints para evitar isso.
+  notes         = ("- Descreva aqui as mudan$([char]231)as desta vers$([char]227)o")
 }
 
 $manifestPath = Join-Path $distDir 'update_manifest.json'
