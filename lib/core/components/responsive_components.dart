@@ -354,6 +354,97 @@ class ResponsiveLayout extends StatelessWidget {
     Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
   }
 
+  void _showHelpDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        Widget sectionTitle(String text) {
+          return Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 6),
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: AppColors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          );
+        }
+
+        Widget bullet(String text) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Text(
+              '• $text',
+              style: TextStyle(
+                color: AppColors.white.withValues(alpha: 0.86),
+                height: 1.25,
+              ),
+            ),
+          );
+        }
+
+        return ResponsiveDialog(
+          title: 'Ajuda',
+          content: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Guia rápido do OficinaApp',
+                style: TextStyle(
+                  color: AppColors.textSecondary.withValues(alpha: 0.95),
+                ),
+              ),
+
+              sectionTitle('Dashboard'),
+              bullet('Mostra os principais números e atalhos do dia.'),
+              bullet(
+                'Clique em um card para abrir detalhes (quando disponível).',
+              ),
+
+              sectionTitle('Clientes'),
+              bullet('Cadastre e gerencie os clientes da oficina.'),
+              bullet(
+                'Use a busca para localizar rapidamente por nome/telefone.',
+              ),
+
+              sectionTitle('Orçamentos / Ordens'),
+              bullet('Crie, edite e acompanhe o status do orçamento.'),
+              bullet(
+                'Ações comuns: Aprovar, Iniciar, Concluir, Registrar pagamento.',
+              ),
+              bullet(
+                'Você pode gerar/compartilhar o PDF do orçamento ou da nota de serviço.',
+              ),
+
+              sectionTitle('Financeiro'),
+              bullet('Acompanhe faturamento e indicadores do período.'),
+              bullet(
+                'Use os filtros/visões para analisar receitas e despesas.',
+              ),
+
+              sectionTitle('Backup (manual)'),
+              bullet('Gera um arquivo de backup no seu Documentos.'),
+              bullet('Recomendado fazer backup periodicamente.'),
+
+              sectionTitle('PDF / Impressão'),
+              bullet('No orçamento/ordem, use “Enviar PDF” para compartilhar.'),
+              bullet('Use “Imprimir” para pré-visualizar e imprimir.'),
+              bullet('O PDF contém um ID para identificação do documento.'),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Fechar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildMobileLayout(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
@@ -593,7 +684,7 @@ class ResponsiveLayout extends StatelessWidget {
                   context,
                   icon: Icons.help,
                   title: 'Ajuda',
-                  onTap: () {},
+                  onTap: () => _showHelpDialog(context),
                 ),
                 const Divider(color: AppColors.border, height: 1),
                 _buildDrawerActionItem(
