@@ -663,13 +663,8 @@ class _OrcamentoPremiumCard extends StatelessWidget {
         onPressed: () async {
           try {
             final bytes = await PDFService.generateOrcamentoPdf(orcamento);
-            final prefix = orcamento.status == OrcamentoStatus.concluido
-                ? 'nota_servico'
-                : 'orcamento';
-            await Printing.sharePdf(
-              bytes: bytes,
-              filename: '${prefix}_${orcamento.id}.pdf',
-            );
+            final filename = PDFService.buildPdfFilename(orcamento);
+            await Printing.sharePdf(bytes: bytes, filename: filename);
           } catch (e) {
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
@@ -683,9 +678,7 @@ class _OrcamentoPremiumCard extends StatelessWidget {
         label: 'Imprimir',
         tone: _ActionTone.neutral,
         onPressed: () async {
-          final filename = orcamento.status == OrcamentoStatus.concluido
-              ? 'nota_servico_${orcamento.id}.pdf'
-              : 'orcamento_${orcamento.id}.pdf';
+          final filename = PDFService.buildPdfFilename(orcamento);
           final title = orcamento.status == OrcamentoStatus.concluido
               ? 'Nota de Serviço'
               : 'Orçamento';

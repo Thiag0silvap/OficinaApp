@@ -46,9 +46,8 @@ class OrderDetailScreen extends StatelessWidget {
                     await showDialog(
                       context: context,
                       barrierDismissible: false,
-                      builder: (_) => OrcamentoFormDialog(
-                        orcamentoEditar: current,
-                      ),
+                      builder: (_) =>
+                          OrcamentoFormDialog(orcamentoEditar: current),
                     );
                   },
                 ),
@@ -56,10 +55,10 @@ class OrderDetailScreen extends StatelessWidget {
                 tooltip: 'Pré-visualizar / Imprimir',
                 icon: const Icon(Icons.print),
                 onPressed: () async {
-                  final filename = current.status == OrcamentoStatus.concluido
-                      ? 'nota_servico_${current.id}.pdf'
-                      : 'orcamento_${current.id}.pdf';
-                  final title = current.status == OrcamentoStatus.concluido ? 'Nota de Serviço' : 'Orçamento';
+                  final filename = PDFService.buildPdfFilename(current);
+                  final title = current.status == OrcamentoStatus.concluido
+                      ? 'Nota de Serviço'
+                      : 'Orçamento';
                   await showPdfPreviewDialog(
                     context,
                     title: title,
@@ -81,7 +80,10 @@ class OrderDetailScreen extends StatelessWidget {
                   }
                 },
                 itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'save', child: Text('Salvar PDF no aparelho')),
+                  PopupMenuItem(
+                    value: 'save',
+                    child: Text('Salvar PDF no aparelho'),
+                  ),
                 ],
               ),
               const SizedBox(width: 8),
@@ -127,7 +129,8 @@ class OrderDetailScreen extends StatelessWidget {
                   const SizedBox(height: 18),
                   _InfoBanner(
                     icon: Icons.verified,
-                    text: 'Pagamento confirmado em ${Formatters.dateShort(current.dataPagamento ?? DateTime.now())}.',
+                    text:
+                        'Pagamento confirmado em ${Formatters.dateShort(current.dataPagamento ?? DateTime.now())}.',
                     color: AppColors.success,
                   ),
                 ],
@@ -137,7 +140,8 @@ class OrderDetailScreen extends StatelessWidget {
                   const SizedBox(height: 18),
                   _InfoBanner(
                     icon: Icons.pending_actions,
-                    text: 'Serviço concluído, mas o pagamento ainda não foi registrado.',
+                    text:
+                        'Serviço concluído, mas o pagamento ainda não foi registrado.',
                     color: AppColors.warning,
                   ),
                 ],
@@ -154,30 +158,30 @@ class OrderDetailScreen extends StatelessWidget {
   Future<void> _sharePdf(BuildContext context, Orcamento o) async {
     try {
       final bytes = await PDFService.generateOrcamentoPdf(o);
-      final filename = o.status == OrcamentoStatus.concluido ? 'nota_servico_${o.id}.pdf' : 'orcamento_${o.id}.pdf';
+      final filename = PDFService.buildPdfFilename(o);
       await Printing.sharePdf(bytes: bytes, filename: filename);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao gerar PDF: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
     }
   }
 
   Future<void> _savePdf(BuildContext context, Orcamento o) async {
     try {
       final bytes = await PDFService.generateOrcamentoPdf(o);
-      final filename = o.status == OrcamentoStatus.concluido ? 'nota_servico_${o.id}.pdf' : 'orcamento_${o.id}.pdf';
+      final filename = PDFService.buildPdfFilename(o);
       final savedPath = await _savePdfLocally(bytes, filename);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('PDF salvo em: $savedPath')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('PDF salvo em: $savedPath')));
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar PDF: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao salvar PDF: $e')));
     }
   }
 
@@ -212,12 +216,16 @@ class _HeaderCard extends StatelessWidget {
         children: [
           Text(
             orcamento.clienteNome,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 6),
           Text(
             orcamento.veiculoDescricao,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
           ),
           const SizedBox(height: 12),
           Row(
@@ -236,7 +244,10 @@ class _HeaderCard extends StatelessWidget {
               Container(
                 width: 10,
                 height: 10,
-                decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
+                ),
               ),
             ],
           ),
@@ -280,7 +291,12 @@ class _DatesCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Datas', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            'Datas',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
           _kv('Aprovação', fmt(orcamento.dataAprovacao)),
           _kv('Conclusão', fmt(orcamento.dataConclusao)),
@@ -321,7 +337,12 @@ class _ItensCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Serviços', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            'Serviços',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 10),
           ...orcamento.itens.map(
             (i) => Container(
@@ -329,7 +350,9 @@ class _ItensCard extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: Theme.of(context).scaffoldBackgroundColor.withValues(alpha: 0.15),
+                color: Theme.of(
+                  context,
+                ).scaffoldBackgroundColor.withValues(alpha: 0.15),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.grey.withValues(alpha: 0.10)),
               ),
@@ -346,7 +369,9 @@ class _ItensCard extends StatelessWidget {
                   const SizedBox(width: 10),
                   Text(
                     Formatters.currency(i.valor),
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -375,7 +400,12 @@ class _ObservacoesCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Observações', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            'Observações',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 8),
           Text(text, style: const TextStyle(color: Colors.grey)),
         ],
@@ -401,10 +431,17 @@ class _TotalCard extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text('Total', style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            'Total',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+          ),
           Text(
             Formatters.currency(total),
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
         ],
       ),
@@ -475,7 +512,11 @@ class _ActionsCard extends StatelessWidget {
             icon: const Icon(Icons.play_arrow),
             label: const Text('Iniciar serviço'),
             onPressed: () async {
-              final ok = await _confirm(context, 'Iniciar serviço?', 'Deseja iniciar o serviço para esta ordem?');
+              final ok = await _confirm(
+                context,
+                'Iniciar serviço?',
+                'Deseja iniciar o serviço para esta ordem?',
+              );
               if (ok) await provider.iniciarServico(orcamento.id);
             },
           ),
@@ -539,12 +580,20 @@ class _ActionsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Ações', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+          Text(
+            'Ações',
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 12),
           ...actions.map((w) {
             // Row com 2 botões já vem pronto no "pendente"
             if (w is Row) return w;
-            return Padding(padding: const EdgeInsets.only(bottom: 10), child: w);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: w,
+            );
           }),
           if (status == OrcamentoStatus.pendente) ...[
             // pendente já veio com 2 botões lado a lado
@@ -555,15 +604,25 @@ class _ActionsCard extends StatelessWidget {
     );
   }
 
-  Future<bool> _confirm(BuildContext context, String title, String content) async {
+  Future<bool> _confirm(
+    BuildContext context,
+    String title,
+    String content,
+  ) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
         title: Text(title),
         content: Text(content),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirmar')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Confirmar'),
+          ),
         ],
       ),
     );
@@ -596,7 +655,12 @@ class _InfoBanner extends StatelessWidget {
         children: [
           Icon(icon, color: color),
           const SizedBox(width: 10),
-          Expanded(child: Text(text, style: TextStyle(color: color, fontWeight: FontWeight.w600))),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: color, fontWeight: FontWeight.w600),
+            ),
+          ),
         ],
       ),
     );
@@ -625,7 +689,14 @@ class _PaymentBadge extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: color),
           const SizedBox(width: 6),
-          Text(text, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
@@ -676,7 +747,14 @@ class _StatusBadge extends StatelessWidget {
         children: [
           Icon(icon, size: 12, color: color),
           const SizedBox(width: 6),
-          Text(status.displayName, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+          Text(
+            status.displayName,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );

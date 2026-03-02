@@ -8,6 +8,46 @@ import '../models/orcamento.dart';
 import '../core/constants/app_constants.dart';
 
 class PDFService {
+  /// Gera um nome de arquivo amigável e seguro (Windows/macOS/Linux) para PDFs.
+  /// Ex.: `orcamento_Thiago_89857.pdf`
+  static String buildPdfFilename(Orcamento o) {
+    final isConcluido = o.status == OrcamentoStatus.concluido;
+    final prefix = isConcluido ? 'nota_servico' : 'orcamento';
+
+    var client = _sanitizeFilenamePart(o.clienteNome);
+    if (client.isEmpty) client = 'cliente';
+
+    // Evita nomes gigantes e problemas com limite de path.
+    if (client.length > 24) {
+      client = client.substring(0, 24).trim();
+    }
+
+    final idShort = _shortId(o.id.toString());
+    return '${prefix}_${client}_$idShort.pdf';
+  }
+
+  static String _shortId(String raw) {
+    final cleaned = raw.trim().replaceAll(RegExp(r'[^0-9A-Za-z]'), '');
+    if (cleaned.isEmpty) return 'id';
+    if (cleaned.length <= 6) return cleaned;
+    return cleaned.substring(cleaned.length - 6);
+  }
+
+  static String _sanitizeFilenamePart(String input) {
+    var s = input.trim();
+    if (s.isEmpty) return '';
+
+    // Caracteres proibidos em Windows: \ / : * ? " < > |
+    s = s.replaceAll(RegExp(r'[\\/:*?"<>|]'), '-');
+    // Remove controles e normaliza espaços.
+    s = s.replaceAll(RegExp(r'[\u0000-\u001F]'), '');
+    s = s.replaceAll(RegExp(r'\s+'), '_');
+    // Evita pontos no final (ruim no Windows) e tokens vazios.
+    s = s.replaceAll(RegExp(r'_+'), '_');
+    s = s.replaceAll(RegExp(r'^[._\-]+|[._\-]+$'), '');
+    return s;
+  }
+
   static Future<Uint8List> generateOrcamentoPdf(Orcamento o) async {
     final pdf = pw.Document();
     final dateFormat = DateFormat('dd/MM/yyyy');
@@ -26,9 +66,7 @@ class PDFService {
     final displayDate = (isConcluido && o.dataConclusao != null)
         ? o.dataConclusao!
         : o.dataCriacao;
-
-    final pagamentoText = o.pago ? 'Pago' : 'Pendente';
-    final pagamentoColor = o.pago ? PdfColors.green : PdfColors.orange;
+    final idShort = _shortId(o.id.toString());
 
     pdf.addPage(
       pw.MultiPage(
@@ -57,29 +95,13 @@ class PDFService {
                       ),
                       pw.SizedBox(height: 6),
                       pw.Text('Data: ${dateFormat.format(displayDate)}'),
-                      pw.SizedBox(height: 4),
-                      pw.Row(
-                        mainAxisAlignment: pw.MainAxisAlignment.end,
-                        children: [
-                          pw.Text('Pagamento: '),
-                          pw.Container(
-                            padding: const pw.EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: pw.BoxDecoration(
-                              borderRadius: pw.BorderRadius.circular(10),
-                              border: pw.Border.all(color: pagamentoColor),
-                            ),
-                            child: pw.Text(
-                              pagamentoText,
-                              style: pw.TextStyle(
-                                fontWeight: pw.FontWeight.bold,
-                                color: pagamentoColor,
-                              ),
-                            ),
-                          ),
-                        ],
+                      pw.SizedBox(height: 2),
+                      pw.Text(
+                        'ID: ${o.id} (curto: $idShort)',
+                        style: pw.TextStyle(
+                          fontSize: 10,
+                          color: PdfColors.grey700,
+                        ),
                       ),
                     ],
                   ),
@@ -238,7 +260,10 @@ class PDFService {
                 border: pw.Border.all(color: PdfColors.grey300),
               ),
               child: () {
-                final subtotal = o.itens.fold<double>(0, (sum, i) => sum + i.valor);
+                final subtotal = o.itens.fold<double>(
+                  0,
+                  (sum, i) => sum + i.valor,
+                );
                 final desconto = (subtotal - o.valorTotal).clamp(0.0, subtotal);
                 final hasDesconto = desconto > 0.005;
 
