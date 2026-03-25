@@ -5,7 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 
 import '../models/orcamento.dart';
-import '../core/constants/app_constants.dart';
+import '../services/db_service.dart';
 
 class PDFService {
   /// Gera um nome de arquivo amigável e seguro (Windows/macOS/Linux) para PDFs.
@@ -17,7 +17,6 @@ class PDFService {
     var client = _sanitizeFilenamePart(o.clienteNome);
     if (client.isEmpty) client = 'cliente';
 
-    // Evita nomes gigantes e problemas com limite de path.
     if (client.length > 24) {
       client = client.substring(0, 24).trim();
     }
@@ -37,12 +36,9 @@ class PDFService {
     var s = input.trim();
     if (s.isEmpty) return '';
 
-    // Caracteres proibidos em Windows: \ / : * ? " < > |
     s = s.replaceAll(RegExp(r'[\\/:*?"<>|]'), '-');
-    // Remove controles e normaliza espaços.
     s = s.replaceAll(RegExp(r'[\u0000-\u001F]'), '');
     s = s.replaceAll(RegExp(r'\s+'), '_');
-    // Evita pontos no final (ruim no Windows) e tokens vazios.
     s = s.replaceAll(RegExp(r'_+'), '_');
     s = s.replaceAll(RegExp(r'^[._\-]+|[._\-]+$'), '');
     return s;
@@ -51,7 +47,12 @@ class PDFService {
   static Future<Uint8List> generateOrcamentoPdf(Orcamento o) async {
     final pdf = pw.Document();
     final dateFormat = DateFormat('dd/MM/yyyy');
-    final moneyFormat = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$ ');
+    final moneyFormat = NumberFormat.currency(
+      locale: 'pt_BR',
+      symbol: 'R\$ ',
+    );
+
+    final empresa = await DBService.instance.getEmpresa();
 
     pw.MemoryImage? logoImage;
     try {
@@ -63,10 +64,8 @@ class PDFService {
 
     final isConcluido = o.status == OrcamentoStatus.concluido;
     final titleText = isConcluido ? 'Nota de Serviço' : 'Orçamento';
-    final displayDate = (isConcluido && o.dataConclusao != null)
-        ? o.dataConclusao!
-        : o.dataCriacao;
-    final idShort = _shortId(o.id.toString());
+    final displayDate =
+        (isConcluido && o.dataConclusao != null) ? o.dataConclusao! : o.dataCriacao;
 
     pdf.addPage(
       pw.MultiPage(
@@ -80,12 +79,41 @@ class PDFService {
               mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
               children: [
                 if (logoImage != null)
-                  pw.Container(width: 120, child: pw.Image(logoImage)),
+                  pw.Container(
+                    width: 120,
+                    child: pw.Image(logoImage),
+                  ),
                 pw.SizedBox(width: 12),
                 pw.Expanded(
                   child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
+                      if (empresa != null) ...[
+                        pw.Text(
+                          empresa.nome,
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(
+                            fontSize: 16,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        if (empresa.telefone.trim().isNotEmpty)
+                          pw.Text(
+                            empresa.telefone,
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        if (empresa.endereco.trim().isNotEmpty)
+                          pw.Text(
+                            empresa.endereco,
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        if ((empresa.cnpj ?? '').trim().isNotEmpty)
+                          pw.Text(
+                            'CNPJ: ${empresa.cnpj!.trim()}',
+                            textAlign: pw.TextAlign.right,
+                          ),
+                        pw.SizedBox(height: 10),
+                      ],
                       pw.Text(
                         titleText,
                         style: pw.TextStyle(
@@ -95,14 +123,6 @@ class PDFService {
                       ),
                       pw.SizedBox(height: 6),
                       pw.Text('Data: ${dateFormat.format(displayDate)}'),
-                      pw.SizedBox(height: 2),
-                      pw.Text(
-                        'ID: ${o.id} (curto: $idShort)',
-                        style: pw.TextStyle(
-                          fontSize: 10,
-                          color: PdfColors.grey700,
-                        ),
-                      ),
                     ],
                   ),
                 ),
@@ -111,7 +131,6 @@ class PDFService {
           ),
 
           pw.Divider(),
-
           pw.SizedBox(height: 8),
 
           pw.Container(
@@ -145,7 +164,10 @@ class PDFService {
 
           pw.Text(
             'Itens',
-            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+            ),
           ),
           pw.SizedBox(height: 6),
 
@@ -155,96 +177,35 @@ class PDFService {
             ),
             defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
             columnWidths: {
-              0: const pw.FlexColumnWidth(2),
-              1: const pw.FlexColumnWidth(6),
-              2: const pw.FlexColumnWidth(2),
+              0: const pw.FlexColumnWidth(2.2),
+              1: const pw.FlexColumnWidth(3.0),
+              2: const pw.FlexColumnWidth(4.8),
+              3: const pw.FlexColumnWidth(2.0),
             },
             children: [
               pw.TableRow(
                 children: [
-                  pw.Container(
-                    padding: const pw.EdgeInsets.all(6),
-                    decoration: pw.BoxDecoration(color: PdfColors.grey300),
-                    child: pw.Text(
-                      'Serviço',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                    ),
-                  ),
-                  pw.Container(
-                    padding: const pw.EdgeInsets.all(6),
-                    decoration: pw.BoxDecoration(color: PdfColors.grey300),
-                    child: pw.Text(
-                      'Descrição',
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                    ),
-                  ),
-                  pw.Container(
-                    padding: const pw.EdgeInsets.all(6),
-                    decoration: pw.BoxDecoration(color: PdfColors.grey300),
-                    child: pw.Align(
-                      alignment: pw.Alignment.centerRight,
-                      child: pw.Text(
-                        'Valor',
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                      ),
-                    ),
-                  ),
+                  _tableHeaderCell('Serviço'),
+                  _tableHeaderCell('Peça'),
+                  _tableHeaderCell('Descrição'),
+                  _tableHeaderCell('Valor', alignRight: true),
                 ],
               ),
-              ...o.itens.map((i) {
-                String piece = '';
-                String details = i.descricao;
-
-                for (final p in AppConstants.pecas) {
-                  if (details.toLowerCase().startsWith(p.toLowerCase())) {
-                    piece = p;
-                    if (details.length > p.length &&
-                        details.substring(p.length).trim().startsWith('-')) {
-                      details = details
-                          .substring(p.length)
-                          .replaceFirst('-', '')
-                          .trim();
-                    } else {
-                      details = details.substring(p.length).trim();
-                    }
-                    break;
-                  }
-                }
-
-                return pw.TableRow(
+              ...o.itens.map(
+                (i) => pw.TableRow(
                   children: [
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(6),
-                      child: pw.Text(i.servico),
+                    _tableBodyCell(i.servico),
+                    _tableBodyCell(
+                      (i.peca ?? '').trim().isEmpty ? '-' : i.peca!.trim(),
                     ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(6),
-                      child: piece.isNotEmpty
-                          ? pw.Column(
-                              crossAxisAlignment: pw.CrossAxisAlignment.start,
-                              children: [
-                                pw.Text(
-                                  piece,
-                                  style: pw.TextStyle(
-                                    fontWeight: pw.FontWeight.bold,
-                                  ),
-                                ),
-                                if (details.isNotEmpty) pw.SizedBox(height: 3),
-                                if (details.isNotEmpty) pw.Text(details),
-                              ],
-                            )
-                          : pw.Text(details),
-                    ),
-                    pw.Padding(
-                      padding: const pw.EdgeInsets.all(6),
-                      child: pw.Align(
-                        alignment: pw.Alignment.centerRight,
-                        child: pw.Text(moneyFormat.format(i.valor)),
-                      ),
+                    _tableBodyCell(i.descricao),
+                    _tableBodyCell(
+                      moneyFormat.format(i.valor),
+                      alignRight: true,
                     ),
                   ],
-                );
-              }),
+                ),
+              ),
             ],
           ),
 
@@ -299,7 +260,7 @@ class PDFService {
 
           pw.SizedBox(height: 18),
 
-          if ((o.observacoes ?? '').isNotEmpty)
+          if ((o.observacoes ?? '').trim().isNotEmpty)
             pw.Column(
               crossAxisAlignment: pw.CrossAxisAlignment.start,
               children: [
@@ -308,7 +269,7 @@ class PDFService {
                   style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                 ),
                 pw.SizedBox(height: 4),
-                pw.Text(o.observacoes ?? ''),
+                pw.Text(o.observacoes!.trim()),
               ],
             ),
 
@@ -332,12 +293,52 @@ class PDFService {
           pw.SizedBox(height: 6),
           pw.Text(
             'Documento gerado pelo sistema',
-            style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+            style: pw.TextStyle(
+              fontSize: 10,
+              color: PdfColors.grey700,
+            ),
           ),
         ],
       ),
     );
 
     return pdf.save();
+  }
+
+  static pw.Widget _tableHeaderCell(
+    String text, {
+    bool alignRight = false,
+  }) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.all(6),
+      decoration: pw.BoxDecoration(color: PdfColors.grey300),
+      child: alignRight
+          ? pw.Align(
+              alignment: pw.Alignment.centerRight,
+              child: pw.Text(
+                text,
+                style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              ),
+            )
+          : pw.Text(
+              text,
+              style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            ),
+    );
+  }
+
+  static pw.Widget _tableBodyCell(
+    String text, {
+    bool alignRight = false,
+  }) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.all(6),
+      child: alignRight
+          ? pw.Align(
+              alignment: pw.Alignment.centerRight,
+              child: pw.Text(text),
+            )
+          : pw.Text(text),
+    );
   }
 }

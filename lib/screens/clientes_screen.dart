@@ -5,7 +5,7 @@ import '../core/theme/app_theme.dart';
 import '../core/components/responsive_components.dart';
 import '../core/components/common_widgets.dart';
 import '../core/components/form_styles.dart';
-import '../core/components/orcamento_form_dialog.dart'; // Importe o novo dialog
+import '../core/components/orcamento_form_dialog.dart';
 import '../providers/app_provider.dart';
 import '../models/cliente.dart';
 import '../models/veiculo.dart';
@@ -24,7 +24,7 @@ enum _SortClientes { nomeAsc, recentes }
 
 class _ClientesScreenState extends State<ClientesScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
-  TipoCliente? _tipoFiltro; // null = todos
+  TipoCliente? _tipoFiltro;
   _SortClientes _sort = _SortClientes.nomeAsc;
 
   @override
@@ -353,7 +353,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        // Cards um pouco mais compactos (premium / desktop)
         childAspectRatio: 1.55,
         crossAxisSpacing: 20,
         mainAxisSpacing: 20,
@@ -486,6 +485,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
   void _showAddClienteDialog(BuildContext context) {
     final scaffoldContext = context;
     final formKey = GlobalKey<FormState>();
+
     final nomeController = TextEditingController();
     final telefoneController = TextEditingController();
     final enderecoController = TextEditingController();
@@ -504,47 +504,160 @@ class _ClientesScreenState extends State<ClientesScreen> {
     TipoCliente tipoSelecionado = TipoCliente.particular;
     bool isSaving = false;
 
+    // Primeiro veículo (obrigatório no primeiro cadastro)
+    const otherOptionValue = '__other__';
+    String? selectedMarca;
+    String? selectedModelo;
+    final marcaCustomController = TextEditingController();
+    final modeloCustomController = TextEditingController();
+    final corController = TextEditingController();
+    final placaController = TextEditingController();
+    final anoController = TextEditingController();
+    final observacoesVeiculoController = TextEditingController();
+
+    final corFocus = FocusNode();
+    final placaFocus = FocusNode();
+    final anoFocus = FocusNode();
+
+    Veiculo? veiculoPreparado;
+
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setState) {
+          Future<void> prepararPrimeiroVeiculo() async {
+            final provider = Provider.of<AppProvider>(
+              scaffoldContext,
+              listen: false,
+            );
+
+            final marcaFinal = (selectedMarca == otherOptionValue)
+                ? marcaCustomController.text.trim()
+                : (selectedMarca ?? '').trim();
+
+            final modeloFinal = (selectedMarca == otherOptionValue)
+                ? modeloCustomController.text.trim()
+                : (selectedModelo == otherOptionValue)
+                    ? modeloCustomController.text.trim()
+                    : (selectedModelo ?? '').trim();
+
+            final cor = corController.text.trim();
+            final placa = placaController.text.trim().toUpperCase();
+            final anoText = anoController.text.trim();
+
+            if (marcaFinal.isEmpty ||
+                modeloFinal.isEmpty ||
+                cor.isEmpty ||
+                placa.isEmpty) {
+              ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Preencha marca, modelo, cor e placa para adicionar o primeiro veículo.',
+                  ),
+                ),
+              );
+              return;
+            }
+
+            final anoValue = anoText.isEmpty ? null : int.tryParse(anoText);
+            if (anoText.isNotEmpty && anoValue == null) {
+              ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                const SnackBar(
+                  content: Text('Ano inválido. Use apenas números.'),
+                ),
+              );
+              return;
+            }
+
+            final veiculo = Veiculo(
+              id: DateTime.now().millisecondsSinceEpoch.toString(),
+              clienteId: '__pending__',
+              marca: marcaFinal,
+              modelo: modeloFinal,
+              cor: cor,
+              placa: placa,
+              ano: anoValue,
+              observacoes: observacoesVeiculoController.text.trim().isEmpty
+                  ? null
+                  : observacoesVeiculoController.text.trim(),
+            );
+
+            await provider.addMarcaModeloCustom(
+              marca: marcaFinal,
+              modelo: modeloFinal,
+            );
+
+            setState(() {
+              veiculoPreparado = veiculo;
+            });
+
+            if (scaffoldContext.mounted) {
+              ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                const SnackBar(
+                  content: Text('Primeiro veículo preparado com sucesso!'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+            }
+          }
+
           Future<void> submit() async {
             if (isSaving) return;
             if (!formKey.currentState!.validate()) return;
+
+            if (veiculoPreparado == null) {
+              ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                    'Para concluir o cadastro do cliente, adicione pelo menos um veículo.',
+                  ),
+                ),
+              );
+              return;
+            }
+
             setState(() => isSaving = true);
+
+            final clienteId = DateTime.now().millisecondsSinceEpoch.toString();
+
             final cliente = Cliente(
-              id: DateTime.now().millisecondsSinceEpoch.toString(),
-              nome: nomeController.text,
-              telefone: telefoneController.text,
-              endereco: enderecoController.text.isEmpty
+              id: clienteId,
+              nome: nomeController.text.trim(),
+              telefone: telefoneController.text.trim(),
+              endereco: enderecoController.text.trim().isEmpty
                   ? null
-                  : enderecoController.text,
+                  : enderecoController.text.trim(),
               dataCadastro: DateTime.now(),
-              observacoes: observacoesController.text.isEmpty
+              observacoes: observacoesController.text.trim().isEmpty
                   ? null
-                  : observacoesController.text,
+                  : observacoesController.text.trim(),
               tipo: tipoSelecionado,
               nomeSeguradora:
                   tipoSelecionado == TipoCliente.seguradora &&
-                      nomeSeguradoraController.text.isNotEmpty
-                  ? nomeSeguradoraController.text
+                          nomeSeguradoraController.text.trim().isNotEmpty
+                      ? nomeSeguradoraController.text.trim()
+                      : null,
+              cnpj: tipoSelecionado == TipoCliente.seguradora &&
+                      cnpjController.text.trim().isNotEmpty
+                  ? cnpjController.text.trim()
                   : null,
-              cnpj:
-                  tipoSelecionado == TipoCliente.seguradora &&
-                      cnpjController.text.isNotEmpty
-                  ? cnpjController.text
-                  : null,
-              contato:
-                  tipoSelecionado == TipoCliente.seguradora &&
-                      contatoController.text.isNotEmpty
-                  ? contatoController.text
+              contato: tipoSelecionado == TipoCliente.seguradora &&
+                      contatoController.text.trim().isNotEmpty
+                  ? contatoController.text.trim()
                   : null,
             );
+
+            final veiculoFinal = veiculoPreparado!.copyWith(clienteId: clienteId);
+
             try {
-              await Provider.of<AppProvider>(
+              final provider = Provider.of<AppProvider>(
                 scaffoldContext,
                 listen: false,
-              ).addCliente(cliente);
+              );
+
+              await provider.addCliente(cliente);
+              await provider.addVeiculo(veiculoFinal);
 
               if (dialogContext.mounted &&
                   Navigator.of(dialogContext).canPop()) {
@@ -554,7 +667,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
               if (scaffoldContext.mounted) {
                 ScaffoldMessenger.of(scaffoldContext).showSnackBar(
                   const SnackBar(
-                    content: Text('Cliente adicionado com sucesso!'),
+                    content: Text('Cliente e primeiro veículo salvos com sucesso!'),
                     backgroundColor: AppColors.success,
                   ),
                 );
@@ -572,11 +685,16 @@ class _ClientesScreenState extends State<ClientesScreen> {
             }
           }
 
+          final provider = Provider.of<AppProvider>(
+            scaffoldContext,
+            listen: false,
+          );
+
           final dialog = ResponsiveDialog(
             title: 'Novo Cliente',
             content: SingleChildScrollView(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 600),
+                constraints: const BoxConstraints(maxWidth: 700),
                 child: Form(
                   key: formKey,
                   child: Column(
@@ -667,7 +785,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                           label: 'Nome *',
                           prefixIcon: Icons.person,
                         ),
-                        validator: (value) => (value?.isEmpty ?? true)
+                        validator: (value) => (value?.trim().isEmpty ?? true)
                             ? 'Nome é obrigatório'
                             : null,
                       ),
@@ -684,7 +802,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                         ),
                         keyboardType: TextInputType.phone,
                         inputFormatters: [PhoneInputFormatter()],
-                        validator: (value) => (value?.isEmpty ?? true)
+                        validator: (value) => (value?.trim().isEmpty ?? true)
                             ? 'Telefone é obrigatório'
                             : null,
                       ),
@@ -710,6 +828,291 @@ class _ClientesScreenState extends State<ClientesScreen> {
                           prefixIcon: Icons.note,
                         ),
                         maxLines: 3,
+                      ),
+
+                      const SizedBox(height: 24),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.lightGray.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: AppColors.lightGray.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.directions_car,
+                                  color: AppColors.primaryYellow,
+                                ),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'Primeiro veículo do cliente',
+                                    style: TextStyle(
+                                      color: AppColors.primaryYellow,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                                if (veiculoPreparado != null)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.success.withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: AppColors.success.withValues(alpha: 0.35),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Veículo adicionado',
+                                      style: TextStyle(
+                                        color: AppColors.success,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Para concluir o primeiro cadastro do cliente, é obrigatório adicionar pelo menos um veículo.',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: selectedMarca,
+                              decoration: formFieldDecoration(
+                                label: 'Marca do veículo *',
+                                prefixIcon: Icons.directions_car,
+                              ),
+                              items: [
+                                ...provider.marcasDisponiveis.map<DropdownMenuItem<String>>(
+                                  (m) => DropdownMenuItem<String>(
+                                    value: m,
+                                    child: Text(m),
+                                  ),
+                                ),
+                                const DropdownMenuItem<String>(
+                                  value: otherOptionValue,
+                                  child: Text('Outra... (digitar)'),
+                                ),
+                              ],
+                              onChanged: (v) => setState(() {
+                                selectedMarca = v;
+                                selectedModelo = null;
+                                if (v != otherOptionValue) {
+                                  marcaCustomController.clear();
+                                }
+                                modeloCustomController.clear();
+                              }),
+                            ),
+                            if (selectedMarca == otherOptionValue) ...[
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: marcaCustomController,
+                                decoration: formFieldDecoration(
+                                  label: 'Digite a marca *',
+                                  prefixIcon: Icons.edit,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 12),
+
+                            if (selectedMarca == null)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  'Selecione a marca primeiro',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              )
+                            else if (selectedMarca == otherOptionValue)
+                              TextFormField(
+                                controller: modeloCustomController,
+                                decoration: formFieldDecoration(
+                                  label: 'Modelo *',
+                                  prefixIcon: Icons.drive_eta,
+                                ),
+                              )
+                            else
+                              DropdownButtonFormField<String>(
+                                isExpanded: true,
+                                initialValue: selectedModelo,
+                                decoration: formFieldDecoration(
+                                  label: 'Modelo *',
+                                  prefixIcon: Icons.drive_eta,
+                                ),
+                                items: [
+                                  ...provider
+                                      .modelosDisponiveis(selectedMarca)
+                                      .map<DropdownMenuItem<String>>(
+                                        (m) => DropdownMenuItem<String>(
+                                          value: m,
+                                          child: Text(m),
+                                        ),
+                                      ),
+                                  const DropdownMenuItem<String>(
+                                    value: otherOptionValue,
+                                    child: Text('Outro... (digitar)'),
+                                  ),
+                                ],
+                                onChanged: (v) => setState(() {
+                                  selectedModelo = v;
+                                  if (v != otherOptionValue) {
+                                    modeloCustomController.clear();
+                                  }
+                                }),
+                                hint: const Text('Selecione o modelo'),
+                              ),
+
+                            if (selectedMarca != null &&
+                                selectedMarca != otherOptionValue &&
+                                selectedModelo == otherOptionValue) ...[
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: modeloCustomController,
+                                decoration: formFieldDecoration(
+                                  label: 'Digite o modelo *',
+                                  prefixIcon: Icons.edit,
+                                ),
+                              ),
+                            ],
+
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: corController,
+                              focusNode: corFocus,
+                              textInputAction: TextInputAction.next,
+                              onFieldSubmitted: (_) => placaFocus.requestFocus(),
+                              decoration: formFieldDecoration(
+                                label: 'Cor *',
+                                prefixIcon: Icons.color_lens,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: placaController,
+                              focusNode: placaFocus,
+                              textInputAction: TextInputAction.next,
+                              onFieldSubmitted: (_) => anoFocus.requestFocus(),
+                              decoration: formFieldDecoration(
+                                label: 'Placa *',
+                                prefixIcon: Icons.confirmation_number,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: anoController,
+                              focusNode: anoFocus,
+                              textInputAction: TextInputAction.next,
+                              decoration: formFieldDecoration(
+                                label: 'Ano',
+                                prefixIcon: Icons.calendar_today,
+                              ),
+                              keyboardType: TextInputType.number,
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: observacoesVeiculoController,
+                              decoration: formFieldDecoration(
+                                label: 'Observações do veículo',
+                                prefixIcon: Icons.note,
+                              ),
+                              maxLines: 2,
+                            ),
+                            const SizedBox(height: 12),
+
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: isSaving ? null : prepararPrimeiroVeiculo,
+                                    icon: Icon(
+                                      veiculoPreparado == null
+                                          ? Icons.add
+                                          : Icons.save,
+                                    ),
+                                    label: Text(
+                                      veiculoPreparado == null
+                                          ? 'Adicionar primeiro veículo'
+                                          : 'Atualizar veículo',
+                                    ),
+                                  ),
+                                ),
+                                if (veiculoPreparado != null) ...[
+                                  const SizedBox(width: 8),
+                                  OutlinedButton(
+                                    onPressed: isSaving
+                                        ? null
+                                        : () {
+                                            setState(() {
+                                              veiculoPreparado = null;
+                                              selectedMarca = null;
+                                              selectedModelo = null;
+                                              marcaCustomController.clear();
+                                              modeloCustomController.clear();
+                                              corController.clear();
+                                              placaController.clear();
+                                              anoController.clear();
+                                              observacoesVeiculoController.clear();
+                                            });
+                                          },
+                                    child: const Text('Limpar'),
+                                  ),
+                                ],
+                              ],
+                            ),
+
+                            if (veiculoPreparado != null) ...[
+                              const SizedBox(height: 12),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppColors.success.withValues(alpha: 0.25),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Resumo do primeiro veículo',
+                                      style: TextStyle(
+                                        color: AppColors.success,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      veiculoPreparado!.descricaoCompleta,
+                                      style: const TextStyle(color: AppColors.white),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -763,7 +1166,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
         },
       ),
     ).then((_) {
-      // Evita dispose durante a animação de fechamento do dialog.
       Future.delayed(const Duration(milliseconds: 350), () {
         nomeController.dispose();
         telefoneController.dispose();
@@ -779,6 +1181,17 @@ class _ClientesScreenState extends State<ClientesScreen> {
         nomeFocus.dispose();
         telefoneFocus.dispose();
         enderecoFocus.dispose();
+
+        marcaCustomController.dispose();
+        modeloCustomController.dispose();
+        corController.dispose();
+        placaController.dispose();
+        anoController.dispose();
+        observacoesVeiculoController.dispose();
+
+        corFocus.dispose();
+        placaFocus.dispose();
+        anoFocus.dispose();
       });
     });
   }
@@ -832,19 +1245,19 @@ class _ClientesScreenState extends State<ClientesScreen> {
               tipo: tipoSelecionado,
               nomeSeguradora:
                   tipoSelecionado == TipoCliente.seguradora &&
-                      nomeSeguradoraController.text.isNotEmpty
-                  ? nomeSeguradoraController.text
-                  : null,
+                          nomeSeguradoraController.text.isNotEmpty
+                      ? nomeSeguradoraController.text
+                      : null,
               cnpj:
                   tipoSelecionado == TipoCliente.seguradora &&
-                      cnpjController.text.isNotEmpty
-                  ? cnpjController.text
-                  : null,
+                          cnpjController.text.isNotEmpty
+                      ? cnpjController.text
+                      : null,
               contato:
                   tipoSelecionado == TipoCliente.seguradora &&
-                      contatoController.text.isNotEmpty
-                  ? contatoController.text
-                  : null,
+                          contatoController.text.isNotEmpty
+                      ? contatoController.text
+                      : null,
             );
             try {
               await Provider.of<AppProvider>(
@@ -1065,7 +1478,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
         },
       ),
     ).then((_) {
-      // Evita dispose durante a animação de fechamento do dialog.
       Future.delayed(const Duration(milliseconds: 350), () {
         nomeController.dispose();
         telefoneController.dispose();
@@ -1230,8 +1642,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
             final modeloFinal = (selectedMarca == otherOptionValue)
                 ? modeloCustomController.text.trim()
                 : (selectedModelo == otherOptionValue)
-                ? modeloCustomController.text.trim()
-                : (selectedModelo ?? '').trim();
+                    ? modeloCustomController.text.trim()
+                    : (selectedModelo ?? '').trim();
 
             final anoText = anoController.text.trim();
             final anoValue = anoText.isEmpty ? null : int.tryParse(anoText);
@@ -1546,7 +1958,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
         },
       ),
     ).then((_) {
-      // Evita dispose durante a animação de fechamento do dialog.
       Future.delayed(const Duration(milliseconds: 350), () {
         marcaCustomController.dispose();
         modeloCustomController.dispose();

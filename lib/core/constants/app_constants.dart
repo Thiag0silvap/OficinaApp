@@ -5,74 +5,133 @@ class AppConstants {
   static const String appSlogan = 'Gestão completa para sua oficina';
 
   /// URL de um JSON público com a última versão disponível.
-  /// Exemplo de formato em `tool/update_manifest_example.json`.
   /// Deixe vazio para desativar o check automático.
-    static const String updateManifestUrl =
+  static const String updateManifestUrl =
       'https://thiag0silvap.github.io/OficinaApp/update_manifest.json';
-  
+
   // Logo paths
-  // Update to your actual logo file placed in assets/images/
   static const String logoPath = 'assets/images/logo.png';
-  static const String logoPlaceholderPath = 'assets/images/placeholder_logo.txt';
-  
-  // Lista de serviços oferecidos
+  static const String logoPlaceholderPath =
+      'assets/images/placeholder_logo.txt';
+
+  // =========================
+  // SERVIÇOS
+  // =========================
   static const List<String> servicos = [
     'Funilaria',
     'Pintura',
+    'Retoque',
     'Polimento especializado',
-    'Cristalização e recuperação de farol',
+    'Cristalização',
+    'Recuperação de farol',
     'Higienização interna',
+    'Troca de peça',
+    'Desamassado',
+    'Outro',
   ];
 
-  // Lista de peças (baseado no modelo fornecido pelo cliente)
+  // Descrições institucionais dos serviços
+  // Úteis para referência, PDF, ajuda ou descrição longa
+  static const Map<String, String> servicosDescricao = {
+    'Funilaria':
+        'Reparos em lataria, correção de amassados, substituição de peças danificadas e restauração estrutural do veículo.',
+    'Pintura':
+        'Pintura completa ou parcial, correção de riscos, retoques e acabamento profissional com tintas de alta qualidade.',
+    'Retoque':
+        'Correções localizadas de pintura, pequenos reparos visuais e ajustes finos de acabamento.',
+    'Polimento especializado':
+        'Polimento técnico para remover riscos superficiais, oxidação e devolver o brilho original da pintura.',
+    'Cristalização':
+        'Aplicação de proteção e acabamento para preservar a pintura e manter o brilho por mais tempo.',
+    'Recuperação de farol':
+        'Restauração de faróis amarelados ou opacos com acabamento e proteção.',
+    'Higienização interna':
+        'Limpeza profunda de bancos, carpetes, teto, painel e todos os componentes internos do veículo.',
+    'Troca de peça':
+        'Substituição e ajuste de peças danificadas conforme necessidade do orçamento.',
+    'Desamassado':
+        'Correção de pequenos e médios amassados com acabamento adequado.',
+    'Outro': 'Serviço personalizado definido manualmente pelo usuário.',
+  };
+
+  // Preços sugeridos
+  static const Map<String, double> servicosPreco = {
+    'Funilaria': 300.00,
+    'Pintura': 450.00,
+    'Retoque': 150.00,
+    'Polimento especializado': 150.00,
+    'Cristalização': 200.00,
+    'Recuperação de farol': 120.00,
+    'Higienização interna': 120.00,
+    'Troca de peça': 200.00,
+    'Desamassado': 180.00,
+  };
+
+  // Ícones dos serviços
+  static const Map<String, String> servicosIcones = {
+    'Funilaria': '🔧',
+    'Pintura': '🎨',
+    'Retoque': '🛠',
+    'Polimento especializado': '✨',
+    'Cristalização': '🧴',
+    'Recuperação de farol': '💡',
+    'Higienização interna': '🧹',
+    'Troca de peça': '🚗',
+    'Desamassado': '🔩',
+    'Outro': '📋',
+  };
+
+  // =========================
+  // PEÇAS
+  // =========================
   static const List<String> pecas = [
     'Teto',
     'Capô',
     'Porta-malas',
     'Para-choque dianteiro',
+    'Para-choque traseiro',
     'Painel dianteiro',
     'Painel traseiro',
-    'Para-choque traseiro',
-    'Para-lama esquerda',
-    'Para-lama direita',
-    'Porta esquerda',
-    'Porta de trás esquerda',
-    'Porta direita',
-    'Porta de trás direita',
-    'Lateral direita',
+    'Para-lama esquerdo',
+    'Para-lama direito',
+    'Porta dianteira esquerda',
+    'Porta traseira esquerda',
+    'Porta dianteira direita',
+    'Porta traseira direita',
     'Lateral esquerda',
+    'Lateral direita',
     'Soleira esquerda',
     'Soleira direita',
     'Para-brisa',
-    'Peças para troca',
-    'Polimento',
+    'Peça para troca',
   ];
 
-  // Descrições padrão (opcional) para peças — pode ser extendida conforme necessário
+  // Descrições padrão de peças
   static const Map<String, String> pecasDescricao = {
     'Teto': '',
     'Capô': '',
     'Porta-malas': '',
     'Para-choque dianteiro': '',
+    'Para-choque traseiro': '',
     'Painel dianteiro': '',
     'Painel traseiro': '',
-    'Para-choque traseiro': '',
-    'Para-lama esquerda': '',
-    'Para-lama direita': '',
-    'Porta esquerda': '',
-    'Porta de trás esquerda': '',
-    'Porta direita': '',
-    'Porta de trás direita': '',
-    'Lateral direita': '',
+    'Para-lama esquerdo': '',
+    'Para-lama direito': '',
+    'Porta dianteira esquerda': '',
+    'Porta traseira esquerda': '',
+    'Porta dianteira direita': '',
+    'Porta traseira direita': '',
     'Lateral esquerda': '',
+    'Lateral direita': '',
     'Soleira esquerda': '',
     'Soleira direita': '',
     'Para-brisa': '',
-    'Peças para troca': '',
-    'Polimento': '',
+    'Peça para troca': '',
   };
 
-  // Marcas e modelos comuns para facilitar cadastro rápido
+  // =========================
+  // MARCAS E MODELOS
+  // =========================
   static const List<String> marcas = [
     'Chevrolet',
     'Fiat',
@@ -94,39 +153,16 @@ class AppConstants {
     'Hyundai': ['HB20', 'i30', 'Tucson', 'Creta'],
     'Renault': ['Kwid', 'Sandero', 'Logan', 'Duster'],
   };
-  
-  // Descrições dos serviços
-  static const Map<String, String> servicosDescricao = {
-    'Funilaria': 'Reparos em lataria, correção de amassados, substituição de peças danificadas e restauração estrutural do veículo.',
-    'Pintura': 'Pintura completa ou parcial, correção de riscos, retoques e acabamento profissional com tintas de alta qualidade.',
-    'Polimento especializado': 'Polimento técnico para remover riscos superficiais, oxidação e devolver o brilho original da pintura.',
-    'Cristalização e recuperação de farol': 'Restauração de faróis amarelados ou opacos, aplicação de cristalização para proteção duradoura.',
-    'Higienização interna': 'Limpeza profunda de bancos, carpetes, teto, painel e todos os componentes internos do veículo.',
-  };
 
-  // Preços sugeridos para serviços (pode ser ajustado pelo usuário ao adicionar)
-  static const Map<String, double> servicosPreco = {
-    'Funilaria': 300.00,
-    'Pintura': 450.00,
-    'Polimento especializado': 150.00,
-    'Cristalização e recuperação de farol': 200.00,
-    'Higienização interna': 120.00,
-  };
-  
-  // Ícones para cada serviço
-  static const Map<String, String> servicosIcones = {
-    'Funilaria': '🔧',
-    'Pintura': '🎨',
-    'Polimento especializado': '✨',
-    'Cristalização e recuperação de farol': '💡',
-    'Higienização interna': '🧹',
-  };
-  
-  // Status de orçamento (derived from OrcamentoStatus enum)
+  // =========================
+  // ORÇAMENTO
+  // =========================
   static List<String> get statusOrcamento =>
       OrcamentoStatus.values.map((e) => e.displayName).toList();
-  
-  // Categorias de despesas
+
+  // =========================
+  // FINANCEIRO
+  // =========================
   static const List<String> categoriasDespesas = [
     'Material',
     'Ferramentas',

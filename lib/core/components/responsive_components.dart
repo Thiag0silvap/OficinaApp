@@ -5,6 +5,7 @@ import '../widgets/app_logo.dart';
 import '../constants/app_version.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/db_service.dart';
+import '../../screens/empresa_screen.dart';
 
 // --- Responsive utilities (consolidated)
 class ResponsiveBreakpoints {
@@ -244,14 +245,11 @@ class ResponsiveCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cardPadding = padding ?? ResponsiveUtils.getCardPadding(context);
-
-    // Mantém consistência com o CardTheme (premium) definido no AppTheme.
-    // Evita elevação “pesada” e padroniza bordas/raio.
     final radius = BorderRadius.circular(18);
 
     return Card(
       color: color,
-      elevation: elevation, // default do tema (0)
+      elevation: elevation,
       shape: RoundedRectangleBorder(borderRadius: radius),
       child: Material(
         color: Colors.transparent,
@@ -283,8 +281,8 @@ class ResponsiveStatsGrid extends StatelessWidget {
     final crossAxisCount = isDesktop
         ? 4
         : isTablet
-        ? 2
-        : 1;
+            ? 2
+            : 1;
 
     return GridView.builder(
       shrinkWrap: true,
@@ -396,42 +394,25 @@ class ResponsiveLayout extends StatelessWidget {
                   color: AppColors.textSecondary.withValues(alpha: 0.95),
                 ),
               ),
-
               sectionTitle('Dashboard'),
               bullet('Mostra os principais números e atalhos do dia.'),
-              bullet(
-                'Clique em um card para abrir detalhes (quando disponível).',
-              ),
-
+              bullet('Clique em um card para abrir detalhes (quando disponível).'),
               sectionTitle('Clientes'),
               bullet('Cadastre e gerencie os clientes da oficina.'),
-              bullet(
-                'Use a busca para localizar rapidamente por nome/telefone.',
-              ),
-
+              bullet('Use a busca para localizar rapidamente por nome/telefone.'),
               sectionTitle('Orçamentos / Ordens'),
               bullet('Crie, edite e acompanhe o status do orçamento.'),
-              bullet(
-                'Ações comuns: Aprovar, Iniciar, Concluir, Registrar pagamento.',
-              ),
-              bullet(
-                'Você pode gerar/compartilhar o PDF do orçamento ou da nota de serviço.',
-              ),
-
+              bullet('Ações comuns: Aprovar, Iniciar, Concluir, Registrar pagamento.'),
+              bullet('Você pode gerar/compartilhar o PDF do orçamento ou da nota de serviço.'),
               sectionTitle('Financeiro'),
               bullet('Acompanhe faturamento e indicadores do período.'),
-              bullet(
-                'Use os filtros/visões para analisar receitas e despesas.',
-              ),
-
+              bullet('Use os filtros/visões para analisar receitas e despesas.'),
               sectionTitle('Backup (manual)'),
               bullet('Gera um arquivo de backup no seu Documentos.'),
               bullet('Recomendado fazer backup periodicamente.'),
-
               sectionTitle('PDF / Impressão'),
               bullet('No orçamento/ordem, use “Enviar PDF” para compartilhar.'),
               bullet('Use “Imprimir” para pré-visualizar e imprimir.'),
-              bullet('O PDF contém um ID para identificação do documento.'),
             ],
           ),
           actions: [
@@ -652,9 +633,15 @@ class ResponsiveLayout extends StatelessWidget {
                 const Divider(color: AppColors.border, height: 1),
                 _buildDrawerActionItem(
                   context,
-                  icon: Icons.settings,
-                  title: 'Configurações',
-                  onTap: () {},
+                  icon: Icons.business,
+                  title: 'Dados da Oficina',
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const EmpresaScreen(),
+                      ),
+                    );
+                  },
                 ),
                 _buildDrawerActionItem(
                   context,
@@ -768,8 +755,8 @@ class ResponsiveLayout extends StatelessWidget {
                   color: isSelected
                       ? AppColors.surface2
                       : (hovering
-                            ? AppColors.surface.withValues(alpha: 0.45)
-                            : Colors.transparent),
+                          ? AppColors.surface.withValues(alpha: 0.45)
+                          : Colors.transparent),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isSelected ? AppColors.border : Colors.transparent,
@@ -804,8 +791,8 @@ class ResponsiveLayout extends StatelessWidget {
                       color: isSelected
                           ? AppColors.primaryYellow
                           : (hovering
-                                ? AppColors.white.withValues(alpha: 0.95)
-                                : AppColors.textSecondary),
+                              ? AppColors.white.withValues(alpha: 0.95)
+                              : AppColors.textSecondary),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -815,11 +802,10 @@ class ResponsiveLayout extends StatelessWidget {
                           color: isSelected
                               ? AppColors.white
                               : (hovering
-                                    ? AppColors.white.withValues(alpha: 0.95)
-                                    : AppColors.textSecondary),
-                          fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w600,
+                                  ? AppColors.white.withValues(alpha: 0.95)
+                                  : AppColors.textSecondary),
+                          fontWeight:
+                              isSelected ? FontWeight.w700 : FontWeight.w600,
                         ),
                       ),
                     ),
@@ -903,8 +889,6 @@ class ResponsiveListCard extends StatelessWidget {
             const SizedBox(height: 12),
             const Divider(color: AppColors.border),
             const SizedBox(height: 8),
-
-            // ✅ Melhor: Wrap + largura mínima para botões não ficarem esmagados
             LayoutBuilder(
               builder: (ctx, c) {
                 final isNarrow = c.maxWidth < 420;

@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../models/user.dart';
+import '../models/empresa.dart';
 import '../models/cliente.dart';
 import '../models/attachment.dart';
 import '../models/veiculo.dart';
@@ -24,7 +25,8 @@ class DBService {
 
   static const String _legacyDbFileName = 'app_funilaria.db';
   static const String _prefsKeyDbMigratedV1 = 'db_migrated_to_user_db_v1';
-  static const String _prefsKeyDbMigratedToUserIdV1 = 'db_migrated_to_user_db_user_id_v1';
+  static const String _prefsKeyDbMigratedToUserIdV1 =
+      'db_migrated_to_user_db_user_id_v1';
 
   String _activeDbFileName = _legacyDbFileName;
 
@@ -43,14 +45,16 @@ class DBService {
   /// Migration behavior:
   /// - On the first time a user is set, if the legacy DB exists and the
   ///   user-specific DB does not, it copies the legacy DB into the user's DB.
-  Future<void> setActiveUserId(String? userId, {bool migrateLegacyIfNeeded = false}) async {
+  Future<void> setActiveUserId(
+    String? userId, {
+    bool migrateLegacyIfNeeded = false,
+  }) async {
     final newFileName = (userId == null || userId.trim().isEmpty)
         ? _legacyDbFileName
         : 'app_funilaria_user_${userId.trim()}.db';
 
     if (newFileName == _activeDbFileName) return;
 
-    // Close current DB handle before switching files.
     await close();
 
     if (migrateLegacyIfNeeded && userId != null && userId.trim().isNotEmpty) {
@@ -69,7 +73,10 @@ class DBService {
           if (await legacyFile.exists() && !await newFile.exists()) {
             await legacyFile.copy(newPath);
             await prefs.setBool(_prefsKeyDbMigratedV1, true);
-            await prefs.setString(_prefsKeyDbMigratedToUserIdV1, userId.trim());
+            await prefs.setString(
+              _prefsKeyDbMigratedToUserIdV1,
+              userId.trim(),
+            );
           }
         }
       } catch (_) {
@@ -80,8 +87,7 @@ class DBService {
     _activeDbFileName = newFileName;
   }
 
-    Future<Database> _initDB(String fileName) async {
-    // ✅ GARANTE que no desktop o sqflite_ffi foi setado ANTES do openDatabase
+  Future<Database> _initDB(String fileName) async {
     if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
@@ -92,9 +98,8 @@ class DBService {
 
     return openDatabase(
       path,
-      version: 3,
+      version: 4,
       onConfigure: (db) async {
-        // ✅ habilita chaves estrangeiras
         await db.execute('PRAGMA foreign_keys = ON;');
       },
       onCreate: _onCreate,
@@ -102,10 +107,8 @@ class DBService {
     );
   }
 
-
   // ===================== HELPERS =====================
   static String _safeTs() {
-    // yyyy-MM-dd_HH-mm-ss
     final now = DateTime.now();
     String two(int v) => v.toString().padLeft(2, '0');
     return '${now.year}-${two(now.month)}-${two(now.day)}_${two(now.hour)}-${two(now.minute)}-${two(now.second)}';
@@ -120,11 +123,9 @@ class DBService {
   }
 
   static String _encodeItens(List<dynamic> itens) {
-    // itens pode ser List<ItemOrcamento> (tem toMap)
     try {
       return jsonEncode(itens.map((e) => (e as dynamic).toMap()).toList());
     } catch (_) {
-      // fallback
       return jsonEncode([]);
     }
   }
@@ -153,6 +154,16 @@ class DBService {
         name TEXT NOT NULL,
         password TEXT NOT NULL,
         role TEXT NOT NULL
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE empresa (
+        id TEXT PRIMARY KEY,
+        nome TEXT NOT NULL,
+        telefone TEXT NOT NULL,
+        endereco TEXT NOT NULL,
+        cnpj TEXT
       );
     ''');
 
@@ -213,7 +224,6 @@ class DBService {
         dataAprovacao TEXT,
         dataConclusao TEXT,
 
-        -- financeiro / processo
         pago INTEGER NOT NULL DEFAULT 0,
         dataPagamento TEXT,
         observacoes TEXT,
@@ -227,7 +237,6 @@ class DBService {
       );
     ''');
 
-    // ✅ Ajuste: Nota.clienteId no seu model é String? (nullable)
     await db.execute('''
       CREATE TABLE notas (
         id TEXT PRIMARY KEY,
@@ -263,19 +272,48 @@ class DBService {
   }
 
   Future<void> _createIndexes(Database db) async {
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_veiculos_clienteId ON veiculos(clienteId);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_veiculos_placa ON veiculos(placa);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_orcamentos_clienteId ON orcamentos(clienteId);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_orcamentos_veiculoId ON orcamentos(veiculoId);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_orcamentos_status ON orcamentos(status);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_orcamentos_dataCriacao ON orcamentos(dataCriacao);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_notas_clienteId ON notas(clienteId);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_notas_orcamentoId ON notas(orcamentoId);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_notas_dataEmissao ON notas(dataEmissao);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_transacoes_data ON transacoes(data);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_transacoes_tipo ON transacoes(tipo);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_transacoes_orcamentoId ON transacoes(orcamentoId);');
-    await db.execute('CREATE INDEX IF NOT EXISTS idx_attachments_parentId ON attachments(parentId);');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_veiculos_clienteId ON veiculos(clienteId);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_veiculos_placa ON veiculos(placa);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_orcamentos_clienteId ON orcamentos(clienteId);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_orcamentos_veiculoId ON orcamentos(veiculoId);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_orcamentos_status ON orcamentos(status);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_orcamentos_dataCriacao ON orcamentos(dataCriacao);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_notas_clienteId ON notas(clienteId);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_notas_orcamentoId ON notas(orcamentoId);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_notas_dataEmissao ON notas(dataEmissao);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transacoes_data ON transacoes(data);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transacoes_tipo ON transacoes(tipo);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_transacoes_orcamentoId ON transacoes(orcamentoId);',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_attachments_parentId ON attachments(parentId);',
+    );
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_empresa_id ON empresa(id);',
+    );
   }
 
   FutureOr<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -289,7 +327,6 @@ class DBService {
       await addCol('ALTER TABLE attachments ADD COLUMN parentId TEXT;');
       await addCol('ALTER TABLE attachments ADD COLUMN parentType TEXT;');
 
-      // Tabelas (caso existam apps instalados com versões antigas)
       await db.execute('''
         CREATE TABLE IF NOT EXISTS veiculos (
           id TEXT PRIMARY KEY,
@@ -352,12 +389,34 @@ class DBService {
     }
 
     if (oldVersion < 3) {
-      await addCol("ALTER TABLE orcamentos ADD COLUMN pago INTEGER NOT NULL DEFAULT 0;");
+      await addCol(
+        "ALTER TABLE orcamentos ADD COLUMN pago INTEGER NOT NULL DEFAULT 0;",
+      );
       await addCol("ALTER TABLE orcamentos ADD COLUMN dataPagamento TEXT;");
-      await addCol("ALTER TABLE orcamentos ADD COLUMN observacoesCliente TEXT;");
-      await addCol("ALTER TABLE orcamentos ADD COLUMN observacoesInternas TEXT;");
-      await addCol("ALTER TABLE orcamentos ADD COLUMN dataPrevistaEntrega TEXT;");
-      await addCol("ALTER TABLE orcamentos ADD COLUMN tipoAtendimento TEXT NOT NULL DEFAULT 'particular';");
+      await addCol(
+        "ALTER TABLE orcamentos ADD COLUMN observacoesCliente TEXT;",
+      );
+      await addCol(
+        "ALTER TABLE orcamentos ADD COLUMN observacoesInternas TEXT;",
+      );
+      await addCol(
+        "ALTER TABLE orcamentos ADD COLUMN dataPrevistaEntrega TEXT;",
+      );
+      await addCol(
+        "ALTER TABLE orcamentos ADD COLUMN tipoAtendimento TEXT NOT NULL DEFAULT 'particular';",
+      );
+    }
+
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS empresa (
+          id TEXT PRIMARY KEY,
+          nome TEXT NOT NULL,
+          telefone TEXT NOT NULL,
+          endereco TEXT NOT NULL,
+          cnpj TEXT
+        );
+      ''');
     }
 
     await _createIndexes(db);
@@ -391,14 +450,11 @@ class DBService {
 
     String docsPath;
     if (Platform.isAndroid) {
-      // App-specific external storage (no broad storage permissions required).
       final dir = await getExternalStorageDirectory();
       docsPath = (dir ?? await getApplicationDocumentsDirectory()).path;
     } else if (Platform.isIOS) {
-      // iOS apps cannot write to arbitrary user folders.
       docsPath = (await getApplicationDocumentsDirectory()).path;
     } else {
-      // Desktop: try to use the OS Documents folder, fallback to app docs.
       try {
         if (Platform.isWindows) {
           final userProfile = Platform.environment['USERPROFILE'];
@@ -417,13 +473,14 @@ class DBService {
 
     final dbSrc = File(exports['db']!);
     final jsonSrc = File(exports['json']!);
-    final manifestSrc = exports['manifest'] != null ? File(exports['manifest']!) : null;
+    final manifestSrc =
+        exports['manifest'] != null ? File(exports['manifest']!) : null;
 
     final dbDest = p.join(destDir.path, p.basename(exports['db']!));
     final jsonDest = p.join(destDir.path, p.basename(exports['json']!));
     final manifestDest = manifestSrc != null
-      ? p.join(destDir.path, p.basename(exports['manifest']!))
-      : null;
+        ? p.join(destDir.path, p.basename(exports['manifest']!))
+        : null;
 
     await dbSrc.copy(dbDest);
     await jsonSrc.copy(jsonDest);
@@ -452,7 +509,16 @@ class DBService {
 
     final db = await database;
     final exportData = <String, List<Map<String, dynamic>>>{};
-    final tables = ['users', 'clientes', 'veiculos', 'orcamentos', 'notas', 'transacoes', 'attachments'];
+    final tables = [
+      'users',
+      'empresa',
+      'clientes',
+      'veiculos',
+      'orcamentos',
+      'notas',
+      'transacoes',
+      'attachments',
+    ];
 
     for (final t in tables) {
       try {
@@ -468,7 +534,8 @@ class DBService {
 
     final dbMeta = await _checksumForFile(File(dbBackupPath));
     final jsonMeta = await _checksumForFile(File(jsonPath));
-    final manifestPath = p.join(backupDir.path, 'app_funilaria_backup_$ts.manifest.json');
+    final manifestPath =
+        p.join(backupDir.path, 'app_funilaria_backup_$ts.manifest.json');
     final manifest = {
       'createdAt': DateTime.now().toIso8601String(),
       'db': {
@@ -496,7 +563,6 @@ class DBService {
       throw Exception('Arquivo de backup não encontrado.');
     }
 
-    // Verify checksum if a manifest exists next to the backup.
     final manifestPath = '${p.withoutExtension(backupDbPath)}.manifest.json';
     final manifestFile = File(manifestPath);
     if (await manifestFile.exists()) {
@@ -519,13 +585,17 @@ class DBService {
     }
 
     await src.copy(dbPath);
-    _db = null; // força reabrir
+    _db = null;
   }
 
   // ==================== CRUD USERS ====================
   Future<void> insertUser(User u) async {
     final db = await database;
-    await db.insert('users', u.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'users',
+      u.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<User>> getUsers() async {
@@ -544,10 +614,46 @@ class DBService {
     await db.delete('users', where: 'id = ?', whereArgs: [id]);
   }
 
+  // ==================== CRUD EMPRESA ====================
+  Future<void> saveEmpresa(Empresa e) async {
+    final db = await database;
+    await db.insert(
+      'empresa',
+      e.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<Empresa?> getEmpresa() async {
+    final db = await database;
+    final rows = await db.query('empresa', limit: 1);
+    if (rows.isEmpty) return null;
+    return Empresa.fromMap(rows.first);
+  }
+
+  Future<void> updateEmpresa(Empresa e) async {
+    final db = await database;
+    await db.update(
+      'empresa',
+      e.toMap(),
+      where: 'id = ?',
+      whereArgs: [e.id],
+    );
+  }
+
+  Future<void> deleteEmpresa(String id) async {
+    final db = await database;
+    await db.delete('empresa', where: 'id = ?', whereArgs: [id]);
+  }
+
   // ==================== CRUD CLIENTES ====================
   Future<void> insertCliente(Cliente c) async {
     final db = await database;
-    await db.insert('clientes', c.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'clientes',
+      c.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Cliente>> getClientes() async {
@@ -558,7 +664,12 @@ class DBService {
 
   Future<Cliente?> getClienteById(String id) async {
     final db = await database;
-    final rows = await db.query('clientes', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows = await db.query(
+      'clientes',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
     if (rows.isEmpty) return null;
     return Cliente.fromMap(rows.first);
   }
@@ -576,7 +687,11 @@ class DBService {
   // ==================== CRUD ATTACHMENTS ====================
   Future<void> insertAttachment(Attachment a) async {
     final db = await database;
-    await db.insert('attachments', a.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'attachments',
+      a.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Attachment>> getAttachments() async {
@@ -587,7 +702,12 @@ class DBService {
 
   Future<List<Attachment>> getAttachmentsByParent(String parentId) async {
     final db = await database;
-    final rows = await db.query('attachments', where: 'parentId = ?', whereArgs: [parentId], orderBy: 'createdAt DESC');
+    final rows = await db.query(
+      'attachments',
+      where: 'parentId = ?',
+      whereArgs: [parentId],
+      orderBy: 'createdAt DESC',
+    );
     return rows.map((r) => Attachment.fromMap(r)).toList();
   }
 
@@ -599,7 +719,11 @@ class DBService {
   // ==================== CRUD VEÍCULOS ====================
   Future<void> insertVeiculo(Veiculo v) async {
     final db = await database;
-    await db.insert('veiculos', v.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'veiculos',
+      v.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Veiculo>> getVeiculos() async {
@@ -610,13 +734,23 @@ class DBService {
 
   Future<List<Veiculo>> getVeiculosByCliente(String clienteId) async {
     final db = await database;
-    final rows = await db.query('veiculos', where: 'clienteId = ?', whereArgs: [clienteId], orderBy: 'marca ASC');
+    final rows = await db.query(
+      'veiculos',
+      where: 'clienteId = ?',
+      whereArgs: [clienteId],
+      orderBy: 'marca ASC',
+    );
     return rows.map((r) => Veiculo.fromMap(r)).toList();
   }
 
   Future<Veiculo?> getVeiculoById(String id) async {
     final db = await database;
-    final rows = await db.query('veiculos', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows = await db.query(
+      'veiculos',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
     if (rows.isEmpty) return null;
     return Veiculo.fromMap(rows.first);
   }
@@ -636,7 +770,11 @@ class DBService {
     final db = await database;
     final map = o.toMap();
     map['itens'] = _encodeItens(o.itens);
-    await db.insert('orcamentos', map, conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'orcamentos',
+      map,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<void> updateOrcamento(Orcamento o) async {
@@ -691,7 +829,12 @@ class DBService {
 
   Future<Orcamento?> getOrcamentoById(String id) async {
     final db = await database;
-    final rows = await db.query('orcamentos', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows = await db.query(
+      'orcamentos',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
     if (rows.isEmpty) return null;
 
     final m = Map<String, dynamic>.from(rows.first);
@@ -741,7 +884,12 @@ class DBService {
 
   Future<Nota?> getNotaById(String id) async {
     final db = await database;
-    final rows = await db.query('notas', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows = await db.query(
+      'notas',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
     if (rows.isEmpty) return null;
 
     final m = Map<String, dynamic>.from(rows.first);
@@ -764,7 +912,11 @@ class DBService {
   // ==================== CRUD TRANSAÇÕES ====================
   Future<void> insertTransacao(Transacao t) async {
     final db = await database;
-    await db.insert('transacoes', t.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'transacoes',
+      t.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Transacao>> getTransacoes() async {
@@ -775,11 +927,19 @@ class DBService {
 
   Future<List<Transacao>> getTransacoesByTipo(String tipo) async {
     final db = await database;
-    final rows = await db.query('transacoes', where: 'tipo = ?', whereArgs: [tipo], orderBy: 'data DESC');
+    final rows = await db.query(
+      'transacoes',
+      where: 'tipo = ?',
+      whereArgs: [tipo],
+      orderBy: 'data DESC',
+    );
     return rows.map((r) => Transacao.fromMap(r)).toList();
   }
 
-  Future<List<Transacao>> getTransacoesByPeriodo(String dataInicio, String dataFim) async {
+  Future<List<Transacao>> getTransacoesByPeriodo(
+    String dataInicio,
+    String dataFim,
+  ) async {
     final db = await database;
     final rows = await db.query(
       'transacoes',
@@ -792,14 +952,24 @@ class DBService {
 
   Future<Transacao?> getTransacaoById(String id) async {
     final db = await database;
-    final rows = await db.query('transacoes', where: 'id = ?', whereArgs: [id], limit: 1);
+    final rows = await db.query(
+      'transacoes',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
     if (rows.isEmpty) return null;
     return Transacao.fromMap(rows.first);
   }
 
   Future<void> updateTransacao(Transacao t) async {
     final db = await database;
-    await db.update('transacoes', t.toMap(), where: 'id = ?', whereArgs: [t.id]);
+    await db.update(
+      'transacoes',
+      t.toMap(),
+      where: 'id = ?',
+      whereArgs: [t.id],
+    );
   }
 
   Future<void> deleteTransacao(String id) async {
@@ -818,8 +988,10 @@ class DBService {
       whereArgs = [dataInicio, dataFim];
     }
 
-    final result =
-        await db.rawQuery('SELECT SUM(valor) as total FROM transacoes WHERE $where', whereArgs);
+    final result = await db.rawQuery(
+      'SELECT SUM(valor) as total FROM transacoes WHERE $where',
+      whereArgs,
+    );
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
@@ -833,14 +1005,18 @@ class DBService {
       whereArgs = [dataInicio, dataFim];
     }
 
-    final result =
-        await db.rawQuery('SELECT SUM(valor) as total FROM transacoes WHERE $where', whereArgs);
+    final result = await db.rawQuery(
+      'SELECT SUM(valor) as total FROM transacoes WHERE $where',
+      whereArgs,
+    );
     return (result.first['total'] as num?)?.toDouble() ?? 0.0;
   }
 
   Future<Map<String, int>> getOrcamentosCountByStatus() async {
     final db = await database;
-    final rows = await db.rawQuery('SELECT status, COUNT(*) as count FROM orcamentos GROUP BY status');
+    final rows = await db.rawQuery(
+      'SELECT status, COUNT(*) as count FROM orcamentos GROUP BY status',
+    );
 
     final result = <String, int>{};
     for (final row in rows) {

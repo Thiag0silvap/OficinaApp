@@ -2,23 +2,27 @@
 
 class ItemOrcamento {
   final String servico;
+  final String? peca;
   final String descricao;
   final double valor;
 
   ItemOrcamento({
     required this.servico,
+    this.peca,
     required this.descricao,
     required this.valor,
   });
 
   Map<String, dynamic> toMap() => {
         'servico': servico,
+        'peca': peca,
         'descricao': descricao,
         'valor': valor,
       };
 
   factory ItemOrcamento.fromMap(Map<String, dynamic> m) => ItemOrcamento(
         servico: m['servico'] ?? '',
+        peca: m['peca'],
         descricao: m['descricao'] ?? '',
         valor: (m['valor'] ?? 0).toDouble(),
       );
@@ -31,6 +35,7 @@ enum OrcamentoStatus {
   concluido,
   cancelado,
 }
+
 enum TipoAtendimento { particular, seguro }
 
 extension OrcamentoStatusExtension on OrcamentoStatus {
@@ -63,11 +68,12 @@ class OrcamentoModel {
   final DateTime? dataAprovacao;
   final DateTime? dataConclusao;
 
-  /// 👇 NOVO — CONTROLE FINANCEIRO
+  /// CONTROLE FINANCEIRO
   final bool pago;
   final DateTime? dataPagamento;
 
   final String? observacoes;
+
   /// Vai aparecer no PDF
   final String? observacoesCliente;
 
@@ -91,7 +97,7 @@ class OrcamentoModel {
     required this.dataCriacao,
     this.dataAprovacao,
     this.dataConclusao,
-    this.pago = false,                // 👈 padrão: não pago
+    this.pago = false,
     this.dataPagamento,
     this.observacoes,
     this.observacoesCliente,
@@ -180,13 +186,14 @@ class OrcamentoModel {
           orElse: () => OrcamentoStatus.pendente,
         ),
         dataCriacao: DateTime.parse(
-            m['dataCriacao'] ?? DateTime.now().toIso8601String()),
+          m['dataCriacao'] ?? DateTime.now().toIso8601String(),
+        ),
         dataAprovacao: m['dataAprovacao'] != null
             ? DateTime.parse(m['dataAprovacao'])
             : null,
         dataConclusao: m['dataConclusao'] != null
-          ? DateTime.parse(m['dataConclusao'])
-          : null,
+            ? DateTime.parse(m['dataConclusao'])
+            : null,
         pago: (m['pago'] ?? 0) == 1,
         dataPagamento: m['dataPagamento'] != null
             ? DateTime.parse(m['dataPagamento'])
