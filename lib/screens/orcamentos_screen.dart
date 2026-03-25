@@ -10,13 +10,11 @@ import '../core/utils/formatters.dart';
 import '../providers/app_provider.dart';
 import '../models/orcamento.dart';
 import '../services/pdf_service.dart';
+import '../services/pdf_file_service.dart';
+import '../services/whatsapp_service.dart';
 import '../core/widgets/pdf_preview_dialog.dart';
 import 'order_detail_screen.dart';
 
-/// Patch 5 – Orçamentos Premium (Desktop-first)
-/// - Tabs com fundo e Material (corrige "No Material widget found")
-/// - Toolbar com Busca + Ordenação + Contador
-/// - Cards mais "executivos" (status pill + ações compactas)
 class OrcamentosScreen extends StatefulWidget {
   const OrcamentosScreen({super.key});
 
@@ -62,8 +60,6 @@ class _OrcamentosScreenState extends State<OrcamentosScreen> {
                 addLabelShort: 'Novo',
               ),
               SizedBox(height: ResponsiveUtils.getCardSpacing(context)),
-
-              // Toolbar
               _OrcToolbar(
                 controller: _searchCtrl,
                 sort: _sort,
@@ -76,7 +72,6 @@ class _OrcamentosScreenState extends State<OrcamentosScreen> {
                 onChanged: (_) => setState(() {}),
               ),
               SizedBox(height: ResponsiveUtils.getCardSpacing(context)),
-
               Expanded(
                 child: DefaultTabController(
                   length: 4,
@@ -152,10 +147,8 @@ class _OrcamentosScreenState extends State<OrcamentosScreen> {
       list = List<Orcamento>.from(list);
     }
 
-    // Ordenação
     switch (sort) {
       case _OrcSort.recent:
-        // Sem data? usa id como aproximação de "mais recente".
         list.sort((a, b) => b.id.compareTo(a.id));
         break;
       case _OrcSort.valorDesc:
@@ -240,7 +233,6 @@ class _PremiumTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Importante: TabBar precisa de Material acima.
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -258,7 +250,6 @@ class _PremiumTabBar extends StatelessWidget {
           isScrollable: !isDesktop,
           labelStyle: const TextStyle(fontWeight: FontWeight.w800),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w600),
-          // Indicator mais discreto e "premium": underline com espessura.
           indicator: UnderlineTabIndicator(
             borderSide: BorderSide(
               color: AppColors.primaryYellow.withValues(alpha: 0.95),
@@ -310,7 +301,6 @@ class _OrcToolbar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-
         SizedBox(
           width: isDesktop ? 180 : 160,
           child: _ToolbarSelect<_OrcSort>(
@@ -326,7 +316,6 @@ class _OrcToolbar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
-
         _CountChip(label: '$totalCount orçamentos'),
       ],
     );
@@ -373,7 +362,6 @@ class _SearchField extends StatelessWidget {
                 hintStyle: TextStyle(
                   color: AppColors.textSecondary.withValues(alpha: 0.7),
                 ),
-                // Remove o visual de "input dentro do input" (herança do tema)
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
@@ -545,7 +533,6 @@ class _OrcamentoPremiumCard extends StatelessWidget {
     final provider = Provider.of<AppProvider>(context, listen: false);
     final List<Widget> actions = [];
 
-    // Ação principal por status (compacta)
     switch (orcamento.status) {
       case OrcamentoStatus.pendente:
         actions.addAll([
@@ -654,7 +641,6 @@ class _OrcamentoPremiumCard extends StatelessWidget {
         break;
     }
 
-    // PDF / Imprimir
     actions.addAll([
       _ActionPill(
         icon: Icons.picture_as_pdf,
@@ -669,6 +655,62 @@ class _OrcamentoPremiumCard extends StatelessWidget {
             if (!context.mounted) return;
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Erro ao gerar/compartilhar PDF: $e')),
+            );
+          }
+        },
+      ),
+      _ActionPill(
+        icon: Icons.chat,
+        label: 'PDF + WhatsApp',
+        tone: _ActionTone.success,
+        onPressed: () async {
+          try {
+            final cliente = provider.getClienteById(orcamento.clienteId);
+
+            if (cliente == null || cliente.telefone.trim().isEmpty) {
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Cliente sem telefone cadastrado.'),
+                ),
+              );
+              return;
+            }
+
+            final bytes = await PDFService.generateOrcamentoPdf(orcamento);
+            final filename = PDFService.buildPdfFilename(orcamento);
+
+            final savedPath = await PdfFileService.savePdfToUserFolder(
+              bytes: bytes,
+              filename: filename,
+            );
+
+            final mensagem =
+                'Olá ${orcamento.clienteNome}, segue seu orçamento referente ao veículo '
+                '${orcamento.veiculoDescricao}.';
+
+            await PdfFileService.openFileFolder(savedPath);
+
+            await WhatsAppService.openChat(
+              phone: cliente.telefone,
+              message: mensagem,
+            );
+
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'PDF gerado com sucesso. A pasta foi aberta para facilitar o envio.',
+                ),
+                backgroundColor: AppColors.success,
+              ),
+            );
+          } catch (e) {
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Erro ao preparar envio por WhatsApp: $e'),
+              ),
             );
           }
         },
