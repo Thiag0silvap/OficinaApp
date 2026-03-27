@@ -64,10 +64,18 @@ class Transacao {
   }
 
   factory Transacao.fromMap(Map<String, dynamic> map) {
+    final rawTipo = map['tipo'];
+    final tipoName = switch (rawTipo) {
+      String value => value,
+      int value when value == 1 => TipoTransacao.saida.name,
+      int _ => TipoTransacao.entrada.name,
+      _ => TipoTransacao.entrada.name,
+    };
+
     return Transacao(
       id: map['id'] ?? '',
       tipo: TipoTransacao.values.firstWhere(
-        (e) => e.name == map['tipo'],
+        (e) => e.name == tipoName,
         orElse: () => TipoTransacao.entrada,
       ),
       descricao: map['descricao'] ?? '',

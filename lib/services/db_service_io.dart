@@ -1,656 +1,395 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-
-import 'package:crypto/crypto.dart';
-import 'package:path/path.dart' as p;
+import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-import '../models/user.dart';
-import '../models/empresa.dart';
 import '../models/cliente.dart';
-import '../models/attachment.dart';
-import '../models/veiculo.dart';
+import '../models/backup_manifest.dart';
+import '../models/empresa.dart';
+import '../models/nota.dart';
 import '../models/orcamento.dart';
 import '../models/transacao.dart';
-import '../models/nota.dart';
+import '../models/veiculo.dart';
+import '../core/constants/app_version.dart';
+import 'app_logger.dart';
 
 class DBService {
-  static final DBService instance = DBService._internal();
-  factory DBService() => instance;
-  DBService._internal();
+  DBService._();
+  static final DBService instance = DBService._();
+  static const int schemaVersion = 2;
+  static const String _backupFolderName = 'OficinaAppBackups';
 
-  static const String _legacyDbFileName = 'app_funilaria.db';
-  static const String _prefsKeyDbMigratedV1 = 'db_migrated_to_user_db_v1';
-  static const String _prefsKeyDbMigratedToUserIdV1 =
-      'db_migrated_to_user_db_user_id_v1';
+  Database? _database;
+  String? _activeUserId;
 
-  String _activeDbFileName = _legacyDbFileName;
-
-  Database? _db;
-
-  Future<Database> get database async {
-    if (_db != null) return _db!;
-    _db = await _initDB(_activeDbFileName);
-    return _db!;
-  }
-
-  /// Switches the active SQLite database file to be per-user.
-  ///
-  /// This prevents one user from seeing another user's data.
-  ///
-  /// Migration behavior:
-  /// - On the first time a user is set, if the legacy DB exists and the
-  ///   user-specific DB does not, it copies the legacy DB into the user's DB.
   Future<void> setActiveUserId(
     String? userId, {
     bool migrateLegacyIfNeeded = false,
   }) async {
-    final newFileName = (userId == null || userId.trim().isEmpty)
-        ? _legacyDbFileName
-        : 'app_funilaria_user_${userId.trim()}.db';
+    if (_activeUserId == userId) return;
 
-    if (newFileName == _activeDbFileName) return;
+    _activeUserId = userId;
 
-    await close();
-
-    if (migrateLegacyIfNeeded && userId != null && userId.trim().isNotEmpty) {
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        final migrated = prefs.getBool(_prefsKeyDbMigratedV1) ?? false;
-
-        if (!migrated) {
-          final databasesPath = await getDatabasesPath();
-          final legacyPath = p.join(databasesPath, _legacyDbFileName);
-          final newPath = p.join(databasesPath, newFileName);
-
-          final legacyFile = File(legacyPath);
-          final newFile = File(newPath);
-
-          if (await legacyFile.exists() && !await newFile.exists()) {
-            await legacyFile.copy(newPath);
-            await prefs.setBool(_prefsKeyDbMigratedV1, true);
-            await prefs.setString(
-              _prefsKeyDbMigratedToUserIdV1,
-              userId.trim(),
-            );
-          }
-        }
-      } catch (_) {
-        // ignore migration failures; app will start with empty user DB.
-      }
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
     }
-
-    _activeDbFileName = newFileName;
   }
 
-  Future<Database> _initDB(String fileName) async {
-    if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
-      sqfliteFfiInit();
-      databaseFactory = databaseFactoryFfi;
-    }
+  Future<Database> get database async {
+    if (_database != null) return _database!;
 
-    final databasesPath = await getDatabasesPath();
-    final path = p.join(databasesPath, fileName);
+    sqfliteFfiInit();
 
-    return openDatabase(
-      path,
-      version: 4,
-      onConfigure: (db) async {
-        await db.execute('PRAGMA foreign_keys = ON;');
-      },
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
+    final factory = databaseFactoryFfi;
+    final dir = await getApplicationDocumentsDirectory();
+
+    final path = join(
+      dir.path,
+      "oficina_${_activeUserId ?? "default"}.db",
     );
+
+    _database = await factory.openDatabase(
+      path,
+      options: OpenDatabaseOptions(
+        version: schemaVersion,
+        onCreate: _onCreate,
+        onUpgrade: _onUpgrade,
+        onOpen: _onOpen,
+      ),
+    );
+
+    return _database!;
   }
 
-  // ===================== HELPERS =====================
-  static String _safeTs() {
-    final now = DateTime.now();
-    String two(int v) => v.toString().padLeft(2, '0');
-    return '${now.year}-${two(now.month)}-${two(now.day)}_${two(now.hour)}-${two(now.minute)}-${two(now.second)}';
-  }
-
-  static Future<Map<String, dynamic>> _checksumForFile(File file) async {
-    final bytes = await file.readAsBytes();
-    return {
-      'sha256': sha256.convert(bytes).toString(),
-      'size': bytes.length,
-    };
-  }
-
-  static String _encodeItens(List<dynamic> itens) {
-    try {
-      return jsonEncode(itens.map((e) => (e as dynamic).toMap()).toList());
-    } catch (_) {
-      return jsonEncode([]);
-    }
-  }
-
-  static List<Map<String, dynamic>> _decodeItens(dynamic raw) {
-    if (raw == null) return [];
-    if (raw is List) {
-      return raw.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-    }
-    if (raw is String) {
-      try {
-        final decoded = jsonDecode(raw);
-        if (decoded is List) {
-          return decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
-        }
-      } catch (_) {}
-    }
-    return [];
-  }
-
-  // ===================== CREATE / MIGRATE =====================
-  FutureOr<void> _onCreate(Database db, int version) async {
+  Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE users (
-        id TEXT PRIMARY KEY,
-        name TEXT NOT NULL,
-        password TEXT NOT NULL,
-        role TEXT NOT NULL
-      );
-    ''');
+CREATE TABLE clientes(
+id TEXT PRIMARY KEY,
+nome TEXT,
+telefone TEXT,
+endereco TEXT,
+dataCadastro TEXT,
+observacoes TEXT,
+tipo TEXT,
+nomeSeguradora TEXT,
+cnpj TEXT,
+contato TEXT
+)
+''');
 
     await db.execute('''
-      CREATE TABLE empresa (
-        id TEXT PRIMARY KEY,
-        nome TEXT NOT NULL,
-        telefone TEXT NOT NULL,
-        endereco TEXT NOT NULL,
-        cnpj TEXT
-      );
-    ''');
+CREATE TABLE veiculos(
+id TEXT PRIMARY KEY,
+clienteId TEXT,
+marca TEXT,
+modelo TEXT,
+cor TEXT,
+placa TEXT,
+ano INTEGER,
+observacoes TEXT
+)
+''');
 
     await db.execute('''
-      CREATE TABLE clientes (
-        id TEXT PRIMARY KEY,
-        nome TEXT NOT NULL,
-        telefone TEXT NOT NULL,
-        endereco TEXT,
-        dataCadastro TEXT NOT NULL,
-        observacoes TEXT,
-        tipo TEXT NOT NULL,
-        nomeSeguradora TEXT,
-        cnpj TEXT,
-        contato TEXT
-      );
-    ''');
+CREATE TABLE orcamentos(
+id TEXT PRIMARY KEY,
+clienteId TEXT,
+clienteNome TEXT,
+veiculoId TEXT,
+veiculoDescricao TEXT,
+itens TEXT,
+valorTotal REAL,
+status TEXT,
+dataCriacao TEXT,
+dataAprovacao TEXT,
+dataConclusao TEXT,
+dataPagamento TEXT,
+pago INTEGER,
+observacoes TEXT,
+observacoesCliente TEXT,
+observacoesInternas TEXT,
+dataPrevistaEntrega TEXT,
+tipoAtendimento TEXT
+)
+''');
 
     await db.execute('''
-      CREATE TABLE attachments (
-        id TEXT PRIMARY KEY,
-        filename TEXT NOT NULL,
-        path TEXT NOT NULL,
-        type TEXT NOT NULL,
-        createdAt TEXT NOT NULL,
-        mime TEXT,
-        note TEXT,
-        parentId TEXT,
-        parentType TEXT
-      );
-    ''');
+CREATE TABLE transacoes(
+id TEXT PRIMARY KEY,
+tipo TEXT,
+descricao TEXT,
+valor REAL,
+categoria TEXT,
+data TEXT,
+orcamentoId TEXT,
+observacoes TEXT
+)
+''');
 
     await db.execute('''
-      CREATE TABLE veiculos (
-        id TEXT PRIMARY KEY,
-        clienteId TEXT NOT NULL,
-        marca TEXT NOT NULL,
-        modelo TEXT NOT NULL,
-        cor TEXT NOT NULL,
-        placa TEXT NOT NULL,
-        ano INTEGER,
-        observacoes TEXT,
-        FOREIGN KEY (clienteId) REFERENCES clientes(id) ON DELETE CASCADE
-      );
-    ''');
+CREATE TABLE notas(
+id TEXT PRIMARY KEY,
+orcamentoId TEXT,
+clienteId TEXT,
+clienteNome TEXT,
+veiculoId TEXT,
+veiculoDescricao TEXT,
+itens TEXT,
+valorTotal REAL,
+dataEmissao TEXT
+)
+''');
 
     await db.execute('''
-      CREATE TABLE orcamentos (
-        id TEXT PRIMARY KEY,
-        clienteId TEXT NOT NULL,
-        clienteNome TEXT NOT NULL,
-        veiculoId TEXT,
-        veiculoDescricao TEXT,
-        itens TEXT NOT NULL,
-        valorTotal REAL NOT NULL DEFAULT 0.0,
-        status TEXT NOT NULL DEFAULT 'pendente',
-        dataCriacao TEXT NOT NULL,
-        dataAprovacao TEXT,
-        dataConclusao TEXT,
-
-        pago INTEGER NOT NULL DEFAULT 0,
-        dataPagamento TEXT,
-        observacoes TEXT,
-        observacoesCliente TEXT,
-        observacoesInternas TEXT,
-        dataPrevistaEntrega TEXT,
-        tipoAtendimento TEXT NOT NULL DEFAULT 'particular',
-
-        FOREIGN KEY (clienteId) REFERENCES clientes(id) ON DELETE CASCADE,
-        FOREIGN KEY (veiculoId) REFERENCES veiculos(id) ON DELETE SET NULL
-      );
-    ''');
-
-    await db.execute('''
-      CREATE TABLE notas (
-        id TEXT PRIMARY KEY,
-        orcamentoId TEXT,
-        clienteId TEXT,
-        clienteNome TEXT NOT NULL,
-        veiculoId TEXT,
-        veiculoDescricao TEXT,
-        itens TEXT NOT NULL,
-        valorTotal REAL NOT NULL DEFAULT 0.0,
-        dataEmissao TEXT NOT NULL,
-        FOREIGN KEY (orcamentoId) REFERENCES orcamentos(id) ON DELETE SET NULL,
-        FOREIGN KEY (clienteId) REFERENCES clientes(id) ON DELETE SET NULL,
-        FOREIGN KEY (veiculoId) REFERENCES veiculos(id) ON DELETE SET NULL
-      );
-    ''');
-
-    await db.execute('''
-      CREATE TABLE transacoes (
-        id TEXT PRIMARY KEY,
-        tipo TEXT NOT NULL,
-        descricao TEXT,
-        valor REAL NOT NULL DEFAULT 0.0,
-        categoria TEXT,
-        data TEXT NOT NULL,
-        orcamentoId TEXT,
-        observacoes TEXT,
-        FOREIGN KEY (orcamentoId) REFERENCES orcamentos(id) ON DELETE SET NULL
-      );
-    ''');
+CREATE TABLE empresa(
+id TEXT PRIMARY KEY,
+nome TEXT,
+telefone TEXT,
+endereco TEXT,
+cnpj TEXT
+)
+''');
 
     await _createIndexes(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    await AppLogger.instance.info(
+      'Migrando banco do schema $oldVersion para $newVersion',
+    );
+    await _ensureLatestSchema(db);
+  }
+
+  Future<void> _onOpen(Database db) async {
+    await _ensureLatestSchema(db);
+    await _validateDatabaseIntegrity(db);
+  }
+
+  Future<void> _ensureLatestSchema(Database db) async {
+    await _ensureTableExists(
+      db,
+      'clientes',
+      '''
+CREATE TABLE clientes(
+id TEXT PRIMARY KEY,
+nome TEXT,
+telefone TEXT,
+endereco TEXT,
+dataCadastro TEXT,
+observacoes TEXT,
+tipo TEXT,
+nomeSeguradora TEXT,
+cnpj TEXT,
+contato TEXT
+)
+''',
+    );
+    await _ensureTableExists(
+      db,
+      'veiculos',
+      '''
+CREATE TABLE veiculos(
+id TEXT PRIMARY KEY,
+clienteId TEXT,
+marca TEXT,
+modelo TEXT,
+cor TEXT,
+placa TEXT,
+ano INTEGER,
+observacoes TEXT
+)
+''',
+    );
+    await _ensureTableExists(
+      db,
+      'orcamentos',
+      '''
+CREATE TABLE orcamentos(
+id TEXT PRIMARY KEY,
+clienteId TEXT,
+clienteNome TEXT,
+veiculoId TEXT,
+veiculoDescricao TEXT,
+itens TEXT,
+valorTotal REAL,
+status TEXT,
+dataCriacao TEXT,
+dataAprovacao TEXT,
+dataConclusao TEXT,
+dataPagamento TEXT,
+pago INTEGER,
+observacoes TEXT,
+observacoesCliente TEXT,
+observacoesInternas TEXT,
+dataPrevistaEntrega TEXT,
+tipoAtendimento TEXT
+)
+''',
+    );
+    await _ensureTableExists(
+      db,
+      'transacoes',
+      '''
+CREATE TABLE transacoes(
+id TEXT PRIMARY KEY,
+tipo TEXT,
+descricao TEXT,
+valor REAL,
+categoria TEXT,
+data TEXT,
+orcamentoId TEXT,
+observacoes TEXT
+)
+''',
+    );
+    await _ensureTableExists(
+      db,
+      'notas',
+      '''
+CREATE TABLE notas(
+id TEXT PRIMARY KEY,
+orcamentoId TEXT,
+clienteId TEXT,
+clienteNome TEXT,
+veiculoId TEXT,
+veiculoDescricao TEXT,
+itens TEXT,
+valorTotal REAL,
+dataEmissao TEXT
+)
+''',
+    );
+    await _ensureTableExists(
+      db,
+      'empresa',
+      '''
+CREATE TABLE empresa(
+id TEXT PRIMARY KEY,
+nome TEXT,
+telefone TEXT,
+endereco TEXT,
+cnpj TEXT
+)
+''',
+    );
+
+    await _ensureColumnExists(db, 'clientes', 'endereco', 'TEXT');
+    await _ensureColumnExists(db, 'clientes', 'dataCadastro', 'TEXT');
+    await _ensureColumnExists(db, 'clientes', 'observacoes', 'TEXT');
+    await _ensureColumnExists(db, 'clientes', 'tipo', 'TEXT');
+    await _ensureColumnExists(db, 'clientes', 'nomeSeguradora', 'TEXT');
+    await _ensureColumnExists(db, 'clientes', 'cnpj', 'TEXT');
+    await _ensureColumnExists(db, 'clientes', 'contato', 'TEXT');
+
+    await _ensureColumnExists(db, 'veiculos', 'cor', 'TEXT');
+    await _ensureColumnExists(db, 'veiculos', 'observacoes', 'TEXT');
+
+    await _ensureColumnExists(db, 'orcamentos', 'veiculoId', 'TEXT');
+    await _ensureColumnExists(db, 'orcamentos', 'veiculoDescricao', 'TEXT');
+    await _ensureColumnExists(db, 'orcamentos', 'itens', 'TEXT');
+    await _ensureColumnExists(db, 'orcamentos', 'observacoes', 'TEXT');
+    await _ensureColumnExists(db, 'orcamentos', 'observacoesCliente', 'TEXT');
+    await _ensureColumnExists(db, 'orcamentos', 'observacoesInternas', 'TEXT');
+    await _ensureColumnExists(db, 'orcamentos', 'dataPrevistaEntrega', 'TEXT');
+    await _ensureColumnExists(db, 'orcamentos', 'tipoAtendimento', 'TEXT');
+
+    await _ensureColumnExists(db, 'transacoes', 'observacoes', 'TEXT');
+
+    await _ensureColumnExists(db, 'notas', 'clienteId', 'TEXT');
+    await _ensureColumnExists(db, 'notas', 'veiculoId', 'TEXT');
+    await _ensureColumnExists(db, 'notas', 'veiculoDescricao', 'TEXT');
+    await _ensureColumnExists(db, 'notas', 'itens', 'TEXT');
+    await _ensureColumnExists(db, 'notas', 'valorTotal', 'REAL');
+    await _ensureColumnExists(db, 'notas', 'dataEmissao', 'TEXT');
+
+    await _ensureColumnExists(db, 'empresa', 'cnpj', 'TEXT');
+
+    await _migrateLegacyData(db);
+    await _createIndexes(db);
+  }
+
+  Future<void> _ensureTableExists(
+    Database db,
+    String table,
+    String createSql,
+  ) async {
+    final rows = await db.query(
+      'sqlite_master',
+      columns: ['name'],
+      where: 'type = ? AND name = ?',
+      whereArgs: ['table', table],
+      limit: 1,
+    );
+    if (rows.isNotEmpty) return;
+    await db.execute(createSql);
+  }
+
+  Future<void> _ensureColumnExists(
+    Database db,
+    String table,
+    String column,
+    String definition,
+  ) async {
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    final exists = columns.any((row) => row['name'] == column);
+    if (exists) return;
+    await db.execute('ALTER TABLE $table ADD COLUMN $column $definition');
+  }
+
+  Future<void> _migrateLegacyData(Database db) async {
+    await db.execute('''
+UPDATE clientes
+SET dataCadastro = COALESCE(dataCadastro, CURRENT_TIMESTAMP),
+    tipo = COALESCE(tipo, 'particular')
+''');
+
+    final notaColumns = await db.rawQuery('PRAGMA table_info(notas)');
+    final hasLegacyDataColumn = notaColumns.any((row) => row['name'] == 'data');
+    final hasValorTotalColumn =
+        notaColumns.any((row) => row['name'] == 'valorTotal');
+    final hasLegacyValorColumn =
+        notaColumns.any((row) => row['name'] == 'valor');
+
+    if (hasLegacyDataColumn) {
+      await db.execute('''
+UPDATE notas
+SET dataEmissao = COALESCE(dataEmissao, data)
+''');
+    }
+
+    if (hasLegacyValorColumn && hasValorTotalColumn) {
+      await db.execute('''
+UPDATE notas
+SET valorTotal = COALESCE(valorTotal, valor)
+''');
+    }
   }
 
   Future<void> _createIndexes(Database db) async {
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_veiculos_clienteId ON veiculos(clienteId);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_veiculos_placa ON veiculos(placa);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_orcamentos_clienteId ON orcamentos(clienteId);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_orcamentos_veiculoId ON orcamentos(veiculoId);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_orcamentos_status ON orcamentos(status);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_orcamentos_dataCriacao ON orcamentos(dataCriacao);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_notas_clienteId ON notas(clienteId);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_notas_orcamentoId ON notas(orcamentoId);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_notas_dataEmissao ON notas(dataEmissao);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_transacoes_data ON transacoes(data);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_transacoes_tipo ON transacoes(tipo);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_transacoes_orcamentoId ON transacoes(orcamentoId);',
-    );
-    await db.execute(
-      'CREATE INDEX IF NOT EXISTS idx_attachments_parentId ON attachments(parentId);',
-    );
-    await db.execute(
-      'CREATE UNIQUE INDEX IF NOT EXISTS idx_empresa_id ON empresa(id);',
-    );
+    await db.execute('''
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transacoes_orcamento_unique
+ON transacoes(orcamentoId)
+WHERE orcamentoId IS NOT NULL
+''');
   }
 
-  FutureOr<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    Future<void> addCol(String sql) async {
-      try {
-        await db.execute(sql);
-      } catch (_) {}
+  Future<void> _validateDatabaseIntegrity(Database db) async {
+    final result = await db.rawQuery('PRAGMA integrity_check');
+    final value = result.isNotEmpty ? result.first.values.first?.toString() : null;
+    if (value != 'ok') {
+      throw StateError('Falha na integridade do banco local.');
     }
-
-    if (oldVersion < 2) {
-      await addCol('ALTER TABLE attachments ADD COLUMN parentId TEXT;');
-      await addCol('ALTER TABLE attachments ADD COLUMN parentType TEXT;');
-
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS veiculos (
-          id TEXT PRIMARY KEY,
-          clienteId TEXT NOT NULL,
-          marca TEXT NOT NULL,
-          modelo TEXT NOT NULL,
-          cor TEXT NOT NULL,
-          placa TEXT NOT NULL,
-          ano INTEGER,
-          observacoes TEXT,
-          FOREIGN KEY (clienteId) REFERENCES clientes(id) ON DELETE CASCADE
-        );
-      ''');
-
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS orcamentos (
-          id TEXT PRIMARY KEY,
-          clienteId TEXT NOT NULL,
-          clienteNome TEXT NOT NULL,
-          veiculoId TEXT,
-          veiculoDescricao TEXT,
-          itens TEXT NOT NULL,
-          valorTotal REAL NOT NULL DEFAULT 0.0,
-          status TEXT NOT NULL DEFAULT 'pendente',
-          dataCriacao TEXT NOT NULL,
-          dataAprovacao TEXT,
-          dataConclusao TEXT,
-          observacoes TEXT,
-          FOREIGN KEY (clienteId) REFERENCES clientes(id) ON DELETE CASCADE,
-          FOREIGN KEY (veiculoId) REFERENCES veiculos(id) ON DELETE SET NULL
-        );
-      ''');
-
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS notas (
-          id TEXT PRIMARY KEY,
-          orcamentoId TEXT,
-          clienteId TEXT,
-          clienteNome TEXT NOT NULL,
-          veiculoId TEXT,
-          veiculoDescricao TEXT,
-          itens TEXT NOT NULL,
-          valorTotal REAL NOT NULL DEFAULT 0.0,
-          dataEmissao TEXT NOT NULL
-        );
-      ''');
-
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS transacoes (
-          id TEXT PRIMARY KEY,
-          tipo TEXT NOT NULL,
-          descricao TEXT,
-          valor REAL NOT NULL DEFAULT 0.0,
-          categoria TEXT,
-          data TEXT NOT NULL,
-          orcamentoId TEXT,
-          observacoes TEXT
-        );
-      ''');
-    }
-
-    if (oldVersion < 3) {
-      await addCol(
-        "ALTER TABLE orcamentos ADD COLUMN pago INTEGER NOT NULL DEFAULT 0;",
-      );
-      await addCol("ALTER TABLE orcamentos ADD COLUMN dataPagamento TEXT;");
-      await addCol(
-        "ALTER TABLE orcamentos ADD COLUMN observacoesCliente TEXT;",
-      );
-      await addCol(
-        "ALTER TABLE orcamentos ADD COLUMN observacoesInternas TEXT;",
-      );
-      await addCol(
-        "ALTER TABLE orcamentos ADD COLUMN dataPrevistaEntrega TEXT;",
-      );
-      await addCol(
-        "ALTER TABLE orcamentos ADD COLUMN tipoAtendimento TEXT NOT NULL DEFAULT 'particular';",
-      );
-    }
-
-    if (oldVersion < 4) {
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS empresa (
-          id TEXT PRIMARY KEY,
-          nome TEXT NOT NULL,
-          telefone TEXT NOT NULL,
-          endereco TEXT NOT NULL,
-          cnpj TEXT
-        );
-      ''');
-    }
-
-    await _createIndexes(db);
   }
 
-  // ===================== LIFECYCLE =====================
-  Future<void> close() async {
-    if (_db != null) await _db!.close();
-    _db = null;
-  }
+  // ================= CLIENTES =================
 
-  // ===================== BACKUP =====================
-  Timer? _backupTimer;
-
-  void startAutoBackup({Duration interval = const Duration(hours: 24)}) {
-    _backupTimer?.cancel();
-    _backupTimer = Timer.periodic(interval, (_) async {
-      try {
-        await exportBackupToUserDocuments();
-      } catch (_) {}
-    });
-  }
-
-  void stopAutoBackup() {
-    _backupTimer?.cancel();
-    _backupTimer = null;
-  }
-
-  Future<Map<String, String>> exportBackupToUserDocuments() async {
-    final exports = await exportBackup();
-
-    String docsPath;
-    if (Platform.isAndroid) {
-      final dir = await getExternalStorageDirectory();
-      docsPath = (dir ?? await getApplicationDocumentsDirectory()).path;
-    } else if (Platform.isIOS) {
-      docsPath = (await getApplicationDocumentsDirectory()).path;
-    } else {
-      try {
-        if (Platform.isWindows) {
-          final userProfile = Platform.environment['USERPROFILE'];
-          docsPath = p.join(userProfile ?? '.', 'Documents');
-        } else {
-          final home = Platform.environment['HOME'] ?? '.';
-          docsPath = p.join(home, 'Documents');
-        }
-      } catch (_) {
-        docsPath = (await getApplicationDocumentsDirectory()).path;
-      }
-    }
-
-    final destDir = Directory(p.join(docsPath, 'backups_app_funilaria'));
-    if (!await destDir.exists()) await destDir.create(recursive: true);
-
-    final dbSrc = File(exports['db']!);
-    final jsonSrc = File(exports['json']!);
-    final manifestSrc =
-        exports['manifest'] != null ? File(exports['manifest']!) : null;
-
-    final dbDest = p.join(destDir.path, p.basename(exports['db']!));
-    final jsonDest = p.join(destDir.path, p.basename(exports['json']!));
-    final manifestDest = manifestSrc != null
-        ? p.join(destDir.path, p.basename(exports['manifest']!))
-        : null;
-
-    await dbSrc.copy(dbDest);
-    await jsonSrc.copy(jsonDest);
-    if (manifestSrc != null && manifestDest != null) {
-      await manifestSrc.copy(manifestDest);
-    }
-
-    return {
-      'db': dbDest,
-      'json': jsonDest,
-      if (manifestDest != null) 'manifest': manifestDest,
-    };
-  }
-
-  Future<Map<String, String>> exportBackup() async {
-    final databasesPath = await getDatabasesPath();
-    final dbFile = File(p.join(databasesPath, _activeDbFileName));
-
-    final docDir = await getApplicationDocumentsDirectory();
-    final backupDir = Directory(p.join(docDir.path, 'backups'));
-    if (!await backupDir.exists()) await backupDir.create(recursive: true);
-
-    final ts = _safeTs();
-    final dbBackupPath = p.join(backupDir.path, 'app_funilaria_backup_$ts.db');
-    await dbFile.copy(dbBackupPath);
-
-    final db = await database;
-    final exportData = <String, List<Map<String, dynamic>>>{};
-    final tables = [
-      'users',
-      'empresa',
-      'clientes',
-      'veiculos',
-      'orcamentos',
-      'notas',
-      'transacoes',
-      'attachments',
-    ];
-
-    for (final t in tables) {
-      try {
-        final rows = await db.query(t);
-        exportData[t] = rows.map((r) => Map<String, dynamic>.from(r)).toList();
-      } catch (_) {
-        exportData[t] = [];
-      }
-    }
-
-    final jsonPath = p.join(backupDir.path, 'app_funilaria_backup_$ts.json');
-    await File(jsonPath).writeAsString(jsonEncode(exportData));
-
-    final dbMeta = await _checksumForFile(File(dbBackupPath));
-    final jsonMeta = await _checksumForFile(File(jsonPath));
-    final manifestPath =
-        p.join(backupDir.path, 'app_funilaria_backup_$ts.manifest.json');
-    final manifest = {
-      'createdAt': DateTime.now().toIso8601String(),
-      'db': {
-        'file': p.basename(dbBackupPath),
-        'sha256': dbMeta['sha256'],
-        'size': dbMeta['size'],
-      },
-      'json': {
-        'file': p.basename(jsonPath),
-        'sha256': jsonMeta['sha256'],
-        'size': jsonMeta['size'],
-      },
-    };
-    await File(manifestPath).writeAsString(jsonEncode(manifest));
-
-    return {'db': dbBackupPath, 'json': jsonPath, 'manifest': manifestPath};
-  }
-
-  Future<void> restoreFromBackup(String backupDbPath) async {
-    await close();
-    final databasesPath = await getDatabasesPath();
-    final dbPath = p.join(databasesPath, _activeDbFileName);
-    final src = File(backupDbPath);
-    if (!await src.exists()) {
-      throw Exception('Arquivo de backup não encontrado.');
-    }
-
-    final manifestPath = '${p.withoutExtension(backupDbPath)}.manifest.json';
-    final manifestFile = File(manifestPath);
-    if (await manifestFile.exists()) {
-      final raw = await manifestFile.readAsString();
-      final decoded = jsonDecode(raw);
-      if (decoded is Map<String, dynamic>) {
-        final dbInfo = decoded['db'] as Map<String, dynamic>?;
-        if (dbInfo != null) {
-          final expectedHash = dbInfo['sha256'] as String?;
-          final expectedSize = dbInfo['size'] as int?;
-          final actual = await _checksumForFile(src);
-          if (expectedHash != null && expectedHash != actual['sha256']) {
-            throw Exception('Backup corrompido (hash inválido).');
-          }
-          if (expectedSize != null && expectedSize != actual['size']) {
-            throw Exception('Backup corrompido (tamanho inválido).');
-          }
-        }
-      }
-    }
-
-    await src.copy(dbPath);
-    _db = null;
-  }
-
-  // ==================== CRUD USERS ====================
-  Future<void> insertUser(User u) async {
-    final db = await database;
-    await db.insert(
-      'users',
-      u.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  Future<List<User>> getUsers() async {
-    final db = await database;
-    final rows = await db.query('users');
-    return rows.map((r) => User.fromMap(r)).toList();
-  }
-
-  Future<void> updateUser(User u) async {
-    final db = await database;
-    await db.update('users', u.toMap(), where: 'id = ?', whereArgs: [u.id]);
-  }
-
-  Future<void> deleteUser(String id) async {
-    final db = await database;
-    await db.delete('users', where: 'id = ?', whereArgs: [id]);
-  }
-
-  // ==================== CRUD EMPRESA ====================
-  Future<void> saveEmpresa(Empresa e) async {
-    final db = await database;
-    await db.insert(
-      'empresa',
-      e.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  Future<Empresa?> getEmpresa() async {
-    final db = await database;
-    final rows = await db.query('empresa', limit: 1);
-    if (rows.isEmpty) return null;
-    return Empresa.fromMap(rows.first);
-  }
-
-  Future<void> updateEmpresa(Empresa e) async {
-    final db = await database;
-    await db.update(
-      'empresa',
-      e.toMap(),
-      where: 'id = ?',
-      whereArgs: [e.id],
-    );
-  }
-
-  Future<void> deleteEmpresa(String id) async {
-    final db = await database;
-    await db.delete('empresa', where: 'id = ?', whereArgs: [id]);
-  }
-
-  // ==================== CRUD CLIENTES ====================
   Future<void> insertCliente(Cliente c) async {
     final db = await database;
+
     await db.insert(
-      'clientes',
+      "clientes",
       c.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -658,69 +397,39 @@ class DBService {
 
   Future<List<Cliente>> getClientes() async {
     final db = await database;
-    final rows = await db.query('clientes', orderBy: 'nome ASC');
-    return rows.map((r) => Cliente.fromMap(r)).toList();
-  }
+    final result = await db.query("clientes");
 
-  Future<Cliente?> getClienteById(String id) async {
-    final db = await database;
-    final rows = await db.query(
-      'clientes',
-      where: 'id = ?',
-      whereArgs: [id],
-      limit: 1,
-    );
-    if (rows.isEmpty) return null;
-    return Cliente.fromMap(rows.first);
+    return result.map((e) => Cliente.fromMap(e)).toList();
   }
 
   Future<void> updateCliente(Cliente c) async {
     final db = await database;
-    await db.update('clientes', c.toMap(), where: 'id = ?', whereArgs: [c.id]);
+
+    await db.update(
+      "clientes",
+      c.toMap(),
+      where: "id = ?",
+      whereArgs: [c.id],
+    );
   }
 
   Future<void> deleteCliente(String id) async {
     final db = await database;
-    await db.delete('clientes', where: 'id = ?', whereArgs: [id]);
-  }
 
-  // ==================== CRUD ATTACHMENTS ====================
-  Future<void> insertAttachment(Attachment a) async {
-    final db = await database;
-    await db.insert(
-      'attachments',
-      a.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+    await db.delete(
+      "clientes",
+      where: "id = ?",
+      whereArgs: [id],
     );
   }
 
-  Future<List<Attachment>> getAttachments() async {
-    final db = await database;
-    final rows = await db.query('attachments', orderBy: 'createdAt DESC');
-    return rows.map((r) => Attachment.fromMap(r)).toList();
-  }
+  // ================= VEÍCULOS =================
 
-  Future<List<Attachment>> getAttachmentsByParent(String parentId) async {
-    final db = await database;
-    final rows = await db.query(
-      'attachments',
-      where: 'parentId = ?',
-      whereArgs: [parentId],
-      orderBy: 'createdAt DESC',
-    );
-    return rows.map((r) => Attachment.fromMap(r)).toList();
-  }
-
-  Future<void> deleteAttachment(String id) async {
-    final db = await database;
-    await db.delete('attachments', where: 'id = ?', whereArgs: [id]);
-  }
-
-  // ==================== CRUD VEÍCULOS ====================
   Future<void> insertVeiculo(Veiculo v) async {
     final db = await database;
+
     await db.insert(
-      'veiculos',
+      "veiculos",
       v.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
@@ -728,300 +437,404 @@ class DBService {
 
   Future<List<Veiculo>> getVeiculos() async {
     final db = await database;
-    final rows = await db.query('veiculos', orderBy: 'marca ASC, modelo ASC');
-    return rows.map((r) => Veiculo.fromMap(r)).toList();
-  }
 
-  Future<List<Veiculo>> getVeiculosByCliente(String clienteId) async {
-    final db = await database;
-    final rows = await db.query(
-      'veiculos',
-      where: 'clienteId = ?',
-      whereArgs: [clienteId],
-      orderBy: 'marca ASC',
-    );
-    return rows.map((r) => Veiculo.fromMap(r)).toList();
-  }
+    final result = await db.query("veiculos");
 
-  Future<Veiculo?> getVeiculoById(String id) async {
-    final db = await database;
-    final rows = await db.query(
-      'veiculos',
-      where: 'id = ?',
-      whereArgs: [id],
-      limit: 1,
-    );
-    if (rows.isEmpty) return null;
-    return Veiculo.fromMap(rows.first);
+    return result.map((e) => Veiculo.fromMap(e)).toList();
   }
 
   Future<void> updateVeiculo(Veiculo v) async {
     final db = await database;
-    await db.update('veiculos', v.toMap(), where: 'id = ?', whereArgs: [v.id]);
+
+    await db.update(
+      "veiculos",
+      v.toMap(),
+      where: "id = ?",
+      whereArgs: [v.id],
+    );
   }
 
   Future<void> deleteVeiculo(String id) async {
     final db = await database;
-    await db.delete('veiculos', where: 'id = ?', whereArgs: [id]);
-  }
 
-  // ==================== CRUD ORÇAMENTOS ====================
-  Future<void> insertOrcamento(Orcamento o) async {
-    final db = await database;
-    final map = o.toMap();
-    map['itens'] = _encodeItens(o.itens);
-    await db.insert(
-      'orcamentos',
-      map,
-      conflictAlgorithm: ConflictAlgorithm.replace,
+    await db.delete(
+      "veiculos",
+      where: "id = ?",
+      whereArgs: [id],
     );
   }
 
-  Future<void> updateOrcamento(Orcamento o) async {
+  // ================= ORÇAMENTOS =================
+
+  Future<void> insertOrcamento(Orcamento o) async {
     final db = await database;
-    final map = o.toMap();
-    map['itens'] = _encodeItens(o.itens);
-    await db.update('orcamentos', map, where: 'id = ?', whereArgs: [o.id]);
+
+    await db.insert(
+      "orcamentos",
+      _serializeOrcamento(o),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Orcamento>> getOrcamentos() async {
     final db = await database;
-    final rows = await db.query('orcamentos', orderBy: 'dataCriacao DESC');
 
-    return rows.map((r) {
-      final m = Map<String, dynamic>.from(r);
-      m['itens'] = _decodeItens(m['itens']);
-      return Orcamento.fromMap(m);
-    }).toList();
+    final result = await db.query("orcamentos");
+
+    return result.map((e) => Orcamento.fromMap(_deserializeOrcamento(e))).toList();
   }
 
-  Future<List<Orcamento>> getOrcamentosByCliente(String clienteId) async {
+  Future<void> updateOrcamento(Orcamento o) async {
     final db = await database;
-    final rows = await db.query(
-      'orcamentos',
-      where: 'clienteId = ?',
-      whereArgs: [clienteId],
-      orderBy: 'dataCriacao DESC',
+
+    await db.update(
+      "orcamentos",
+      _serializeOrcamento(o),
+      where: "id = ?",
+      whereArgs: [o.id],
     );
-
-    return rows.map((r) {
-      final m = Map<String, dynamic>.from(r);
-      m['itens'] = _decodeItens(m['itens']);
-      return Orcamento.fromMap(m);
-    }).toList();
-  }
-
-  Future<List<Orcamento>> getOrcamentosByStatus(String status) async {
-    final db = await database;
-    final rows = await db.query(
-      'orcamentos',
-      where: 'status = ?',
-      whereArgs: [status],
-      orderBy: 'dataCriacao DESC',
-    );
-
-    return rows.map((r) {
-      final m = Map<String, dynamic>.from(r);
-      m['itens'] = _decodeItens(m['itens']);
-      return Orcamento.fromMap(m);
-    }).toList();
-  }
-
-  Future<Orcamento?> getOrcamentoById(String id) async {
-    final db = await database;
-    final rows = await db.query(
-      'orcamentos',
-      where: 'id = ?',
-      whereArgs: [id],
-      limit: 1,
-    );
-    if (rows.isEmpty) return null;
-
-    final m = Map<String, dynamic>.from(rows.first);
-    m['itens'] = _decodeItens(m['itens']);
-    return Orcamento.fromMap(m);
   }
 
   Future<void> deleteOrcamento(String id) async {
     final db = await database;
-    await db.delete('orcamentos', where: 'id = ?', whereArgs: [id]);
-  }
 
-  // ==================== CRUD NOTAS ====================
-  Future<void> insertNota(Nota n) async {
-    final db = await database;
-    final map = n.toMap();
-    map['itens'] = _encodeItens(n.itens);
-    await db.insert('notas', map, conflictAlgorithm: ConflictAlgorithm.replace);
-  }
-
-  Future<List<Nota>> getNotas() async {
-    final db = await database;
-    final rows = await db.query('notas', orderBy: 'dataEmissao DESC');
-
-    return rows.map((r) {
-      final m = Map<String, dynamic>.from(r);
-      m['itens'] = _decodeItens(m['itens']);
-      return Nota.fromMap(m);
-    }).toList();
-  }
-
-  Future<List<Nota>> getNotasByCliente(String clienteId) async {
-    final db = await database;
-    final rows = await db.query(
-      'notas',
-      where: 'clienteId = ?',
-      whereArgs: [clienteId],
-      orderBy: 'dataEmissao DESC',
-    );
-
-    return rows.map((r) {
-      final m = Map<String, dynamic>.from(r);
-      m['itens'] = _decodeItens(m['itens']);
-      return Nota.fromMap(m);
-    }).toList();
-  }
-
-  Future<Nota?> getNotaById(String id) async {
-    final db = await database;
-    final rows = await db.query(
-      'notas',
-      where: 'id = ?',
+    await db.delete(
+      "orcamentos",
+      where: "id = ?",
       whereArgs: [id],
-      limit: 1,
     );
-    if (rows.isEmpty) return null;
-
-    final m = Map<String, dynamic>.from(rows.first);
-    m['itens'] = _decodeItens(m['itens']);
-    return Nota.fromMap(m);
   }
 
-  Future<void> updateNota(Nota n) async {
-    final db = await database;
-    final map = n.toMap();
-    map['itens'] = _encodeItens(n.itens);
-    await db.update('notas', map, where: 'id = ?', whereArgs: [n.id]);
-  }
+  // ================= TRANSAÇÕES =================
 
-  Future<void> deleteNota(String id) async {
-    final db = await database;
-    await db.delete('notas', where: 'id = ?', whereArgs: [id]);
-  }
-
-  // ==================== CRUD TRANSAÇÕES ====================
   Future<void> insertTransacao(Transacao t) async {
     final db = await database;
+
     await db.insert(
-      'transacoes',
+      "transacoes",
       t.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      conflictAlgorithm: ConflictAlgorithm.ignore,
     );
   }
 
   Future<List<Transacao>> getTransacoes() async {
     final db = await database;
-    final rows = await db.query('transacoes', orderBy: 'data DESC');
-    return rows.map((r) => Transacao.fromMap(r)).toList();
-  }
 
-  Future<List<Transacao>> getTransacoesByTipo(String tipo) async {
-    final db = await database;
-    final rows = await db.query(
-      'transacoes',
-      where: 'tipo = ?',
-      whereArgs: [tipo],
-      orderBy: 'data DESC',
+    final result = await db.query(
+      "transacoes",
+      orderBy: "data DESC",
     );
-    return rows.map((r) => Transacao.fromMap(r)).toList();
-  }
 
-  Future<List<Transacao>> getTransacoesByPeriodo(
-    String dataInicio,
-    String dataFim,
-  ) async {
-    final db = await database;
-    final rows = await db.query(
-      'transacoes',
-      where: 'data >= ? AND data <= ?',
-      whereArgs: [dataInicio, dataFim],
-      orderBy: 'data DESC',
-    );
-    return rows.map((r) => Transacao.fromMap(r)).toList();
-  }
-
-  Future<Transacao?> getTransacaoById(String id) async {
-    final db = await database;
-    final rows = await db.query(
-      'transacoes',
-      where: 'id = ?',
-      whereArgs: [id],
-      limit: 1,
-    );
-    if (rows.isEmpty) return null;
-    return Transacao.fromMap(rows.first);
-  }
-
-  Future<void> updateTransacao(Transacao t) async {
-    final db = await database;
-    await db.update(
-      'transacoes',
-      t.toMap(),
-      where: 'id = ?',
-      whereArgs: [t.id],
-    );
+    return result.map((e) => Transacao.fromMap(e)).toList();
   }
 
   Future<void> deleteTransacao(String id) async {
     final db = await database;
-    await db.delete('transacoes', where: 'id = ?', whereArgs: [id]);
+
+    await db.delete(
+      "transacoes",
+      where: "id = ?",
+      whereArgs: [id],
+    );
   }
 
-  // ==================== MÉTODOS AUXILIARES ====================
-  Future<double> getTotalReceitas({String? dataInicio, String? dataFim}) async {
+  Future<Transacao?> getTransacaoById(String id) async {
     final db = await database;
-    String where = "tipo = 'entrada'";
-    List<dynamic> whereArgs = [];
 
-    if (dataInicio != null && dataFim != null) {
-      where += " AND data >= ? AND data <= ?";
-      whereArgs = [dataInicio, dataFim];
-    }
-
-    final result = await db.rawQuery(
-      'SELECT SUM(valor) as total FROM transacoes WHERE $where',
-      whereArgs,
+    final rows = await db.query(
+      "transacoes",
+      where: "id = ?",
+      whereArgs: [id],
+      limit: 1,
     );
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+
+    if (rows.isEmpty) return null;
+
+    return Transacao.fromMap(rows.first);
   }
 
-  Future<double> getTotalDespesas({String? dataInicio, String? dataFim}) async {
+  // 🔐 proteção contra duplicidade por orçamento
+
+  Future<Transacao?> getTransacaoByOrcamentoId(String orcamentoId) async {
     final db = await database;
-    String where = "tipo = 'saida'";
-    List<dynamic> whereArgs = [];
 
-    if (dataInicio != null && dataFim != null) {
-      where += " AND data >= ? AND data <= ?";
-      whereArgs = [dataInicio, dataFim];
-    }
-
-    final result = await db.rawQuery(
-      'SELECT SUM(valor) as total FROM transacoes WHERE $where',
-      whereArgs,
+    final rows = await db.query(
+      "transacoes",
+      where: "orcamentoId = ?",
+      whereArgs: [orcamentoId],
+      limit: 1,
     );
-    return (result.first['total'] as num?)?.toDouble() ?? 0.0;
+
+    if (rows.isEmpty) return null;
+
+    return Transacao.fromMap(rows.first);
   }
 
-  Future<Map<String, int>> getOrcamentosCountByStatus() async {
+  // ================= NOTAS =================
+
+  Future<void> insertNota(Nota nota) async {
     final db = await database;
-    final rows = await db.rawQuery(
-      'SELECT status, COUNT(*) as count FROM orcamentos GROUP BY status',
+
+    await db.insert(
+      "notas",
+      _serializeNota(nota),
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    );
+  }
+
+  Future<List<Nota>> getNotas() async {
+    final db = await database;
+
+    final result = await db.query(
+      "notas",
+      orderBy: "dataEmissao DESC",
     );
 
-    final result = <String, int>{};
-    for (final row in rows) {
-      result[row['status'] as String] = (row['count'] as int?) ?? 0;
+    return result.map((e) => Nota.fromMap(_deserializeNota(e))).toList();
+  }
+
+  // ================= EMPRESA =================
+
+  Future<Empresa?> getEmpresa() async {
+    final db = await database;
+
+    final result = await db.query("empresa", limit: 1);
+
+    if (result.isEmpty) return null;
+
+    return Empresa.fromMap(result.first);
+  }
+
+  Future<void> saveEmpresa(Empresa empresa) async {
+    final db = await database;
+
+    await db.insert(
+      "empresa",
+      empresa.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> updateEmpresa(Empresa empresa) async {
+    final db = await database;
+
+    await db.update(
+      "empresa",
+      empresa.toMap(),
+      where: "id = ?",
+      whereArgs: [empresa.id],
+    );
+  }
+
+  // ================= BACKUP =================
+
+  Future<String> exportBackupToUserDocuments() async {
+    final db = await database;
+
+    final dbPath = db.path;
+    final docsDir = await getApplicationDocumentsDirectory();
+    final backupDir = await _ensureBackupDirectory();
+    final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+    final userId = _activeUserId ?? 'default';
+    final backupBaseName = 'backup_oficina_${userId}_$stamp';
+    final backupPath = join(backupDir.path, '$backupBaseName.db');
+    final manifestPath = join(backupDir.path, '$backupBaseName.json');
+    final legacyBackupPath = join(docsDir.path, 'backup_oficina.db');
+
+    final backupFile = await File(dbPath).copy(backupPath);
+    await File(dbPath).copy(legacyBackupPath);
+    final manifest = BackupManifest(
+      id: backupBaseName,
+      dbPath: backupFile.path,
+      manifestPath: manifestPath,
+      fileName: '$backupBaseName.db',
+      createdAtIso: DateTime.now().toIso8601String(),
+      userId: userId,
+      appVersion: AppVersion.current,
+      schemaVersion: schemaVersion,
+      fileSizeBytes: await backupFile.length(),
+    );
+
+    await File(manifestPath).writeAsString(jsonEncode(manifest.toMap()));
+    await AppLogger.instance.info('Backup exportado: ${backupFile.path}');
+    return backupFile.path;
+  }
+
+  Future<List<BackupManifest>> listAvailableBackups() async {
+    final docsDir = await getApplicationDocumentsDirectory();
+    final backupDir = await _ensureBackupDirectory();
+    final manifestFiles = backupDir
+        .listSync()
+        .whereType<File>()
+        .where((f) => extension(f.path).toLowerCase() == '.json')
+        .toList()
+      ..sort((a, b) => b.path.compareTo(a.path));
+
+    final backups = <BackupManifest>[];
+    for (final file in manifestFiles) {
+      try {
+        final raw = await file.readAsString();
+        final decoded = jsonDecode(raw);
+        if (decoded is! Map<String, dynamic>) continue;
+        final manifest = BackupManifest.fromMap(decoded);
+        final dbFile = File(manifest.dbPath);
+        if (!await dbFile.exists()) continue;
+        backups.add(manifest);
+      } catch (_) {
+        continue;
+      }
     }
-    return result;
+
+    final legacyBackup = File(join(docsDir.path, 'backup_oficina.db'));
+    if (await legacyBackup.exists()) {
+      final stat = await legacyBackup.stat();
+      backups.add(
+        BackupManifest(
+          id: 'legacy_backup_oficina',
+          dbPath: legacyBackup.path,
+          manifestPath: '',
+          fileName: 'backup_oficina.db',
+          createdAtIso: stat.modified.toIso8601String(),
+          userId: _activeUserId ?? 'default',
+          appVersion: 'legado',
+          schemaVersion: 1,
+          fileSizeBytes: await legacyBackup.length(),
+        ),
+      );
+    }
+
+    backups.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return backups;
+  }
+
+  Future<String> restoreBackupFromUserDocuments([String? manifestId]) async {
+    final backups = await listAvailableBackups();
+    if (backups.isEmpty) {
+      throw StateError('Nenhum backup dispon\u00edvel para restaura\u00e7\u00e3o.');
+    }
+
+    BackupManifest? selected;
+    if (manifestId == null) {
+      selected = backups.first;
+    } else {
+      for (final backup in backups) {
+        if (backup.id == manifestId) {
+          selected = backup;
+          break;
+        }
+      }
+    }
+
+    if (selected == null) {
+      throw StateError('Backup selecionado n\u00e3o encontrado.');
+    }
+
+    await _validateBackupManifest(selected);
+
+    final dir = await getApplicationDocumentsDirectory();
+    final targetPath = join(dir.path, "oficina_${_activeUserId ?? "default"}.db");
+
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
+
+    final targetFile = File(targetPath);
+    if (await targetFile.exists()) {
+      final safetyPath = join(
+        dir.path,
+        "oficina_${_activeUserId ?? "default"}_antes_restauracao.db",
+      );
+      await targetFile.copy(safetyPath);
+      await targetFile.delete();
+    }
+
+    await _deleteIfExists('$targetPath-wal');
+    await _deleteIfExists('$targetPath-shm');
+
+    await File(selected.dbPath).copy(targetPath);
+    await AppLogger.instance.warning(
+      'Backup restaurado para ${_activeUserId ?? "default"} a partir de ${selected.fileName}',
+    );
+    return targetPath;
+  }
+
+  Future<void> _validateBackupManifest(BackupManifest manifest) async {
+    if (manifest.userId.trim().isEmpty) {
+      throw StateError('Backup inv\u00e1lido: usu\u00e1rio n\u00e3o informado.');
+    }
+    if (_activeUserId != null && manifest.userId != _activeUserId) {
+      throw StateError(
+        'Este backup pertence ao usu\u00e1rio ${manifest.userId} e n\u00e3o ao usu\u00e1rio atual.',
+      );
+    }
+    if (manifest.schemaVersion > schemaVersion) {
+      throw StateError(
+        'O backup foi criado por uma vers\u00e3o mais nova do aplicativo.',
+      );
+    }
+    final dbFile = File(manifest.dbPath);
+    if (!await dbFile.exists()) {
+      throw StateError('Arquivo do backup n\u00e3o encontrado.');
+    }
+    if (await dbFile.length() <= 0) {
+      throw StateError('Arquivo do backup est\u00e1 vazio.');
+    }
+  }
+
+  Map<String, dynamic> _serializeOrcamento(Orcamento o) {
+    final map = Map<String, dynamic>.from(o.toMap());
+    map['itens'] = jsonEncode(map['itens']);
+    return map;
+  }
+
+  Map<String, dynamic> _deserializeOrcamento(Map<String, dynamic> row) {
+    final map = Map<String, dynamic>.from(row);
+    map['itens'] = _decodeJsonList(map['itens']);
+    return map;
+  }
+
+  Map<String, dynamic> _serializeNota(Nota nota) {
+    final map = Map<String, dynamic>.from(nota.toMap());
+    map['itens'] = jsonEncode(map['itens']);
+    return map;
+  }
+
+  Map<String, dynamic> _deserializeNota(Map<String, dynamic> row) {
+    final map = Map<String, dynamic>.from(row);
+    map['itens'] = _decodeJsonList(map['itens']);
+    if (map['dataEmissao'] == null && row['data'] != null) {
+      map['dataEmissao'] = row['data'];
+    }
+    if (map['valorTotal'] == null && row['valor'] != null) {
+      map['valorTotal'] = row['valor'];
+    }
+    return map;
+  }
+
+  List<dynamic> _decodeJsonList(dynamic raw) {
+    if (raw == null) return const [];
+    if (raw is List) return raw;
+    if (raw is String && raw.trim().isNotEmpty) {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) return decoded;
+    }
+    return const [];
+  }
+
+  Future<void> _deleteIfExists(String path) async {
+    final file = File(path);
+    if (await file.exists()) {
+      await file.delete();
+    }
+  }
+
+  Future<Directory> _ensureBackupDirectory() async {
+    final docsDir = await getApplicationDocumentsDirectory();
+    final dir = Directory(join(docsDir.path, _backupFolderName));
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return dir;
   }
 }

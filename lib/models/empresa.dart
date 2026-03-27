@@ -41,7 +41,7 @@ class Empresa {
 
   factory Empresa.fromMap(Map<String, dynamic> map) {
     return Empresa(
-      id: map['id'] ?? 'empresa_principal',
+      id: map['id']?.toString() ?? 'empresa_principal',
       nome: map['nome'] ?? '',
       telefone: map['telefone'] ?? '',
       endereco: map['endereco'] ?? '',

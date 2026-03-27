@@ -1,4 +1,5 @@
 import '../models/cliente.dart';
+import '../models/backup_manifest.dart';
 import '../models/veiculo.dart';
 import '../models/orcamento.dart';
 import '../models/transacao.dart';
@@ -41,5 +42,8 @@ class DBService {
   Future<void> deleteTransacao(String id) async => _unsupported();
   Future<List<Transacao>> getTransacoes() async => _unsupported();
 
-  Future<Map<String, String>> exportBackupToUserDocuments() async => _unsupported();
+  Future<String> exportBackupToUserDocuments() async => _unsupported();
+  Future<List<BackupManifest>> listAvailableBackups() async => _unsupported();
+  Future<String> restoreBackupFromUserDocuments([String? manifestId]) async =>
+      _unsupported();
 }

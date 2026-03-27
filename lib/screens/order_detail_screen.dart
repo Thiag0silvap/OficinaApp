@@ -10,6 +10,7 @@ import 'package:printing/printing.dart';
 import '../models/orcamento.dart';
 import '../providers/app_provider.dart';
 import '../core/theme/app_theme.dart';
+import '../core/utils/app_feedback.dart';
 import '../core/utils/formatters.dart';
 import '../core/widgets/pdf_preview_dialog.dart';
 import '../core/components/orcamento_form_dialog.dart';
@@ -162,9 +163,7 @@ class OrderDetailScreen extends StatelessWidget {
       await Printing.sharePdf(bytes: bytes, filename: filename);
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
+      AppFeedback.showError(context, 'Erro ao gerar PDF: $e');
     }
   }
 
@@ -174,14 +173,10 @@ class OrderDetailScreen extends StatelessWidget {
       final filename = PDFService.buildPdfFilename(o);
       final savedPath = await _savePdfLocally(bytes, filename);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('PDF salvo em: $savedPath')));
+      AppFeedback.showSuccess(context, 'PDF salvo em: $savedPath');
     } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro ao salvar PDF: $e')));
+      AppFeedback.showError(context, 'Erro ao salvar PDF: $e');
     }
   }
 

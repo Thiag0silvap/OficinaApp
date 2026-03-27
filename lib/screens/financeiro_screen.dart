@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../core/components/form_styles.dart';
 import '../core/components/responsive_components.dart';
 import '../core/theme/app_theme.dart';
+import '../core/utils/app_feedback.dart';
 import '../core/utils/currency_input_formatter.dart';
 import '../models/transacao.dart';
 import '../providers/app_provider.dart';
@@ -27,10 +28,6 @@ enum _TipoFiltro { todos, entradas, saidas }
 enum _Ordenacao { recentes, maiorValor, menorValor }
 
 class _FinanceiroScreenState extends State<FinanceiroScreen> {
-  static const int _maxDescLen = 120;
-  static const int _maxCatLen = 40;
-  static const double _maxCurrencyValue = 100000000.0;
-
   final _searchCtrl = TextEditingController();
   _TipoFiltro _tipoFiltro = _TipoFiltro.todos;
   _Ordenacao _ordenacao = _Ordenacao.recentes;
@@ -150,7 +147,14 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
     );
 
     if (ok == true && context.mounted) {
-      await context.read<AppProvider>().deleteTransacao(t.id);
+      try {
+        await context.read<AppProvider>().deleteTransacao(t.id);
+        if (!context.mounted) return;
+        AppFeedback.showSuccess(context, 'Transacao excluida com sucesso.');
+      } catch (e) {
+        if (!context.mounted) return;
+        AppFeedback.showError(context, 'Erro ao excluir transacao: $e');
+      }
     }
   }
 
@@ -808,8 +812,14 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
       data: _data,
     );
 
-    await context.read<AppProvider>().addTransacao(t);
-
-    if (mounted) Navigator.pop(context);
+    try {
+      await context.read<AppProvider>().addTransacao(t);
+      if (!mounted) return;
+      AppFeedback.showSuccess(context, 'Transacao salva com sucesso.');
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      AppFeedback.showError(context, 'Erro ao salvar transacao: $e');
+    }
   }
 }

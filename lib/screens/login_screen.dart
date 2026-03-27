@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/auth_provider.dart';
 import '../core/theme/app_theme.dart';
+import '../core/utils/app_feedback.dart';
 import '../core/widgets/app_logo.dart';
+import '../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -24,7 +25,6 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    // Prefill saved credentials if available
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
       final provider = Provider.of<AuthProvider>(context, listen: false);
@@ -106,25 +106,32 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Use seu usuário e senha para entrar no sistema.',
+                                'Use seu usuario e senha para entrar no sistema.',
                                 textAlign: TextAlign.center,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(color: AppColors.white.withValues(alpha: 0.75)),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: AppColors.white.withValues(alpha: 0.75),
+                                    ),
                               ),
                               const SizedBox(height: 18),
                               TextFormField(
                                 controller: nameController,
                                 textInputAction: TextInputAction.next,
                                 autofillHints: const [AutofillHints.username],
-                                onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
+                                onFieldSubmitted: (_) =>
+                                    _passwordFocus.requestFocus(),
                                 decoration: const InputDecoration(
-                                  labelText: 'Usuário',
+                                  labelText: 'Usuario',
                                   prefixIcon: Icon(Icons.person_outline),
                                 ),
-                                validator: (v) =>
-                                    (v == null || v.trim().isEmpty) ? 'Usuário é obrigatório' : null,
+                                validator: (v) {
+                                  final value = v?.trim() ?? '';
+                                  if (value.isEmpty) return 'Usuario e obrigatorio';
+                                  if (value.length < 3) {
+                                    return 'Usuario deve ter ao menos 3 caracteres';
+                                  }
+                                  return null;
+                                },
                               ),
                               const SizedBox(height: 12),
                               TextFormField(
@@ -139,33 +146,51 @@ class _LoginScreenState extends State<LoginScreen> {
                                   labelText: 'Senha',
                                   prefixIcon: const Icon(Icons.lock_outline),
                                   suffixIcon: IconButton(
-                                    tooltip: _obscurePassword ? 'Mostrar senha' : 'Ocultar senha',
+                                    tooltip: _obscurePassword
+                                        ? 'Mostrar senha'
+                                        : 'Ocultar senha',
                                     onPressed: () {
-                                      setState(() => _obscurePassword = !_obscurePassword);
+                                      setState(
+                                        () =>
+                                            _obscurePassword = !_obscurePassword,
+                                      );
                                     },
                                     icon: Icon(
-                                      _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                      _obscurePassword
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
                                     ),
                                   ),
                                 ),
-                                validator: (v) =>
-                                    (v == null || v.isEmpty) ? 'Senha é obrigatória' : null,
+                                validator: (v) {
+                                  final value = v ?? '';
+                                  if (value.isEmpty) return 'Senha e obrigatoria';
+                                  if (value.length < 6) {
+                                    return 'Senha deve ter ao menos 6 caracteres';
+                                  }
+                                  return null;
+                                },
                               ),
                               const SizedBox(height: 10),
                               Row(
                                 children: [
                                   Checkbox(
                                     value: _rememberCredentials,
-                                    onChanged: (v) =>
-                                        setState(() => _rememberCredentials = v ?? true),
+                                    onChanged: (v) => setState(
+                                      () => _rememberCredentials = v ?? true,
+                                    ),
                                   ),
                                   Expanded(
                                     child: Text(
-                                      'Lembrar usuário neste computador',
+                                      'Lembrar usuario neste computador',
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodyMedium
-                                          ?.copyWith(color: AppColors.white.withValues(alpha: 0.9)),
+                                          ?.copyWith(
+                                            color: AppColors.white.withValues(
+                                              alpha: 0.9,
+                                            ),
+                                          ),
                                     ),
                                   ),
                                 ],
@@ -179,7 +204,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ? const SizedBox(
                                           width: 22,
                                           height: 22,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
                                         )
                                       : const Text('Entrar'),
                                 ),
@@ -191,14 +218,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                 spacing: 6,
                                 children: [
                                   Text(
-                                    'Ainda não tem conta?',
+                                    'Ainda nao tem conta?',
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodyMedium
-                                        ?.copyWith(color: AppColors.white.withValues(alpha: 0.8)),
+                                        ?.copyWith(
+                                          color: AppColors.white.withValues(
+                                            alpha: 0.8,
+                                          ),
+                                        ),
                                   ),
                                   TextButton(
-                                    onPressed: () => Navigator.pushNamed(context, '/register'),
+                                    onPressed: () =>
+                                        Navigator.pushNamed(context, '/register'),
                                     child: const Text('Criar conta'),
                                   ),
                                 ],
@@ -233,7 +265,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
     if (err != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      AppFeedback.showError(context, err);
       return;
     }
     Navigator.pushReplacementNamed(context, '/home');

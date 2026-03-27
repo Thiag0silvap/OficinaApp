@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
 import '../core/components/responsive_components.dart';
+import '../core/utils/app_feedback.dart';
+import '../providers/app_provider.dart';
 import 'dashboard_screen.dart';
 import 'clientes_screen.dart';
 import 'orcamentos_screen.dart';
@@ -31,6 +35,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final app = context.watch<AppProvider>();
+    final error = app.lastErrorMessage;
+    if (error != null && error.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        AppFeedback.showError(context, error);
+        context.read<AppProvider>().clearLastError();
+      });
+    }
+
     return ResponsiveLayout(
       currentIndex: _currentIndex,
       onTap: (index) {

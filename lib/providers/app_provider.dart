@@ -8,12 +8,14 @@ import '../models/cliente.dart';
 import '../models/veiculo.dart';
 import '../models/orcamento.dart';
 import '../models/transacao.dart';
+import '../services/app_logger.dart';
 import '../services/db_service.dart';
 import '../models/nota.dart';
 import '../models/user.dart';
 
 class AppProvider extends ChangeNotifier {
   bool _isLoading = false;
+  String? _lastErrorMessage;
 
   String? _activeUserId;
   bool _activeUserIsAdmin = false;
@@ -32,6 +34,10 @@ class AppProvider extends ChangeNotifier {
 
   final DBService _db = DBService.instance;
 
+  // ✅ Travas contra duplicidade
+  final Set<String> _orcamentosConcluindo = {};
+  final Set<String> _orcamentosRecebendo = {};
+
   // ===================== GETTERS =====================
 
   List<Cliente> get clientes => _clientes;
@@ -40,8 +46,14 @@ class AppProvider extends ChangeNotifier {
   List<Transacao> get transacoes => _transacoes;
 
   bool get isLoading => _isLoading;
+  String? get lastErrorMessage => _lastErrorMessage;
 
   String? get activeUserId => _activeUserId;
+
+  void clearLastError() {
+    _lastErrorMessage = null;
+    notifyListeners();
+  }
 
   Future<void> _ensureUserDbSelected() async {
     final userId = _activeUserId;
@@ -53,9 +65,6 @@ class AppProvider extends ChangeNotifier {
 
   // ===================== AUTH SYNC =====================
 
-  /// Called whenever authentication changes.
-  ///
-  /// This keeps all app data (SQLite) isolated per user.
   void syncAuthUser(User? user) {
     final normalized = user?.id.trim();
     final next = (normalized == null || normalized.isEmpty) ? null : normalized;
@@ -65,18 +74,16 @@ class AppProvider extends ChangeNotifier {
     _activeUserId = next;
     _activeUserIsAdmin = nextIsAdmin;
 
-    // Clear immediately to avoid showing previous user's data.
     _clientes.clear();
     _veiculos.clear();
     _orcamentos.clear();
     _transacoes.clear();
     notifyListeners();
 
-    // Switch DB + reload in background.
     unawaited(_reloadForActiveUser());
   }
 
-  // ===================== CATÁLOGO VEÍCULOS (MARCA/MODELO) =====================
+  // ===================== CATÁLOGO VEÍCULOS =====================
 
   List<String> get marcasDisponiveis {
     final merged = <String>{...AppConstants.marcas, ..._customMarcas};
@@ -175,7 +182,6 @@ class AppProvider extends ChangeNotifier {
         }
       }
     } catch (_) {
-      // ignore: avoid_print
       debugPrint('Falha ao ler catálogo de veículos do SharedPreferences');
     }
   }
@@ -240,8 +246,6 @@ class AppProvider extends ChangeNotifier {
   Map<String, dynamic> percentageChange(double current, double previous) {
     if (previous == 0) {
       if (current == 0) return {'label': '0%', 'up': true};
-      // Quando o valor anterior é zero, a variação percentual é indefinida.
-      // Evita exibir um "traço" (—) e mostra um rótulo mais útil no dashboard.
       return {'label': 'Novo', 'up': current >= 0};
     }
     final diff = current - previous;
@@ -263,27 +267,33 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> addCliente(Cliente cliente) async {
     try {
+      _validateCliente(cliente);
       await _ensureUserDbSelected();
       await _db.insertCliente(cliente);
       _clientes.add(cliente);
       notifyListeners();
+      unawaited(AppLogger.instance.info('Cliente adicionado: ${cliente.nome}'));
     } catch (e) {
-      debugPrint('Erro ao adicionar cliente: $e');
+      _recordError('Erro ao adicionar cliente: $e');
       rethrow;
     }
   }
 
   Future<void> updateCliente(Cliente cliente) async {
     try {
+      _validateCliente(cliente);
       await _ensureUserDbSelected();
       await _db.updateCliente(cliente);
       final index = _clientes.indexWhere((c) => c.id == cliente.id);
       if (index != -1) {
         _clientes[index] = cliente;
         notifyListeners();
+        unawaited(
+          AppLogger.instance.info('Cliente atualizado: ${cliente.nome}'),
+        );
       }
     } catch (e) {
-      debugPrint('Erro ao atualizar cliente: $e');
+      _recordError('Erro ao atualizar cliente: $e');
       rethrow;
     }
   }
@@ -295,7 +305,6 @@ class AppProvider extends ChangeNotifier {
       _clientes.removeWhere((c) => c.id == id);
       _veiculos.removeWhere((v) => v.clienteId == id);
 
-      // Keep in-memory state consistent with DB cascades
       final removedOrcamentoIds = _orcamentos
           .where((o) => o.clienteId == id)
           .map((o) => o.id)
@@ -309,7 +318,7 @@ class AppProvider extends ChangeNotifier {
 
       notifyListeners();
     } catch (e) {
-      debugPrint('Erro ao excluir cliente: $e');
+      _recordError('Erro ao excluir cliente: $e');
       rethrow;
     }
   }
@@ -320,27 +329,49 @@ class AppProvider extends ChangeNotifier {
   // ===================== VEÍCULOS =====================
 
   Future<void> addVeiculo(Veiculo veiculo) async {
-    await _ensureUserDbSelected();
-    await _db.insertVeiculo(veiculo);
-    _veiculos.add(veiculo);
-    notifyListeners();
+    try {
+      _validateVeiculo(veiculo);
+      await _ensureUserDbSelected();
+      await _db.insertVeiculo(veiculo);
+      _veiculos.add(veiculo);
+      notifyListeners();
+      unawaited(AppLogger.instance.info('Veiculo adicionado: ${veiculo.placa}'));
+    } catch (e) {
+      _recordError('Erro ao adicionar veiculo: $e');
+      rethrow;
+    }
   }
 
   Future<void> updateVeiculo(Veiculo veiculo) async {
-    await _ensureUserDbSelected();
-    await _db.updateVeiculo(veiculo);
-    final index = _veiculos.indexWhere((v) => v.id == veiculo.id);
-    if (index != -1) {
-      _veiculos[index] = veiculo;
-      notifyListeners();
+    try {
+      _validateVeiculo(veiculo);
+      await _ensureUserDbSelected();
+      await _db.updateVeiculo(veiculo);
+      final index = _veiculos.indexWhere((v) => v.id == veiculo.id);
+      if (index != -1) {
+        _veiculos[index] = veiculo;
+        notifyListeners();
+        unawaited(
+          AppLogger.instance.info('Veiculo atualizado: ${veiculo.placa}'),
+        );
+      }
+    } catch (e) {
+      _recordError('Erro ao atualizar veiculo: $e');
+      rethrow;
     }
   }
 
   Future<void> deleteVeiculo(String id) async {
-    await _ensureUserDbSelected();
-    await _db.deleteVeiculo(id);
-    _veiculos.removeWhere((v) => v.id == id);
-    notifyListeners();
+    try {
+      await _ensureUserDbSelected();
+      await _db.deleteVeiculo(id);
+      _veiculos.removeWhere((v) => v.id == id);
+      notifyListeners();
+      unawaited(AppLogger.instance.warning('Veiculo removido: $id'));
+    } catch (e) {
+      _recordError('Erro ao excluir veiculo: $e');
+      rethrow;
+    }
   }
 
   List<Veiculo> getVeiculosByCliente(String clienteId) =>
@@ -349,90 +380,143 @@ class AppProvider extends ChangeNotifier {
   // ===================== ORÇAMENTOS =====================
 
   Future<void> addOrcamento(Orcamento o) async {
-    await _ensureUserDbSelected();
-    await _db.insertOrcamento(o);
-    _orcamentos.add(o);
-    notifyListeners();
+    try {
+      _validateOrcamento(o);
+      await _ensureUserDbSelected();
+      await _db.insertOrcamento(o);
+      _orcamentos.add(o);
+      notifyListeners();
+      unawaited(AppLogger.instance.info('Orcamento criado: ${o.id}'));
+    } catch (e) {
+      _recordError('Erro ao adicionar orcamento: $e');
+      rethrow;
+    }
   }
 
   Future<void> updateOrcamento(Orcamento o) async {
-    await _ensureUserDbSelected();
-    await _db.updateOrcamento(o);
-    final index = _orcamentos.indexWhere((x) => x.id == o.id);
-    if (index != -1) {
-      _orcamentos[index] = o;
-      notifyListeners();
+    try {
+      _validateOrcamento(o);
+      await _ensureUserDbSelected();
+      await _db.updateOrcamento(o);
+      final index = _orcamentos.indexWhere((x) => x.id == o.id);
+      if (index != -1) {
+        _orcamentos[index] = o;
+        notifyListeners();
+        unawaited(AppLogger.instance.info('Orcamento atualizado: ${o.id}'));
+      }
+    } catch (e) {
+      _recordError('Erro ao atualizar orcamento: $e');
+      rethrow;
     }
   }
 
   Future<void> deleteOrcamento(String id) async {
-    await _ensureUserDbSelected();
-    await _db.deleteOrcamento(id);
-    _orcamentos.removeWhere((o) => o.id == id);
-    _transacoes.removeWhere((t) => t.orcamentoId == id);
-    notifyListeners();
+    try {
+      await _ensureUserDbSelected();
+      await _db.deleteOrcamento(id);
+      _orcamentos.removeWhere((o) => o.id == id);
+      _transacoes.removeWhere((t) => t.orcamentoId == id);
+      notifyListeners();
+      unawaited(AppLogger.instance.warning('Orcamento removido: $id'));
+    } catch (e) {
+      _recordError('Erro ao excluir orcamento: $e');
+      rethrow;
+    }
   }
 
   Future<void> aprovarOrcamento(String id) async {
-    final index = _orcamentos.indexWhere((o) => o.id == id);
-    if (index == -1) return;
+    try {
+      final index = _orcamentos.indexWhere((o) => o.id == id);
+      if (index == -1) return;
 
-    final atual = _orcamentos[index];
-    if (atual.status != OrcamentoStatus.pendente) return;
+      final atual = _orcamentos[index];
+      if (atual.status != OrcamentoStatus.pendente) return;
 
-    final atualizado = atual.copyWith(
-      status: OrcamentoStatus.aprovado,
-      dataAprovacao: DateTime.now(),
-    );
+      final atualizado = atual.copyWith(
+        status: OrcamentoStatus.aprovado,
+        dataAprovacao: DateTime.now(),
+      );
+      _validateOrcamento(atualizado);
 
-    await _ensureUserDbSelected();
-    await _db.updateOrcamento(atualizado);
-    _orcamentos[index] = atualizado;
-    notifyListeners();
+      await _ensureUserDbSelected();
+      await _db.updateOrcamento(atualizado);
+      _orcamentos[index] = atualizado;
+      notifyListeners();
+      unawaited(AppLogger.instance.info('Orcamento aprovado: $id'));
+    } catch (e) {
+      _recordError('Erro ao aprovar orcamento: $e');
+      rethrow;
+    }
   }
 
   Future<void> iniciarServico(String id) async {
-    final index = _orcamentos.indexWhere((o) => o.id == id);
-    if (index == -1) return;
+    try {
+      final index = _orcamentos.indexWhere((o) => o.id == id);
+      if (index == -1) return;
 
-    final atual = _orcamentos[index];
-    if (atual.status != OrcamentoStatus.aprovado) return;
+      final atual = _orcamentos[index];
+      if (atual.status != OrcamentoStatus.aprovado) return;
 
-    final atualizado = atual.copyWith(status: OrcamentoStatus.emAndamento);
+      final atualizado = atual.copyWith(status: OrcamentoStatus.emAndamento);
+      _validateOrcamento(atualizado);
 
-    await _ensureUserDbSelected();
-    await _db.updateOrcamento(atualizado);
-    _orcamentos[index] = atualizado;
-    notifyListeners();
+      await _ensureUserDbSelected();
+      await _db.updateOrcamento(atualizado);
+      _orcamentos[index] = atualizado;
+      notifyListeners();
+      unawaited(AppLogger.instance.info('Servico iniciado para orcamento: $id'));
+    } catch (e) {
+      _recordError('Erro ao iniciar servico: $e');
+      rethrow;
+    }
   }
 
   Future<void> concluirOrcamento(String id) async {
+    if (_orcamentosConcluindo.contains(id)) return;
+
     final index = _orcamentos.indexWhere((o) => o.id == id);
     if (index == -1) return;
 
     final atual = _orcamentos[index];
 
-    // 🔒 trava fluxo
     if (atual.status != OrcamentoStatus.emAndamento) return;
     if (atual.dataConclusao != null) return;
 
-    final atualizado = atual.copyWith(
-      status: OrcamentoStatus.concluido,
-      dataConclusao: DateTime.now(),
-    );
+    _orcamentosConcluindo.add(id);
 
-    await _ensureUserDbSelected();
-    await _db.updateOrcamento(atualizado);
+    try {
+      final atualizado = atual.copyWith(
+        status: OrcamentoStatus.concluido,
+        dataConclusao: DateTime.now(),
+      );
+      _validateOrcamento(atualizado);
 
-    // 🔒 Gera nota uma única vez
-    final nota = Nota.fromOrcamento(atualizado);
-    await _db.insertNota(nota);
+      await _ensureUserDbSelected();
+      await _db.updateOrcamento(atualizado);
 
-    _orcamentos[index] = atualizado;
-    notifyListeners();
+      // ✅ Gera nota apenas uma vez
+      // Mantendo compatibilidade com seu fluxo atual
+      final nota = Nota.fromOrcamento(atualizado);
+      try {
+        await _db.insertNota(nota);
+      } catch (_) {
+        // Se já existir ou ocorrer duplicidade, apenas ignora
+      }
+
+      _orcamentos[index] = atualizado;
+      notifyListeners();
+      unawaited(AppLogger.instance.info('Orcamento concluido: $id'));
+    } catch (e) {
+      _recordError('Erro ao concluir orcamento: $e');
+      rethrow;
+    } finally {
+      _orcamentosConcluindo.remove(id);
+    }
   }
 
   Future<void> registrarPagamento(String id) async {
+    if (_orcamentosRecebendo.contains(id)) return;
+
     final index = _orcamentos.indexWhere((o) => o.id == id);
     if (index == -1) return;
 
@@ -441,45 +525,88 @@ class AppProvider extends ChangeNotifier {
     if (atual.status != OrcamentoStatus.concluido) return;
     if (atual.pago) return;
 
-    final atualizado = atual.copyWith(
-      pago: true,
-      dataPagamento: DateTime.now(),
-    );
+    _orcamentosRecebendo.add(id);
 
-    await _ensureUserDbSelected();
-    await _db.updateOrcamento(atualizado);
+    try {
+      await _ensureUserDbSelected();
 
-    final transacao = Transacao(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      tipo: TipoTransacao.entrada,
-      descricao: 'Pagamento serviço - ${atual.clienteNome}',
-      valor: atual.valorTotal,
-      categoria: 'Serviço',
-      data: DateTime.now(),
-      orcamentoId: id,
-    );
+      // ✅ Antes de inserir, verifica se já existe transação para este orçamento
+      final transacaoExistente = await _db.getTransacaoByOrcamentoId(id);
 
-    await _db.insertTransacao(transacao);
+      if (transacaoExistente != null) {
+        final atualizadoExistente = atual.copyWith(
+          pago: true,
+          dataPagamento: atual.dataPagamento ?? DateTime.now(),
+        );
 
-    _orcamentos[index] = atualizado;
-    _transacoes.add(transacao);
+        await _db.updateOrcamento(atualizadoExistente);
+        _orcamentos[index] = atualizadoExistente;
 
-    notifyListeners();
+        if (!_transacoes.any((t) => t.id == transacaoExistente.id)) {
+          _transacoes.add(transacaoExistente);
+        }
+
+        notifyListeners();
+        unawaited(
+          AppLogger.instance.info(
+            'Pagamento reconhecido por transacao existente: $id',
+          ),
+        );
+        return;
+      }
+
+      final atualizado = atual.copyWith(
+        pago: true,
+        dataPagamento: DateTime.now(),
+      );
+
+      await _db.updateOrcamento(atualizado);
+
+      final transacao = Transacao(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        tipo: TipoTransacao.entrada,
+        descricao: 'Pagamento serviço - ${atual.clienteNome}',
+        valor: atual.valorTotal,
+        categoria: 'Serviço',
+        data: DateTime.now(),
+        orcamentoId: id,
+      );
+
+      _validateTransacao(transacao);
+      await _db.insertTransacao(transacao);
+
+      _orcamentos[index] = atualizado;
+      _transacoes.add(transacao);
+
+      notifyListeners();
+      unawaited(AppLogger.instance.info('Pagamento registrado: $id'));
+    } catch (e) {
+      _recordError('Erro ao registrar pagamento: $e');
+      rethrow;
+    } finally {
+      _orcamentosRecebendo.remove(id);
+    }
   }
 
   Future<void> cancelarOrcamento(String id) async {
-    final index = _orcamentos.indexWhere((o) => o.id == id);
-    if (index == -1) return;
+    try {
+      final index = _orcamentos.indexWhere((o) => o.id == id);
+      if (index == -1) return;
 
-    final atual = _orcamentos[index];
-    if (atual.status == OrcamentoStatus.cancelado) return;
+      final atual = _orcamentos[index];
+      if (atual.status == OrcamentoStatus.cancelado) return;
 
-    final atualizado = atual.copyWith(status: OrcamentoStatus.cancelado);
+      final atualizado = atual.copyWith(status: OrcamentoStatus.cancelado);
 
-    await _ensureUserDbSelected();
-    await _db.updateOrcamento(atualizado);
-    _orcamentos[index] = atualizado;
-    notifyListeners();
+      await _ensureUserDbSelected();
+      await _db.updateOrcamento(atualizado);
+      _orcamentos[index] = atualizado;
+      notifyListeners();
+      unawaited(AppLogger.instance.warning('Orcamento cancelado: $id'));
+    } catch (e) {
+      _recordError('Erro ao cancelar orcamento: $e');
+      rethrow;
+    }
   }
 
   List<Orcamento> getOrcamentosByCliente(String clienteId) {
@@ -489,17 +616,30 @@ class AppProvider extends ChangeNotifier {
   // ===================== TRANSAÇÕES =====================
 
   Future<void> addTransacao(Transacao t) async {
-    await _ensureUserDbSelected();
-    await _db.insertTransacao(t);
-    _transacoes.add(t);
-    notifyListeners();
+    try {
+      _validateTransacao(t);
+      await _ensureUserDbSelected();
+      await _db.insertTransacao(t);
+      _transacoes.add(t);
+      notifyListeners();
+      unawaited(AppLogger.instance.info('Transacao adicionada: ${t.id}'));
+    } catch (e) {
+      _recordError('Erro ao adicionar transacao: $e');
+      rethrow;
+    }
   }
 
   Future<void> deleteTransacao(String id) async {
-    await _ensureUserDbSelected();
-    await _db.deleteTransacao(id);
-    _transacoes.removeWhere((t) => t.id == id);
-    notifyListeners();
+    try {
+      await _ensureUserDbSelected();
+      await _db.deleteTransacao(id);
+      _transacoes.removeWhere((t) => t.id == id);
+      notifyListeners();
+      unawaited(AppLogger.instance.warning('Transacao removida: $id'));
+    } catch (e) {
+      _recordError('Erro ao excluir transacao: $e');
+      rethrow;
+    }
   }
 
   // ===================== INIT / RELOAD =====================
@@ -510,6 +650,10 @@ class AppProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('Erro ao inicializar preferências do AppProvider: $e');
     }
+  }
+
+  Future<void> reloadActiveUserData() async {
+    await _reloadForActiveUser();
   }
 
   Future<void> _reloadForActiveUser() async {
@@ -526,7 +670,6 @@ class AppProvider extends ChangeNotifier {
       );
 
       if (userIdAtStart == null) {
-        // Not authenticated: keep empty in-memory lists.
         return;
       }
 
@@ -535,7 +678,6 @@ class AppProvider extends ChangeNotifier {
       final orcamentosDB = await _db.getOrcamentos();
       final transacoesDB = await _db.getTransacoes();
 
-      // If user changed mid-flight, don't apply stale results.
       if (_activeUserId != userIdAtStart) return;
 
       _clientes
@@ -555,6 +697,60 @@ class AppProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  void _recordError(String message) {
+    _lastErrorMessage = message;
+    debugPrint(message);
+    unawaited(AppLogger.instance.error(message));
+  }
+
+  void _validateCliente(Cliente cliente) {
+    if (cliente.nome.trim().isEmpty) {
+      throw StateError('Informe o nome do cliente.');
+    }
+    if (cliente.telefone.trim().isEmpty) {
+      throw StateError('Informe o telefone do cliente.');
+    }
+  }
+
+  void _validateVeiculo(Veiculo veiculo) {
+    if (veiculo.clienteId.trim().isEmpty || veiculo.clienteId == '__pending__') {
+      throw StateError('Associe o veiculo a um cliente valido.');
+    }
+    if (veiculo.marca.trim().isEmpty || veiculo.modelo.trim().isEmpty) {
+      throw StateError('Informe marca e modelo do veiculo.');
+    }
+    if (veiculo.placa.trim().isEmpty) {
+      throw StateError('Informe a placa do veiculo.');
+    }
+  }
+
+  void _validateOrcamento(Orcamento orcamento) {
+    if (orcamento.clienteId.trim().isEmpty) {
+      throw StateError('O orcamento precisa de um cliente valido.');
+    }
+    if (orcamento.veiculoId.trim().isEmpty) {
+      throw StateError('O orcamento precisa de um veiculo valido.');
+    }
+    if (orcamento.itens.isEmpty) {
+      throw StateError('Adicione pelo menos um item ao orcamento.');
+    }
+    if (orcamento.valorTotal <= 0) {
+      throw StateError('O valor total do orcamento deve ser maior que zero.');
+    }
+  }
+
+  void _validateTransacao(Transacao transacao) {
+    if (transacao.descricao.trim().isEmpty) {
+      throw StateError('Informe a descricao da transacao.');
+    }
+    if (transacao.categoria.trim().isEmpty) {
+      throw StateError('Informe a categoria da transacao.');
+    }
+    if (transacao.valor <= 0) {
+      throw StateError('O valor da transacao deve ser maior que zero.');
     }
   }
 }

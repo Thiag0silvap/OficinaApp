@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/user.dart';
+import '../services/app_logger.dart';
 import '../services/auth_service.dart';
 import '../services/secure_storage_service.dart';
 
@@ -21,8 +22,6 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _init() async {
-    // Seed a default admin only in debug builds.
-    // Shipping a predictable admin account in release is risky.
     if (kDebugMode) {
       try {
         await _service.seedAdmin(password: '123456');
@@ -42,8 +41,23 @@ class AuthProvider extends ChangeNotifier {
     required String password,
     bool rememberCredentials = true,
   }) async {
+    final normalizedName = name.trim().toLowerCase();
+    if (normalizedName.isEmpty || password.isEmpty) {
+      return 'Informe usuario e senha.';
+    }
+
+    final locked = await _service.isUserLockedOut(normalizedName);
+    if (locked) {
+      final remaining = await _service.getRemainingLockout(normalizedName);
+      final minutes = remaining == null
+          ? 5
+          : remaining.inMinutes.clamp(1, AuthService.lockoutDuration.inMinutes);
+      return 'Muitas tentativas. Tente novamente em aproximadamente $minutes minuto(s).';
+    }
+
     final user = await _service.login(name, password);
-    if (user == null) return 'Credenciais inválidas';
+    if (user == null) return 'Credenciais invalidas';
+
     _currentUser = user;
     await _saveSession();
     await _saveLastActive();
@@ -53,7 +67,9 @@ class AuthProvider extends ChangeNotifier {
     } else {
       await _clearSavedCredentials();
     }
+
     notifyListeners();
+    await AppLogger.instance.info('Sessao iniciada para ${user.name}');
     return null;
   }
 
@@ -62,8 +78,15 @@ class AuthProvider extends ChangeNotifier {
     required String password,
     bool rememberCredentials = true,
   }) async {
+    final validation = _service.validateRegistration(
+      name: name,
+      password: password,
+    );
+    if (validation != null) return validation;
+
     final user = await _service.register(name: name, password: password);
-    if (user == null) return 'Usuário já cadastrado';
+    if (user == null) return 'Usuario ja cadastrado';
+
     _currentUser = user;
     await _saveSession();
     await _saveLastActive();
@@ -73,16 +96,21 @@ class AuthProvider extends ChangeNotifier {
     } else {
       await _clearSavedCredentials();
     }
+
     notifyListeners();
+    await AppLogger.instance.info('Sessao criada para ${user.name}');
     return null;
   }
 
   Future<void> logout() async {
+    final currentName = _currentUser?.name;
     _currentUser = null;
     await _secureStorage.delete(_prefsKey);
     await _secureStorage.delete(_lastActiveKey);
-    // keep saved credentials to allow quick re-login
     notifyListeners();
+    if (currentName != null) {
+      await AppLogger.instance.info('Logout realizado para $currentName');
+    }
   }
 
   Future<void> _saveSession() async {
@@ -101,7 +129,6 @@ class AuthProvider extends ChangeNotifier {
     required String name,
     required String password,
   }) async {
-    // Never persist plaintext passwords on disk.
     final map = {'name': name, 'password': ''};
     await _secureStorage.write(_savedCredsKey, jsonEncode(map));
   }
@@ -110,15 +137,12 @@ class AuthProvider extends ChangeNotifier {
     await _secureStorage.delete(_savedCredsKey);
   }
 
-  /// Returns saved credentials if any (may be null).
-  /// Note: password is intentionally blank for safety.
   Future<Map<String, String>?> getSavedCredentials() async {
     final secureValue = await _secureStorage.read(_savedCredsKey);
     if (secureValue != null) {
       return _decodeCredentials(secureValue);
     }
 
-    // Migration path from older SharedPreferences storage.
     final prefs = await SharedPreferences.getInstance();
     final legacy = prefs.getString(_savedCredsKey);
     if (legacy == null) return null;
@@ -140,7 +164,6 @@ class AuthProvider extends ChangeNotifier {
     final s = await _readWithMigration(_prefsKey);
     final last = await _readWithMigration(_lastActiveKey);
 
-    // If there's no saved user, nothing to restore (but keep creds)
     if (s == null) return;
 
     try {
@@ -151,20 +174,19 @@ class AuthProvider extends ChangeNotifier {
         try {
           final lastDt = DateTime.parse(last);
           final diff = DateTime.now().difference(lastDt);
-          // If last activity within 10 minutes, restore session
           if (diff.inMinutes <= 10) {
             _currentUser = savedUser;
             notifyListeners();
+            await AppLogger.instance.info(
+              'Sessao restaurada para ${savedUser.name}',
+            );
             return;
           }
         } catch (_) {}
       }
 
-      // Otherwise, do not auto-login but keep saved credentials for prefill
       _currentUser = null;
-    } catch (_) {
-      // ignore malformed data
-    }
+    } catch (_) {}
   }
 
   Future<String?> _readWithMigration(String key) async {

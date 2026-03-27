@@ -375,42 +375,6 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _quickActionWide(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool filled = false,
-  }) {
-    final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(14),
-    );
-
-    if (filled) {
-      return FilledButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 18),
-        label: Text(label),
-        style: FilledButton.styleFrom(
-          backgroundColor: AppColors.primaryYellow,
-          foregroundColor: Colors.black,
-          shape: shape,
-        ),
-      );
-    }
-
-    return OutlinedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.primaryYellow,
-        side: BorderSide(color: AppColors.border),
-        shape: shape,
-      ),
-    );
-  }
-
   Widget _buildMiniMetricRow(
     BuildContext context, {
     required String label,
@@ -730,7 +694,7 @@ class DashboardScreen extends StatelessWidget {
     bool trendUp = true,
     VoidCallback? onTap,
   }) {
-    bool _hover = false;
+    bool hover = false;
     final contentPadding = trend != null
         ? const EdgeInsets.fromLTRB(10, 10, 2, 10)
         : const EdgeInsets.all(10);
@@ -738,11 +702,17 @@ class DashboardScreen extends StatelessWidget {
     return StatefulBuilder(
       builder: (ctx, setState) {
         return MouseRegion(
-          onEnter: (_) => setState(() => _hover = true),
-          onExit: (_) => setState(() => _hover = false),
+          onEnter: (_) => setState(() => hover = true),
+          onExit: (_) => setState(() => hover = false),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
-            transform: Matrix4.identity()..scale(_hover ? 1.02 : 1.0),
+            transform: Matrix4.identity()
+              ..scaleByDouble(
+                hover ? 1.02 : 1.0,
+                hover ? 1.02 : 1.0,
+                1.0,
+                1.0,
+              ),
             child: Material(
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(16),
@@ -755,10 +725,10 @@ class DashboardScreen extends StatelessWidget {
                     color: AppColors.secondaryGray,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: AppColors.border, width: 1),
-                    boxShadow: _hover
+                    boxShadow: hover
                         ? [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
+                              color: Colors.black.withValues(alpha: 0.2),
                               blurRadius: 8,
                               offset: const Offset(0, 4),
                             ),

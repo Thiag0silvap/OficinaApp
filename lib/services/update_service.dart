@@ -5,6 +5,7 @@ import 'dart:io';
 import '../core/constants/app_constants.dart';
 import '../core/constants/app_version.dart';
 import '../core/utils/version_utils.dart';
+import 'app_logger.dart';
 
 class UpdateInfo {
   UpdateInfo({
@@ -47,12 +48,16 @@ class UpdateService {
       final isNewer = VersionUtils.compare(latestVersion, current) > 0;
       if (!isNewer) return null;
 
+      await AppLogger.instance.info(
+        'Atualizacao disponivel detectada: $latestVersion',
+      );
       return UpdateInfo(
         latestVersion: latestVersion,
         downloadUrl: downloadUrl,
         notes: notes,
       );
-    } catch (_) {
+    } catch (e) {
+      await AppLogger.instance.warning('Falha ao verificar atualizacoes: $e');
       return null;
     }
   }

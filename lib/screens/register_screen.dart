@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/auth_provider.dart';
 import '../core/theme/app_theme.dart';
+import '../core/utils/app_feedback.dart';
 import '../core/widgets/app_logo.dart';
+import '../providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -81,12 +82,17 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 children: [
                                   IconButton(
                                     tooltip: 'Voltar',
-                                    onPressed: _loading ? null : () => Navigator.pop(context),
+                                    onPressed: _loading
+                                        ? null
+                                        : () => Navigator.pop(context),
                                     icon: const Icon(Icons.arrow_back),
                                   ),
                                   const Expanded(
                                     child: Center(
-                                      child: SizedBox(height: 140, child: SplashLogo()),
+                                      child: SizedBox(
+                                        height: 140,
+                                        child: SplashLogo(),
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(width: 48),
@@ -100,26 +106,35 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Cadastre um usuário para acessar o sistema.',
+                                'Cadastre um usuario para acessar o sistema.',
                                 textAlign: TextAlign.center,
-                                style: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.copyWith(color: AppColors.white.withValues(alpha: 0.75)),
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color: AppColors.white.withValues(alpha: 0.75),
+                                    ),
                               ),
                               const SizedBox(height: 18),
                               TextFormField(
                                 controller: nameController,
                                 textInputAction: TextInputAction.next,
                                 autofillHints: const [AutofillHints.newUsername],
-                                onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
+                                onFieldSubmitted: (_) =>
+                                    _passwordFocus.requestFocus(),
                                 decoration: const InputDecoration(
-                                  labelText: 'Usuário',
+                                  labelText: 'Usuario',
                                   prefixIcon: Icon(Icons.person_outline),
                                 ),
-                                validator: (v) => (v == null || v.trim().isEmpty)
-                                    ? 'Usuário é obrigatório'
-                                    : null,
+                                validator: (v) {
+                                  final value = v?.trim() ?? '';
+                                  if (value.isEmpty) return 'Usuario e obrigatorio';
+                                  if (value.length < 3) {
+                                    return 'Usuario deve ter ao menos 3 caracteres';
+                                  }
+                                  if (RegExp(r'[^a-zA-Z0-9._-]').hasMatch(value)) {
+                                    return 'Use apenas letras, numeros, ponto, underline ou hifen';
+                                  }
+                                  return null;
+                                },
                               ),
                               const SizedBox(height: 12),
                               TextFormField(
@@ -134,9 +149,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   labelText: 'Senha',
                                   prefixIcon: const Icon(Icons.lock_outline),
                                   suffixIcon: IconButton(
-                                    tooltip: _obscurePassword ? 'Mostrar senha' : 'Ocultar senha',
+                                    tooltip: _obscurePassword
+                                        ? 'Mostrar senha'
+                                        : 'Ocultar senha',
                                     onPressed: () {
-                                      setState(() => _obscurePassword = !_obscurePassword);
+                                      setState(
+                                        () =>
+                                            _obscurePassword = !_obscurePassword,
+                                      );
                                     },
                                     icon: Icon(
                                       _obscurePassword
@@ -145,15 +165,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     ),
                                   ),
                                 ),
-                                validator: (v) => (v == null || v.isEmpty) ? 'Senha é obrigatória' : null,
+                                validator: (v) {
+                                  final value = v ?? '';
+                                  if (value.isEmpty) return 'Senha e obrigatoria';
+                                  if (value.length < 6) {
+                                    return 'Senha deve ter ao menos 6 caracteres';
+                                  }
+                                  if (!RegExp(r'[A-Za-z]').hasMatch(value) ||
+                                      !RegExp(r'\d').hasMatch(value)) {
+                                    return 'Senha precisa ter letra e numero';
+                                  }
+                                  return null;
+                                },
                               ),
                               const SizedBox(height: 10),
                               Row(
                                 children: [
                                   Checkbox(
                                     value: _rememberCredentials,
-                                    onChanged: (v) =>
-                                        setState(() => _rememberCredentials = v ?? true),
+                                    onChanged: (v) => setState(
+                                      () => _rememberCredentials = v ?? true,
+                                    ),
                                   ),
                                   Expanded(
                                     child: Text(
@@ -161,7 +193,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       style: Theme.of(context)
                                           .textTheme
                                           .bodyMedium
-                                          ?.copyWith(color: AppColors.white.withValues(alpha: 0.9)),
+                                          ?.copyWith(
+                                            color: AppColors.white.withValues(
+                                              alpha: 0.9,
+                                            ),
+                                          ),
                                     ),
                                   ),
                                 ],
@@ -175,7 +211,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       ? const SizedBox(
                                           width: 22,
                                           height: 22,
-                                          child: CircularProgressIndicator(strokeWidth: 2),
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
                                         )
                                       : const Text('Criar conta'),
                                 ),
@@ -207,7 +245,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!mounted) return;
     setState(() => _loading = false);
     if (err != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
+      AppFeedback.showError(context, err);
     } else {
       Navigator.pop(context);
     }

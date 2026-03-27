@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../core/theme/app_theme.dart';
 import '../core/components/responsive_components.dart';
 import '../core/components/form_styles.dart';
+import '../core/utils/app_feedback.dart';
 import '../core/utils/phone_input_formatter.dart';
 import '../core/utils/cnpj_input_formatter.dart';
 import '../models/empresa.dart';
@@ -53,9 +54,7 @@ class _EmpresaScreenState extends State<EmpresaScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao carregar dados da oficina: $e')),
-      );
+      AppFeedback.showError(context, 'Erro ao carregar dados da oficina: $e');
     } finally {
       if (mounted) {
         setState(() => _loading = false);
@@ -89,17 +88,10 @@ class _EmpresaScreenState extends State<EmpresaScreen> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Dados da oficina salvos com sucesso!'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      AppFeedback.showSuccess(context, 'Dados da oficina salvos com sucesso!');
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar dados da oficina: $e')),
-      );
+      AppFeedback.showError(context, 'Erro ao salvar dados da oficina: $e');
     } finally {
       if (mounted) {
         setState(() => _saving = false);
