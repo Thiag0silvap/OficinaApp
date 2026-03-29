@@ -103,7 +103,12 @@ class DashboardScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildHeader(context),
+                    _buildHeader(
+                      context,
+                      ordensAtivas: ordensAtivas,
+                      pendentes: pendentes,
+                      concluidosHoje: concluidosHoje,
+                    ),
 
                     SizedBox(height: spacing),
 
@@ -363,15 +368,13 @@ class DashboardScreen extends StatelessWidget {
       );
     }
 
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(flex: 2, child: chart),
-          SizedBox(width: spacing),
-          Expanded(child: resumo),
-        ],
-      ),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(flex: 2, child: chart),
+        SizedBox(width: spacing),
+        Expanded(child: resumo),
+      ],
     );
   }
 
@@ -577,11 +580,17 @@ class DashboardScreen extends StatelessWidget {
   }
 
   /// ================= HEADER =================
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(
+    BuildContext context, {
+    required int ordensAtivas,
+    required int pendentes,
+    required int concluidosHoje,
+  }) {
     final auth = context.watch<AuthProvider>();
     final name = auth.currentUser?.name.trim() ?? '';
     final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : '?';
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           child: Column(

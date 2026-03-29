@@ -752,9 +752,58 @@ WHERE orcamentoId IS NOT NULL
     await _deleteIfExists('$targetPath-wal');
     await _deleteIfExists('$targetPath-shm');
 
-    await File(selected.dbPath).copy(targetPath);
+    return _restoreBackupFile(
+      sourcePath: selected.dbPath,
+      sourceLabel: selected.fileName,
+      targetPath: targetPath,
+    );
+  }
+
+  Future<String> restoreBackupFromFilePath(String filePath) async {
+    final sourceFile = File(filePath);
+    if (!await sourceFile.exists()) {
+      throw StateError('Arquivo de backup não encontrado.');
+    }
+    if (await sourceFile.length() <= 0) {
+      throw StateError('Arquivo de backup está vazio.');
+    }
+
+    final dir = await getApplicationDocumentsDirectory();
+    final targetPath = join(dir.path, "oficina_${_activeUserId ?? "default"}.db");
+
+    if (_database != null) {
+      await _database!.close();
+      _database = null;
+    }
+
+    final targetFile = File(targetPath);
+    if (await targetFile.exists()) {
+      final safetyPath = join(
+        dir.path,
+        "oficina_${_activeUserId ?? "default"}_antes_restauracao.db",
+      );
+      await targetFile.copy(safetyPath);
+      await targetFile.delete();
+    }
+
+    await _deleteIfExists('$targetPath-wal');
+    await _deleteIfExists('$targetPath-shm');
+
+    return _restoreBackupFile(
+      sourcePath: filePath,
+      sourceLabel: basename(filePath),
+      targetPath: targetPath,
+    );
+  }
+
+  Future<String> _restoreBackupFile({
+    required String sourcePath,
+    required String sourceLabel,
+    required String targetPath,
+  }) async {
+    await File(sourcePath).copy(targetPath);
     await AppLogger.instance.warning(
-      'Backup restaurado para ${_activeUserId ?? "default"} a partir de ${selected.fileName}',
+      'Backup restaurado para ${_activeUserId ?? "default"} a partir de $sourceLabel',
     );
     return targetPath;
   }

@@ -46,6 +46,7 @@ class _OrcamentosScreenState extends State<OrcamentosScreen> {
   @override
   Widget build(BuildContext context) {
     final isDesktop = ResponsiveUtils.isDesktop(context);
+    final isMobile = ResponsiveUtils.isMobile(context);
 
     return Consumer<AppProvider>(
       builder: (context, provider, child) {
@@ -61,6 +62,7 @@ class _OrcamentosScreenState extends State<OrcamentosScreen> {
               ),
               SizedBox(height: ResponsiveUtils.getCardSpacing(context)),
               _OrcToolbar(
+                isMobile: isMobile,
                 controller: _searchCtrl,
                 sort: _sort,
                 totalCount: provider.orcamentos.length,
@@ -270,6 +272,7 @@ class _PremiumTabBar extends StatelessWidget {
 }
 
 class _OrcToolbar extends StatelessWidget {
+  final bool isMobile;
   final TextEditingController controller;
   final _OrcSort sort;
   final int totalCount;
@@ -278,6 +281,7 @@ class _OrcToolbar extends StatelessWidget {
   final ValueChanged<String> onChanged;
 
   const _OrcToolbar({
+    required this.isMobile,
     required this.controller,
     required this.sort,
     required this.totalCount,
@@ -288,7 +292,41 @@ class _OrcToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop = ResponsiveUtils.isDesktop(context);
+    final countLabel =
+        '$totalCount ${totalCount == 1 ? 'orcamento' : 'orcamentos'}';
+
+    if (isMobile) {
+      return Column(
+        children: [
+          _SearchField(
+            controller: controller,
+            hint: 'Buscar por cliente, veÃ­culo ou IDâ€¦',
+            onChanged: onChanged,
+            onClear: onClearSearch,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _ToolbarSelect<_OrcSort>(
+                  value: sort,
+                  items: const {
+                    _OrcSort.recent: 'Recentes',
+                    _OrcSort.valorDesc: 'Maior valor',
+                    _OrcSort.valorAsc: 'Menor valor',
+                    _OrcSort.nomeAZ: 'Nome Aâ€“Z',
+                  },
+                  icon: Icons.sort,
+                  onChanged: onSortChanged,
+                ),
+              ),
+              const SizedBox(width: 12),
+              _CountChip(label: countLabel),
+            ],
+          ),
+        ],
+      );
+    }
 
     return Row(
       children: [
@@ -302,7 +340,7 @@ class _OrcToolbar extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         SizedBox(
-          width: isDesktop ? 180 : 160,
+          width: 180,
           child: _ToolbarSelect<_OrcSort>(
             value: sort,
             items: const {
@@ -510,19 +548,31 @@ class _OrcamentoPremiumCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final statusColor = _statusColor(orcamento.status);
 
-    final subtitle =
-        '${orcamento.veiculoDescricao} • ${Formatters.currency(orcamento.valorTotal)}';
-
     return ResponsiveListCard(
       title: orcamento.clienteNome,
-      subtitle: subtitle,
-      trailing: _StatusPill(
-        text: orcamento.statusDescricao,
-        color: statusColor,
-        suffixIcon:
-            (orcamento.status == OrcamentoStatus.concluido && orcamento.pago)
-            ? Icons.verified
-            : null,
+      subtitle: orcamento.veiculoDescricao,
+      trailing: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _StatusPill(
+            text: orcamento.statusDescricao,
+            color: statusColor,
+            suffixIcon:
+                (orcamento.status == OrcamentoStatus.concluido && orcamento.pago)
+                ? Icons.verified
+                : null,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            Formatters.currency(orcamento.valorTotal),
+            style: const TextStyle(
+              color: AppColors.white,
+              fontWeight: FontWeight.w800,
+              fontSize: 14,
+            ),
+          ),
+        ],
       ),
       onTap: onOpen,
       actions: _buildActions(context),
@@ -546,6 +596,7 @@ class _OrcamentoPremiumCard extends StatelessWidget {
             icon: Icons.check,
             label: 'Aprovar',
             tone: _ActionTone.success,
+            filled: true,
             onPressed: () async {
               await provider.aprovarOrcamento(orcamento.id);
               if (!context.mounted) return;
@@ -581,6 +632,7 @@ class _OrcamentoPremiumCard extends StatelessWidget {
             icon: Icons.play_arrow,
             label: 'Iniciar',
             tone: _ActionTone.primary,
+            filled: true,
             onPressed: () async {
               await provider.iniciarServico(orcamento.id);
               if (!context.mounted) return;
@@ -601,6 +653,7 @@ class _OrcamentoPremiumCard extends StatelessWidget {
             icon: Icons.done,
             label: 'Concluir',
             tone: _ActionTone.success,
+            filled: true,
             onPressed: () async {
               await provider.concluirOrcamento(orcamento.id);
               if (!context.mounted) return;
@@ -622,6 +675,7 @@ class _OrcamentoPremiumCard extends StatelessWidget {
               icon: Icons.attach_money,
               label: 'Receber',
               tone: _ActionTone.success,
+              filled: true,
               onPressed: () async {
                 await provider.registrarPagamento(orcamento.id);
                 if (!context.mounted) return;
@@ -643,26 +697,10 @@ class _OrcamentoPremiumCard extends StatelessWidget {
 
     actions.addAll([
       _ActionPill(
-        icon: Icons.picture_as_pdf,
-        label: 'Enviar PDF',
-        tone: _ActionTone.primary,
-        onPressed: () async {
-          try {
-            final bytes = await PDFService.generateOrcamentoPdf(orcamento);
-            final filename = PDFService.buildPdfFilename(orcamento);
-            await Printing.sharePdf(bytes: bytes, filename: filename);
-          } catch (e) {
-            if (!context.mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Erro ao gerar/compartilhar PDF: $e')),
-            );
-          }
-        },
-      ),
-      _ActionPill(
         icon: Icons.chat,
         label: 'PDF + WhatsApp',
         tone: _ActionTone.success,
+        filled: true,
         onPressed: () async {
           try {
             final cliente = provider.getClienteById(orcamento.clienteId);
@@ -781,12 +819,14 @@ class _ActionPill extends StatelessWidget {
   final IconData icon;
   final String label;
   final _ActionTone tone;
+  final bool filled;
   final VoidCallback onPressed;
 
   const _ActionPill({
     required this.icon,
     required this.label,
     required this.tone,
+    this.filled = false,
     required this.onPressed,
   });
 
@@ -806,6 +846,11 @@ class _ActionPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fg = _fg();
+    final background = filled ? fg : fg.withValues(alpha: 0.10);
+    final foreground = filled
+        ? ((tone == _ActionTone.primary) ? Colors.black : Colors.white)
+        : fg;
+    final borderColor = filled ? fg : fg.withValues(alpha: 0.35);
 
     return InkWell(
       borderRadius: BorderRadius.circular(999),
@@ -813,19 +858,19 @@ class _ActionPill extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: fg.withValues(alpha: 0.10),
+          color: background,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: fg.withValues(alpha: 0.35)),
+          border: Border.all(color: borderColor),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: fg),
+            Icon(icon, size: 16, color: foreground),
             const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
-                color: fg,
+                color: foreground,
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
               ),

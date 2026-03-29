@@ -2,7 +2,7 @@ name: oficina_app
 description: "Sistema de gestão para oficinas automotivas - OficinaApp"
 publish_to: 'none'
 
-version: 1.0.3+10
+version: 1.0.4+11
 
 environment:
   sdk: ^3.9.2
@@ -30,6 +30,7 @@ dependencies:
   printing: ^5.10.0
   fl_chart: ^0.68.0
   url_launcher: ^6.3.0
+  file_picker: ^8.1.7
 
 dev_dependencies:
   flutter_test:
@@ -43,6 +44,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/fonts/
 
 flutter_icons:
   android: true
@@ -53,7 +55,7 @@ msix_config:
   display_name: OficinaApp
   publisher_display_name: Thiago Pereira
   identity_name: com.thiagopereira.oficinaapp
-  msix_version: 1.0.3.0
+  msix_version: 1.0.4.0
   logo_path: assets/images/logo.png
   trim_logo: false
   capabilities: internetClient

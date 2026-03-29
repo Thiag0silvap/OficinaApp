@@ -22,6 +22,43 @@ class ClientesScreen extends StatefulWidget {
 
 enum _SortClientes { nomeAsc, recentes }
 
+class _ClienteInfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _ClienteInfoChip({
+    required this.icon,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.85)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: const TextStyle(
+              color: AppColors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ClientesScreenState extends State<ClientesScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
   TipoCliente? _tipoFiltro;
@@ -333,7 +370,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 2,
-        childAspectRatio: 1.5,
+        childAspectRatio: 1.2,
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
       ),
@@ -353,7 +390,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
-        childAspectRatio: 1.55,
+        childAspectRatio: 1.2,
         crossAxisSpacing: 20,
         mainAxisSpacing: 20,
       ),
@@ -387,6 +424,13 @@ class _ClientesScreenState extends State<ClientesScreen> {
     AppProvider provider,
   ) {
     final isDesktop = ResponsiveUtils.isDesktop(context);
+    final veiculos = provider.getVeiculosByCliente(cliente.id);
+    final orcamentos = provider.getOrcamentosByCliente(cliente.id);
+    final ultimoOrcamento = orcamentos.isEmpty
+        ? null
+        : (List.of(orcamentos)
+              ..sort((a, b) => b.dataCriacao.compareTo(a.dataCriacao)))
+            .first;
 
     return ResponsiveListCard(
       title: cliente.nome,
@@ -465,7 +509,28 @@ class _ClientesScreenState extends State<ClientesScreen> {
         ],
       ),
       onTap: () => _showClienteDetails(context, cliente, provider),
-      actions: const <Widget>[],
+      actions: [
+        _ClienteInfoChip(
+          icon: Icons.directions_car_outlined,
+          label: '${veiculos.length} veiculo${veiculos.length == 1 ? '' : 's'}',
+        ),
+        _ClienteInfoChip(
+          icon: Icons.description_outlined,
+          label:
+              '${orcamentos.length} orcamento${orcamentos.length == 1 ? '' : 's'}',
+        ),
+        if (ultimoOrcamento != null)
+          _ClienteInfoChip(
+            icon: Icons.schedule,
+            label:
+                'Ultimo em ${Formatters.dateShort(ultimoOrcamento.dataCriacao)}',
+          ),
+        FilledButton.tonalIcon(
+          onPressed: () => _showCreateOrcamentoDialog(context, cliente),
+          icon: const Icon(Icons.add_circle_outline, size: 18),
+          label: const Text('Orcamento'),
+        ),
+      ],
     );
   }
 
@@ -503,6 +568,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
     TipoCliente tipoSelecionado = TipoCliente.particular;
     bool isSaving = false;
+    int currentStep = 0;
+    bool showClientStepErrors = false;
+    bool showVehicleStepErrors = false;
+    bool showVehicleStepAlert = false;
 
     // Primeiro veículo (obrigatório no primeiro cadastro)
     const otherOptionValue = '__other__';
@@ -526,6 +595,29 @@ class _ClientesScreenState extends State<ClientesScreen> {
       barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setState) {
+          bool validarPrimeiroVeiculo() {
+            setState(() => showVehicleStepErrors = true);
+            final isValid = formKey.currentState?.validate() ?? false;
+            if (!isValid) {
+              if (selectedMarca == otherOptionValue &&
+                  marcaCustomController.text.trim().isEmpty) {
+                FocusScope.of(dialogContext).requestFocus();
+              } else if ((selectedMarca == otherOptionValue ||
+                      selectedModelo == otherOptionValue) &&
+                  modeloCustomController.text.trim().isEmpty) {
+                FocusScope.of(dialogContext).requestFocus();
+              } else if (corController.text.trim().isEmpty) {
+                corFocus.requestFocus();
+              } else if (placaController.text.trim().isEmpty) {
+                placaFocus.requestFocus();
+              } else if (anoController.text.trim().isNotEmpty &&
+                  int.tryParse(anoController.text.trim()) == null) {
+                anoFocus.requestFocus();
+              }
+            }
+            return isValid;
+          }
+
           Future<void> prepararPrimeiroVeiculo() async {
             final provider = Provider.of<AppProvider>(
               scaffoldContext,
@@ -546,29 +638,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
             final placa = placaController.text.trim().toUpperCase();
             final anoText = anoController.text.trim();
 
-            if (marcaFinal.isEmpty ||
-                modeloFinal.isEmpty ||
-                cor.isEmpty ||
-                placa.isEmpty) {
-              ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Preencha marca, modelo, cor e placa para adicionar o primeiro veículo.',
-                  ),
-                ),
-              );
+            if (!validarPrimeiroVeiculo()) {
               return;
             }
 
             final anoValue = anoText.isEmpty ? null : int.tryParse(anoText);
-            if (anoText.isNotEmpty && anoValue == null) {
-              ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                const SnackBar(
-                  content: Text('Ano inválido. Use apenas números.'),
-                ),
-              );
-              return;
-            }
 
             final veiculo = Veiculo(
               id: DateTime.now().millisecondsSinceEpoch.toString(),
@@ -590,6 +664,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
 
             setState(() {
               veiculoPreparado = veiculo;
+              showVehicleStepAlert = false;
             });
 
             if (scaffoldContext.mounted) {
@@ -602,9 +677,46 @@ class _ClientesScreenState extends State<ClientesScreen> {
             }
           }
 
+          bool validarDadosCliente() {
+            setState(() => showClientStepErrors = true);
+            final isValid = formKey.currentState?.validate() ?? false;
+            if (isValid) return true;
+
+            if (tipoSelecionado == TipoCliente.seguradora &&
+                nomeSeguradoraController.text.trim().isEmpty) {
+              nomeSeguradoraFocus.requestFocus();
+            } else if (nomeController.text.trim().isEmpty) {
+              nomeFocus.requestFocus();
+            } else if (telefoneController.text.trim().isEmpty) {
+              telefoneFocus.requestFocus();
+            }
+
+            return false;
+          }
+
+          void avancarPasso() {
+            if (!validarDadosCliente()) return;
+            setState(() {
+              currentStep = 1;
+              showVehicleStepErrors = false;
+              showVehicleStepAlert = false;
+            });
+          }
+
           Future<void> submit() async {
             if (isSaving) return;
-            if (!formKey.currentState!.validate()) return;
+            if (!validarDadosCliente()) {
+              setState(() => currentStep = 0);
+              return;
+            }
+
+            if (veiculoPreparado == null) {
+              setState(() {
+                currentStep = 1;
+                showVehicleStepAlert = true;
+              });
+              return;
+            }
 
             if (veiculoPreparado == null) {
               ScaffoldMessenger.of(scaffoldContext).showSnackBar(
@@ -697,9 +809,33 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 constraints: const BoxConstraints(maxWidth: 700),
                 child: Form(
                   key: formKey,
+                  autovalidateMode: currentStep == 0
+                      ? (showClientStepErrors
+                          ? AutovalidateMode.always
+                          : AutovalidateMode.disabled)
+                      : (showVehicleStepErrors
+                          ? AutovalidateMode.always
+                          : AutovalidateMode.disabled),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          _ClienteInfoChip(
+                            icon: Icons.person_outline,
+                            label: currentStep == 0 ? '1. Dados do cliente' : '1. Cliente',
+                          ),
+                          _ClienteInfoChip(
+                            icon: Icons.directions_car_outlined,
+                            label: currentStep == 1 ? '2. Primeiro veículo' : '2. Veículo',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 18),
+                      if (currentStep == 0) ...[
                       DropdownButtonFormField<TipoCliente>(
                         initialValue: tipoSelecionado,
                         decoration: formFieldDecoration(
@@ -830,7 +966,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                         maxLines: 3,
                       ),
 
-                      const SizedBox(height: 24),
+                    ] else ...[
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
@@ -844,6 +980,40 @@ class _ClientesScreenState extends State<ClientesScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            if (showVehicleStepAlert && veiculoPreparado == null) ...[
+                              Container(
+                                width: double.infinity,
+                                margin: const EdgeInsets.only(bottom: 14),
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.warning.withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppColors.warning.withValues(alpha: 0.28),
+                                  ),
+                                ),
+                                child: const Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      Icons.info_outline,
+                                      color: AppColors.warning,
+                                      size: 18,
+                                    ),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Adicione pelo menos um veículo para concluir o cadastro do cliente.',
+                                        style: TextStyle(
+                                          color: AppColors.warning,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                             Row(
                               children: [
                                 const Icon(
@@ -921,7 +1091,16 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                   marcaCustomController.clear();
                                 }
                                 modeloCustomController.clear();
+                                veiculoPreparado = null;
+                                showVehicleStepAlert = false;
                               }),
+                              validator: (value) {
+                                if (currentStep != 1) return null;
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Selecione a marca';
+                                }
+                                return null;
+                              },
                             ),
                             if (selectedMarca == otherOptionValue) ...[
                               const SizedBox(height: 12),
@@ -931,6 +1110,16 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                   label: 'Digite a marca *',
                                   prefixIcon: Icons.edit,
                                 ),
+                                validator: (_) {
+                                  if (currentStep != 1 ||
+                                      selectedMarca != otherOptionValue) {
+                                    return null;
+                                  }
+                                  if (marcaCustomController.text.trim().isEmpty) {
+                                    return 'Digite a marca';
+                                  }
+                                  return null;
+                                },
                               ),
                             ],
                             const SizedBox(height: 12),
@@ -978,8 +1167,20 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                   if (v != otherOptionValue) {
                                     modeloCustomController.clear();
                                   }
+                                  veiculoPreparado = null;
                                 }),
                                 hint: const Text('Selecione o modelo'),
+                                validator: (value) {
+                                  if (currentStep != 1 ||
+                                      selectedMarca == null ||
+                                      selectedMarca == otherOptionValue) {
+                                    return null;
+                                  }
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Selecione o modelo';
+                                  }
+                                  return null;
+                                },
                               ),
 
                             if (selectedMarca != null &&
@@ -992,6 +1193,19 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                   label: 'Digite o modelo *',
                                   prefixIcon: Icons.edit,
                                 ),
+                                validator: (_) {
+                                  if (currentStep != 1) return null;
+                                  final needsCustomModel =
+                                      selectedMarca == otherOptionValue ||
+                                      (selectedMarca != null &&
+                                          selectedMarca != otherOptionValue &&
+                                          selectedModelo == otherOptionValue);
+                                  if (!needsCustomModel) return null;
+                                  if (modeloCustomController.text.trim().isEmpty) {
+                                    return 'Digite o modelo';
+                                  }
+                                  return null;
+                                },
                               ),
                             ],
 
@@ -1005,6 +1219,13 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                 label: 'Cor *',
                                 prefixIcon: Icons.color_lens,
                               ),
+                              validator: (_) {
+                                if (currentStep != 1) return null;
+                                if (corController.text.trim().isEmpty) {
+                                  return 'Informe a cor';
+                                }
+                                return null;
+                              },
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
@@ -1016,6 +1237,13 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                 label: 'Placa *',
                                 prefixIcon: Icons.confirmation_number,
                               ),
+                              validator: (_) {
+                                if (currentStep != 1) return null;
+                                if (placaController.text.trim().isEmpty) {
+                                  return 'Informe a placa';
+                                }
+                                return null;
+                              },
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
@@ -1027,6 +1255,14 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                 prefixIcon: Icons.calendar_today,
                               ),
                               keyboardType: TextInputType.number,
+                              validator: (_) {
+                                if (currentStep != 1) return null;
+                                final value = anoController.text.trim();
+                                if (value.isNotEmpty && int.tryParse(value) == null) {
+                                  return 'Ano inválido';
+                                }
+                                return null;
+                              },
                             ),
                             const SizedBox(height: 12),
                             TextFormField(
@@ -1072,6 +1308,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                                               placaController.clear();
                                               anoController.clear();
                                               observacoesVeiculoController.clear();
+                                              showVehicleStepAlert = false;
                                             });
                                           },
                                     child: const Text('Limpar'),
@@ -1115,6 +1352,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                         ),
                       ),
                     ],
+                    ],
                   ),
                 ),
               ),
@@ -1124,15 +1362,22 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
                 child: const Text('Cancelar'),
               ),
+              if (currentStep > 0)
+                OutlinedButton(
+                  onPressed: isSaving ? null : () => setState(() => currentStep = 0),
+                  child: const Text('Voltar'),
+                ),
               ElevatedButton(
-                onPressed: isSaving ? null : submit,
+                onPressed: isSaving
+                    ? null
+                    : (currentStep == 0 ? avancarPasso : submit),
                 child: isSaving
                     ? const SizedBox(
                         height: 16,
                         width: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Salvar'),
+                    : Text(currentStep == 0 ? 'Próximo' : 'Salvar'),
               ),
             ],
           );
@@ -1147,7 +1392,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
               actions: <Type, Action<Intent>>{
                 ActivateIntent: CallbackAction<ActivateIntent>(
                   onInvoke: (intent) {
-                    submit();
+                    if (currentStep == 0) {
+                      avancarPasso();
+                    } else {
+                      submit();
+                    }
                     return null;
                   },
                 ),

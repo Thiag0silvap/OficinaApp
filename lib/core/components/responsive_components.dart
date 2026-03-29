@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -356,18 +357,24 @@ class ResponsiveLayout extends StatelessWidget {
   }
 
   Future<void> _confirmAndRestoreBackup(BuildContext context) async {
-    final backups = await DBService.instance.listAvailableBackups();
-    if (!context.mounted) return;
+    final picked = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Selecione o arquivo de backup',
+      type: FileType.custom,
+      allowedExtensions: const ['db'],
+      allowMultiple: false,
+    );
+    if (!context.mounted || picked == null || picked.files.isEmpty) return;
 
-    if (backups.isEmpty) {
+    final selectedPath = picked.files.single.path;
+    final selectedName = picked.files.single.name;
+    if (selectedPath == null || selectedPath.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nenhum backup disponivel para restaurar.')),
+        const SnackBar(
+          content: Text('Nao foi possivel acessar o arquivo selecionado.'),
+        ),
       );
       return;
     }
-
-    final selectedBackup = await _selectBackupToRestore(context, backups);
-    if (selectedBackup == null || !context.mounted) return;
 
     final confirm = await showDialog<bool>(
       context: context,
@@ -375,7 +382,7 @@ class ResponsiveLayout extends StatelessWidget {
         title: const Text('Restaurar backup?'),
         content: Text(
           'O banco atual sera substituido pelos dados do backup '
-          '${selectedBackup.fileName}.',
+          '$selectedName.',
         ),
         actions: [
           TextButton(
@@ -398,8 +405,9 @@ class ResponsiveLayout extends StatelessWidget {
     );
 
     try {
-      final restoredPath = await DBService.instance
-          .restoreBackupFromUserDocuments(selectedBackup.id);
+      final restoredPath = await DBService.instance.restoreBackupFromFilePath(
+        selectedPath,
+      );
       if (!context.mounted) return;
       await context.read<AppProvider>().reloadActiveUserData();
       if (!context.mounted) return;
@@ -1015,15 +1023,15 @@ class ResponsiveListCard extends StatelessWidget {
               builder: (ctx, c) {
                 final isNarrow = c.maxWidth < 420;
                 return Wrap(
-                  alignment: WrapAlignment.center,
-                  runAlignment: WrapAlignment.center,
+                  alignment: WrapAlignment.start,
+                  runAlignment: WrapAlignment.start,
                   spacing: 8,
                   runSpacing: 6,
                   children: actions!
                       .map(
                         (w) => ConstrainedBox(
                           constraints: BoxConstraints(
-                            minWidth: isNarrow ? 120 : 132,
+                            minWidth: isNarrow ? 96 : 108,
                           ),
                           child: w,
                         ),

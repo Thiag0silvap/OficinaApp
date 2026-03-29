@@ -49,6 +49,9 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
 
   String? _servicoSelecionado;
   String? _pecaSelecionada;
+  int _currentStep = 0;
+  bool _showStepValidation = false;
+  bool _showItensStepAlert = false;
 
   final _observacoesController = TextEditingController();
   final _descontoController = TextEditingController();
@@ -416,7 +419,9 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
       title: isEdit ? 'Editar Orçamento' : 'Novo Orçamento',
       content: Form(
         key: _formKey,
-        autovalidateMode: AutovalidateMode.onUserInteraction,
+        autovalidateMode: (_currentStep <= 1 && _showStepValidation)
+            ? AutovalidateMode.always
+            : AutovalidateMode.onUserInteraction,
         child: ConstrainedBox(
           constraints: BoxConstraints(
             maxWidth: isMobile ? MediaQuery.of(context).size.width * 0.95 : 860,
@@ -426,39 +431,14 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildClienteVeiculoSection(
+                _buildStepperHeader(context),
+                const SizedBox(height: 20),
+                _buildCurrentStepContent(
                   context,
                   clientes,
                   veiculosDisponiveis,
                   isEdit,
                   isMobile,
-                ),
-                const SizedBox(height: 24),
-                const Divider(color: AppColors.lightGray),
-                const SizedBox(height: 16),
-                _buildAdicionarItemSection(context, isMobile),
-                const SizedBox(height: 16),
-                _buildItensSection(context),
-                const Divider(color: AppColors.lightGray),
-                const SizedBox(height: 8),
-                _buildDescontoSection(context, isMobile),
-                const SizedBox(height: 8),
-                _buildTotaisSection(),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _observacoesController,
-                  decoration: formFieldDecoration(
-                    label: 'Observações do Orçamento',
-                    prefixIcon: Icons.note,
-                  ),
-                  maxLines: 2,
-                  maxLength: _maxObsLen,
-                  maxLengthEnforcement: MaxLengthEnforcement.enforced,
-                  validator: (value) {
-                    final v = value?.trim() ?? '';
-                    if (v.length > _maxObsLen) return 'Observações muito longas';
-                    return null;
-                  },
                 ),
               ],
             ),
@@ -470,9 +450,18 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
+        if (_currentStep > 0)
+          OutlinedButton(
+            onPressed: _voltarPasso,
+            child: const Text('Voltar'),
+          ),
         ElevatedButton(
-          onPressed: _salvarOrcamento,
-          child: Text(isEdit ? 'Salvar' : 'Gerar Orçamento'),
+          onPressed: _currentStep == 3 ? _salvarOrcamento : _avancarPasso,
+          child: Text(
+            _currentStep == 3
+                ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
+                : 'Próximo',
+          ),
         ),
       ],
     );
@@ -486,7 +475,11 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
         actions: <Type, Action<Intent>>{
           ActivateIntent: CallbackAction<ActivateIntent>(
             onInvoke: (intent) {
-              _salvarOrcamento();
+              if (_currentStep == 3) {
+                _salvarOrcamento();
+              } else {
+                _avancarPasso();
+              }
               return null;
             },
           ),
@@ -500,6 +493,223 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
         child: Focus(autofocus: true, child: dialog),
       ),
     );
+  }
+
+  bool _validarPassoAtual() {
+    switch (_currentStep) {
+      case 0:
+        setState(() => _showStepValidation = true);
+        return _formKey.currentState?.validate() ?? false;
+      case 1:
+        setState(() => _showStepValidation = true);
+        return _formKey.currentState?.validate() ?? false;
+      case 2:
+        if (_itens.isEmpty) {
+          setState(() => _showItensStepAlert = true);
+          return false;
+        }
+        return true;
+      default:
+        return true;
+    }
+  }
+
+  void _avancarPasso() {
+    if (!_validarPassoAtual()) return;
+    if (_currentStep >= 3) return;
+
+    setState(() {
+      _currentStep += 1;
+      _showStepValidation = false;
+      _showItensStepAlert = false;
+    });
+  }
+
+  void _voltarPasso() {
+    if (_currentStep == 0) return;
+
+    setState(() {
+      _currentStep -= 1;
+      _showStepValidation = false;
+      _showItensStepAlert = false;
+    });
+  }
+
+  Widget _buildStepperHeader(BuildContext context) {
+    const stepLabels = ['Cliente', 'Veículo', 'Itens', 'Fechamento'];
+    const stepIcons = [
+      Icons.person_outline,
+      Icons.directions_car_outlined,
+      Icons.playlist_add_check_circle_outlined,
+      Icons.receipt_long_outlined,
+    ];
+
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      children: List.generate(stepLabels.length, (index) {
+        final isActive = index == _currentStep;
+        final isDone = index < _currentStep;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: isActive
+                ? AppColors.primaryYellow.withValues(alpha: 0.14)
+                : isDone
+                    ? AppColors.success.withValues(alpha: 0.12)
+                    : AppColors.surface,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isActive
+                  ? AppColors.primaryYellow
+                  : isDone
+                      ? AppColors.success.withValues(alpha: 0.60)
+                      : AppColors.border.withValues(alpha: 0.75),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? AppColors.primaryYellow
+                      : isDone
+                          ? AppColors.success
+                          : AppColors.lightGray.withValues(alpha: 0.18),
+                  shape: BoxShape.circle,
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  '${index + 1}',
+                  style: TextStyle(
+                    color: isActive || isDone ? Colors.black : AppColors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                stepIcons[index],
+                size: 16,
+                color: isActive
+                    ? AppColors.primaryYellow
+                    : isDone
+                        ? AppColors.success
+                        : AppColors.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                stepLabels[index],
+                style: TextStyle(
+                  color: isActive
+                      ? AppColors.primaryYellow
+                      : isDone
+                          ? AppColors.success
+                          : AppColors.textSecondary,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildCurrentStepContent(
+    BuildContext context,
+    List<Cliente> clientes,
+    List<Veiculo> veiculosDisponiveis,
+    bool isEdit,
+    bool isMobile,
+  ) {
+    switch (_currentStep) {
+      case 0:
+      case 1:
+        return _buildClienteVeiculoSection(
+          context,
+          clientes,
+          veiculosDisponiveis,
+          isEdit,
+          isMobile,
+        );
+      case 2:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_showItensStepAlert && _itens.isEmpty) ...[
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 14),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.warning.withValues(alpha: 0.28),
+                  ),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline,
+                      color: AppColors.warning,
+                      size: 18,
+                    ),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Adicione pelo menos um item para continuar o orçamento.',
+                        style: TextStyle(
+                          color: AppColors.warning,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            _buildAdicionarItemSection(context, isMobile),
+            const SizedBox(height: 16),
+            _buildItensSection(context),
+          ],
+        );
+      case 3:
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildDescontoSection(context, isMobile),
+            const SizedBox(height: 8),
+            _buildTotaisSection(),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _observacoesController,
+              decoration: formFieldDecoration(
+                label: 'Observações do Orçamento',
+                prefixIcon: Icons.note,
+              ),
+              maxLines: 2,
+              maxLength: _maxObsLen,
+              maxLengthEnforcement: MaxLengthEnforcement.enforced,
+              validator: (value) {
+                final v = value?.trim() ?? '';
+                if (v.length > _maxObsLen) return 'Observações muito longas';
+                return null;
+              },
+            ),
+          ],
+        );
+      default:
+        return const SizedBox.shrink();
+    }
   }
 
   Widget _buildClienteVeiculoSection(
@@ -564,6 +774,79 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
         _selectedCliente == null ? 'Selecione o cliente' : 'Selecione o veículo',
       ),
     );
+
+    if (_currentStep <= 1) {
+      final isClienteStep = _currentStep == 0;
+
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(18),
+        decoration: BoxDecoration(
+          color: AppColors.lightGray.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.lightGray.withValues(alpha: 0.22),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isClienteStep ? '1. Escolha o cliente' : '2. Escolha o veículo',
+              style: const TextStyle(
+                color: AppColors.primaryYellow,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              isClienteStep
+                  ? 'Selecione quem será atendido neste orçamento.'
+                  : 'Agora selecione o veículo do cliente escolhido.',
+              style: TextStyle(
+                color: AppColors.textSecondary.withValues(alpha: 0.82),
+                fontSize: 13,
+              ),
+            ),
+            if (!isClienteStep && _selectedCliente != null) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.border.withValues(alpha: 0.75),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.person_outline,
+                      size: 18,
+                      color: AppColors.primaryYellow,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _selectedCliente!.nome,
+                        style: const TextStyle(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            isClienteStep ? clienteField : veiculoField,
+          ],
+        ),
+      );
+    }
 
     if (isMobile) {
       return Column(
@@ -1207,6 +1490,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
         _itens.add(novoItem);
       }
 
+      _showItensStepAlert = false;
       _limparFormularioItem();
     });
   }

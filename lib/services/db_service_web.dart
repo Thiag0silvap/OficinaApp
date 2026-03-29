@@ -46,4 +46,6 @@ class DBService {
   Future<List<BackupManifest>> listAvailableBackups() async => _unsupported();
   Future<String> restoreBackupFromUserDocuments([String? manifestId]) async =>
       _unsupported();
+  Future<String> restoreBackupFromFilePath(String filePath) async =>
+      _unsupported();
 }

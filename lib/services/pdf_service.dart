@@ -45,7 +45,18 @@ class PDFService {
   }
 
   static Future<Uint8List> generateOrcamentoPdf(Orcamento o) async {
-    final pdf = pw.Document();
+    final regularFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/WorkSans-Regular.ttf'),
+    );
+    final boldFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/WorkSans-Bold.ttf'),
+    );
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(
+        base: regularFont,
+        bold: boldFont,
+      ),
+    );
     final dateFormat = DateFormat('dd/MM/yyyy');
     final moneyFormat = NumberFormat.currency(
       locale: 'pt_BR',
