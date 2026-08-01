@@ -3,9 +3,9 @@ import 'package:provider/provider.dart';
 import '../core/theme/app_theme.dart';
 import '../core/components/responsive_components.dart';
 import '../core/components/common_widgets.dart';
-import '../core/components/form_styles.dart';
 import '../core/components/orcamento_form_dialog.dart';
 import '../core/components/cliente_form_dialog.dart';
+import '../core/components/veiculo_form_fields.dart';
 import '../providers/app_provider.dart';
 import '../models/cliente.dart';
 import '../models/veiculo.dart';
@@ -628,6 +628,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
     AppProvider provider,
   ) {
     final scaffoldContext = context;
+    final veiculosVinculados = provider.getVeiculosByCliente(cliente.id).length;
+    final orcamentosVinculados =
+        provider.getOrcamentosByCliente(cliente.id).length;
     bool isDeleting = false;
     showDialog(
       context: context,
@@ -637,10 +640,13 @@ class _ClientesScreenState extends State<ClientesScreen> {
             backgroundColor: AppColors.secondaryGray,
             title: const Text(
               'Excluir Cliente',
-              style: TextStyle(color: AppColors.error),
+              style: TextStyle(color: AppColors.white),
             ),
             content: Text(
-              'Tem certeza que deseja excluir o cliente ${cliente.nome}? Esta ação não pode ser desfeita.',
+              'Excluir ${cliente.nome} vai ocultar $veiculosVinculados '
+              'veículo${veiculosVinculados == 1 ? '' : 's'} e $orcamentosVinculados '
+              'orçamento${orcamentosVinculados == 1 ? '' : 's'} da lista ativa. '
+              'Nada é apagado — os dados continuam preservados no histórico.',
               style: const TextStyle(color: AppColors.white),
             ),
             actions: [
@@ -664,7 +670,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                           if (scaffoldContext.mounted) {
                             ScaffoldMessenger.of(scaffoldContext).showSnackBar(
                               const SnackBar(
-                                content: Text('Cliente excluído com sucesso!'),
+                                content: Text('Cliente ocultado com sucesso!'),
                                 backgroundColor: AppColors.success,
                               ),
                             );
@@ -684,17 +690,19 @@ class _ClientesScreenState extends State<ClientesScreen> {
                         }
                       },
                 style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.error),
+                  backgroundColor: AppColors.primaryYellow,
+                  foregroundColor: Colors.black,
+                ),
                 child: isDeleting
                     ? const SizedBox(
                         height: 16,
                         width: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.white,
+                          color: Colors.black,
                         ),
                       )
-                    : const Text('Excluir'),
+                    : const Text('Ocultar'),
               ),
             ],
           );
@@ -704,21 +712,31 @@ class _ClientesScreenState extends State<ClientesScreen> {
   }
 
   void _showAddVeiculoDialog(BuildContext context, Cliente cliente) {
+    _showVeiculoFormDialog(context, cliente: cliente);
+  }
+
+  void _showEditVeiculoDialog(
+    BuildContext context,
+    Cliente cliente,
+    Veiculo veiculo,
+  ) {
+    _showVeiculoFormDialog(context, cliente: cliente, veiculoEditar: veiculo);
+  }
+
+  /// Diálogo compartilhado de cadastro/edição de veículo avulso, construído
+  /// em cima de [VeiculoFormFields]/[VeiculoFormController].
+  void _showVeiculoFormDialog(
+    BuildContext context, {
+    required Cliente cliente,
+    Veiculo? veiculoEditar,
+  }) {
     final scaffoldContext = context;
     final formKey = GlobalKey<FormState>();
-
-    const otherOptionValue = '__other__';
-    String? selectedMarca;
-    String? selectedModelo;
-    final marcaCustomController = TextEditingController();
-    final modeloCustomController = TextEditingController();
-    final corController = TextEditingController();
-    final placaController = TextEditingController();
-    final anoController = TextEditingController();
-    final observacoesController = TextEditingController();
-    final corFocus = FocusNode();
-    final placaFocus = FocusNode();
-    final anoFocus = FocusNode();
+    final isEdit = veiculoEditar != null;
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    final controller = isEdit
+        ? VeiculoFormController.fromVeiculo(veiculoEditar, provider)
+        : VeiculoFormController();
     bool isSaving = false;
 
     showDialog(
@@ -730,55 +748,37 @@ class _ClientesScreenState extends State<ClientesScreen> {
             if (!formKey.currentState!.validate()) return;
             setState(() => isSaving = true);
 
-            final provider =
+            final providerLocal =
                 Provider.of<AppProvider>(scaffoldContext, listen: false);
 
-            final marcaFinal = (selectedMarca == otherOptionValue)
-                ? marcaCustomController.text.trim()
-                : (selectedMarca ?? '').trim();
-            final modeloFinal = (selectedMarca == otherOptionValue)
-                ? modeloCustomController.text.trim()
-                : (selectedModelo == otherOptionValue)
-                    ? modeloCustomController.text.trim()
-                    : (selectedModelo ?? '').trim();
-
-            final anoText = anoController.text.trim();
-            final anoValue = anoText.isEmpty ? null : int.tryParse(anoText);
-            if (anoText.isNotEmpty && anoValue == null) {
-              if (scaffoldContext.mounted) {
-                ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                  const SnackBar(
-                      content: Text('Ano inválido. Use apenas números.')),
-                );
-              }
-              if (dialogContext.mounted) setState(() => isSaving = false);
-              return;
-            }
-
-            final veiculo = Veiculo(
-              id: DateTime.now().millisecondsSinceEpoch.toString(),
+            final veiculo = controller.buildVeiculo(
+              id: veiculoEditar?.id ??
+                  DateTime.now().millisecondsSinceEpoch.toString(),
               clienteId: cliente.id,
-              marca: marcaFinal,
-              modelo: modeloFinal,
-              cor: corController.text,
-              placa: placaController.text,
-              ano: anoValue,
-              observacoes: observacoesController.text.isEmpty
-                  ? null
-                  : observacoesController.text,
             );
+
             try {
-              await provider.addMarcaModeloCustom(
-                  marca: marcaFinal, modelo: modeloFinal);
-              await provider.addVeiculo(veiculo);
+              await providerLocal.addMarcaModeloCustom(
+                marca: controller.marcaFinal,
+                modelo: controller.modeloFinal,
+              );
+              if (isEdit) {
+                await providerLocal.updateVeiculo(veiculo);
+              } else {
+                await providerLocal.addVeiculo(veiculo);
+              }
               if (dialogContext.mounted &&
                   Navigator.of(dialogContext).canPop()) {
                 Navigator.pop(dialogContext);
               }
               if (scaffoldContext.mounted) {
                 ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                  const SnackBar(
-                    content: Text('Veículo adicionado com sucesso!'),
+                  SnackBar(
+                    content: Text(
+                      isEdit
+                          ? 'Veículo atualizado com sucesso!'
+                          : 'Veículo adicionado com sucesso!',
+                    ),
                     backgroundColor: AppColors.success,
                   ),
                 );
@@ -786,7 +786,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
             } catch (e) {
               if (scaffoldContext.mounted) {
                 ScaffoldMessenger.of(scaffoldContext).showSnackBar(
-                  SnackBar(content: Text('Erro ao adicionar veículo: $e')),
+                  SnackBar(content: Text('Erro ao salvar veículo: $e')),
                 );
               }
             } finally {
@@ -795,198 +795,15 @@ class _ClientesScreenState extends State<ClientesScreen> {
           }
 
           final dialog = ResponsiveDialog(
-            title: 'Novo Veículo - ${cliente.nome}',
+            title: isEdit
+                ? 'Editar Veículo - ${cliente.nome}'
+                : 'Novo Veículo - ${cliente.nome}',
             content: SingleChildScrollView(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 600),
                 child: Form(
                   key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      DropdownButtonFormField<String>(
-                        isExpanded: true,
-                        initialValue: selectedMarca,
-                        decoration: formFieldDecoration(
-                          label: 'Marca *',
-                          prefixIcon: Icons.directions_car,
-                        ),
-                        items: [
-                          ...Provider.of<AppProvider>(scaffoldContext,
-                                  listen: false)
-                              .marcasDisponiveis
-                              .map<DropdownMenuItem<String>>(
-                                (m) =>
-                                    DropdownMenuItem<String>(
-                                        value: m, child: Text(m)),
-                              ),
-                          const DropdownMenuItem<String>(
-                            value: otherOptionValue,
-                            child: Text('Outra... (digitar)'),
-                          ),
-                        ],
-                        onChanged: (v) => setState(() {
-                          selectedMarca = v;
-                          selectedModelo = null;
-                          if (v != otherOptionValue) {
-                            marcaCustomController.clear();
-                          }
-                          modeloCustomController.clear();
-                        }),
-                        validator: (v) {
-                          if (v == null) return 'Marca é obrigatória';
-                          if (v == otherOptionValue &&
-                              marcaCustomController.text.trim().isEmpty) {
-                            return 'Informe a marca';
-                          }
-                          return null;
-                        },
-                      ),
-                      if (selectedMarca == otherOptionValue) ...[
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: marcaCustomController,
-                          decoration: formFieldDecoration(
-                            label: 'Digite a marca *',
-                            prefixIcon: Icons.edit,
-                          ),
-                          validator: (v) {
-                            if (selectedMarca != otherOptionValue) return null;
-                            return (v == null || v.trim().isEmpty)
-                                ? 'Marca é obrigatória'
-                                : null;
-                          },
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      if (selectedMarca == null)
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Selecione a marca primeiro',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        )
-                      else if (selectedMarca == otherOptionValue)
-                        TextFormField(
-                          controller: modeloCustomController,
-                          decoration: formFieldDecoration(
-                            label: 'Modelo *',
-                            prefixIcon: Icons.drive_eta,
-                          ),
-                          validator: (v) => (v == null || v.trim().isEmpty)
-                              ? 'Modelo é obrigatório'
-                              : null,
-                        )
-                      else
-                        DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          initialValue: selectedModelo,
-                          decoration: formFieldDecoration(
-                            label: 'Modelo *',
-                            prefixIcon: Icons.drive_eta,
-                          ),
-                          items: [
-                            ...Provider.of<AppProvider>(scaffoldContext,
-                                    listen: false)
-                                .modelosDisponiveis(selectedMarca)
-                                .map<DropdownMenuItem<String>>(
-                                  (m) => DropdownMenuItem<String>(
-                                      value: m, child: Text(m)),
-                                ),
-                            const DropdownMenuItem<String>(
-                              value: otherOptionValue,
-                              child: Text('Outro... (digitar)'),
-                            ),
-                          ],
-                          onChanged: (v) => setState(() {
-                            selectedModelo = v;
-                            if (v != otherOptionValue) {
-                              modeloCustomController.clear();
-                            }
-                          }),
-                          validator: (v) {
-                            if (selectedMarca == null)
-                              return 'Selecione a marca';
-                            if (v == null) return 'Modelo é obrigatório';
-                            if (v == otherOptionValue &&
-                                modeloCustomController.text.trim().isEmpty) {
-                              return 'Informe o modelo';
-                            }
-                            return null;
-                          },
-                          hint: const Text('Selecione o modelo'),
-                        ),
-                      if (selectedMarca != null &&
-                          selectedMarca != otherOptionValue &&
-                          selectedModelo == otherOptionValue) ...[
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          controller: modeloCustomController,
-                          decoration: formFieldDecoration(
-                            label: 'Digite o modelo *',
-                            prefixIcon: Icons.edit,
-                          ),
-                          validator: (v) {
-                            if (selectedModelo != otherOptionValue) return null;
-                            return (v == null || v.trim().isEmpty)
-                                ? 'Modelo é obrigatório'
-                                : null;
-                          },
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: corController,
-                        focusNode: corFocus,
-                        textInputAction: TextInputAction.next,
-                        onFieldSubmitted: (_) => placaFocus.requestFocus(),
-                        decoration: formFieldDecoration(
-                          label: 'Cor *',
-                          prefixIcon: Icons.color_lens,
-                        ),
-                        validator: (value) => (value?.isEmpty ?? true)
-                            ? 'Cor é obrigatória'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: placaController,
-                        focusNode: placaFocus,
-                        textInputAction: TextInputAction.next,
-                        onFieldSubmitted: (_) => anoFocus.requestFocus(),
-                        decoration: formFieldDecoration(
-                          label: 'Placa *',
-                          prefixIcon: Icons.confirmation_number,
-                        ),
-                        validator: (value) => (value?.isEmpty ?? true)
-                            ? 'Placa é obrigatória'
-                            : null,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: anoController,
-                        focusNode: anoFocus,
-                        textInputAction: TextInputAction.next,
-                        onFieldSubmitted: (_) =>
-                            FocusScope.of(dialogContext).nextFocus(),
-                        decoration: formFieldDecoration(
-                          label: 'Ano',
-                          prefixIcon: Icons.calendar_today,
-                        ),
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: observacoesController,
-                        decoration: formFieldDecoration(
-                          label: 'Observações',
-                          prefixIcon: Icons.note,
-                        ),
-                        maxLines: 3,
-                      ),
-                    ],
-                  ),
+                  child: VeiculoFormFields(controller: controller),
                 ),
               ),
             ),
@@ -1014,17 +831,98 @@ class _ClientesScreenState extends State<ClientesScreen> {
       ),
     ).then((_) {
       Future.delayed(const Duration(milliseconds: 350), () {
-        marcaCustomController.dispose();
-        modeloCustomController.dispose();
-        corController.dispose();
-        placaController.dispose();
-        anoController.dispose();
-        observacoesController.dispose();
-        corFocus.dispose();
-        placaFocus.dispose();
-        anoFocus.dispose();
+        controller.dispose();
       });
     });
+  }
+
+  void _showDeleteVeiculoDialog(
+    BuildContext context,
+    Veiculo veiculo,
+    AppProvider provider,
+  ) {
+    final scaffoldContext = context;
+    final orcamentosVinculados =
+        provider.orcamentos.where((o) => o.veiculoId == veiculo.id).length;
+    bool isDeleting = false;
+
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setState) {
+          return AlertDialog(
+            backgroundColor: AppColors.secondaryGray,
+            title: const Text(
+              'Excluir Veículo',
+              style: TextStyle(color: AppColors.white),
+            ),
+            content: Text(
+              'Excluir ${veiculo.marca} ${veiculo.modelo}, placa ${veiculo.placa} '
+              'vai ocultá-lo da lista. $orcamentosVinculados '
+              'orçamento${orcamentosVinculados == 1 ? '' : 's'} vinculado'
+              '${orcamentosVinculados == 1 ? '' : 's'} a ele serão preservados '
+              'no histórico.',
+              style: const TextStyle(color: AppColors.white),
+            ),
+            actions: [
+              OutlinedButton(
+                onPressed:
+                    isDeleting ? null : () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              ElevatedButton(
+                onPressed: isDeleting
+                    ? null
+                    : () async {
+                        setState(() => isDeleting = true);
+                        try {
+                          await provider.deleteVeiculo(veiculo.id);
+                          if (dialogContext.mounted &&
+                              Navigator.of(dialogContext).canPop()) {
+                            Navigator.pop(dialogContext);
+                          }
+                          if (scaffoldContext.mounted) {
+                            ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                              const SnackBar(
+                                content: Text('Veículo ocultado com sucesso!'),
+                                backgroundColor: AppColors.success,
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (scaffoldContext.mounted) {
+                            ScaffoldMessenger.of(scaffoldContext).showSnackBar(
+                              SnackBar(
+                                content: Text('Erro ao excluir veículo: $e'),
+                              ),
+                            );
+                          }
+                        } finally {
+                          if (dialogContext.mounted) {
+                            setState(() => isDeleting = false);
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryYellow,
+                  foregroundColor: Colors.black,
+                ),
+                child: isDeleting
+                    ? const SizedBox(
+                        height: 16,
+                        width: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.black,
+                        ),
+                      )
+                    : const Text('Ocultar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   void _showCreateOrcamentoDialog(BuildContext context, Cliente cliente) {
@@ -1077,8 +975,40 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 else
                   ...veiculos.map(
                     (v) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: ResponsiveText('• ${v.descricaoCompleta}'),
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ResponsiveText('• ${v.descricaoCompleta}'),
+                          ),
+                          IconButton(
+                            tooltip: 'Editar veículo',
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(
+                              Icons.edit,
+                              size: 18,
+                              color: AppColors.primaryYellow,
+                            ),
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showEditVeiculoDialog(context, cliente, v);
+                            },
+                          ),
+                          IconButton(
+                            tooltip: 'Excluir veículo',
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              size: 18,
+                              color: AppColors.error,
+                            ),
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _showDeleteVeiculoDialog(context, v, provider);
+                            },
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 const SizedBox(height: 16),

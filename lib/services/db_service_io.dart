@@ -416,7 +416,10 @@ WHERE orcamentoId IS NOT NULL
 
   Future<List<Cliente>> getClientes() async {
     final db = await database;
-    final result = await db.query("clientes");
+    final result = await db.query(
+      "clientes",
+      where: "ativo IS NULL OR ativo = 1",
+    );
 
     return result.map((e) => Cliente.fromMap(e)).toList();
   }
@@ -429,16 +432,6 @@ WHERE orcamentoId IS NOT NULL
       c.toMap(),
       where: "id = ?",
       whereArgs: [c.id],
-    );
-  }
-
-  Future<void> deleteCliente(String id) async {
-    final db = await database;
-
-    await db.delete(
-      "clientes",
-      where: "id = ?",
-      whereArgs: [id],
     );
   }
 
@@ -457,7 +450,10 @@ WHERE orcamentoId IS NOT NULL
   Future<List<Veiculo>> getVeiculos() async {
     final db = await database;
 
-    final result = await db.query("veiculos");
+    final result = await db.query(
+      "veiculos",
+      where: "ativo IS NULL OR ativo = 1",
+    );
 
     return result.map((e) => Veiculo.fromMap(e)).toList();
   }
@@ -470,16 +466,6 @@ WHERE orcamentoId IS NOT NULL
       v.toMap(),
       where: "id = ?",
       whereArgs: [v.id],
-    );
-  }
-
-  Future<void> deleteVeiculo(String id) async {
-    final db = await database;
-
-    await db.delete(
-      "veiculos",
-      where: "id = ?",
-      whereArgs: [id],
     );
   }
 

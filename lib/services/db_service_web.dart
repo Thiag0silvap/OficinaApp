@@ -23,12 +23,10 @@ class DBService {
 
   Future<void> insertCliente(Cliente cliente) async => _unsupported();
   Future<void> updateCliente(Cliente cliente) async => _unsupported();
-  Future<void> deleteCliente(String id) async => _unsupported();
   Future<List<Cliente>> getClientes() async => _unsupported();
 
   Future<void> insertVeiculo(Veiculo veiculo) async => _unsupported();
   Future<void> updateVeiculo(Veiculo veiculo) async => _unsupported();
-  Future<void> deleteVeiculo(String id) async => _unsupported();
   Future<List<Veiculo>> getVeiculos() async => _unsupported();
 
   Future<void> insertOrcamento(Orcamento o) async => _unsupported();

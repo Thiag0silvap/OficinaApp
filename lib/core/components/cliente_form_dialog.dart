@@ -10,6 +10,7 @@ import '../utils/cnpj_input_formatter.dart';
 import '../utils/phone_input_formatter.dart';
 import 'form_styles.dart';
 import 'responsive_components.dart';
+import 'veiculo_form_fields.dart';
 
 class ClienteFormDialog extends StatefulWidget {
   final Cliente? clienteEditar;
@@ -21,8 +22,6 @@ class ClienteFormDialog extends StatefulWidget {
 }
 
 class _ClienteFormDialogState extends State<ClienteFormDialog> {
-  static const _otherOptionValue = '__other__';
-
   final _formKey = GlobalKey<FormState>();
 
   late final TextEditingController _nomeController;
@@ -49,18 +48,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
   bool _showVehicleStepErrors = false;
   bool _showVehicleStepAlert = false;
 
-  String? _selectedMarca;
-  String? _selectedModelo;
-  final _marcaCustomController = TextEditingController();
-  final _modeloCustomController = TextEditingController();
-  final _corController = TextEditingController();
-  final _placaController = TextEditingController();
-  final _anoController = TextEditingController();
-  final _observacoesVeiculoController = TextEditingController();
-
-  final _corFocus = FocusNode();
-  final _placaFocus = FocusNode();
-  final _anoFocus = FocusNode();
+  final _veiculoFormController = VeiculoFormController();
 
   Veiculo? _veiculoPreparado;
 
@@ -69,6 +57,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
   @override
   void initState() {
     super.initState();
+    _veiculoFormController.addListener(_onVeiculoFormChanged);
     final cliente = widget.clienteEditar;
     _nomeController = TextEditingController(text: cliente?.nome ?? '');
     _telefoneController = TextEditingController(text: cliente?.telefone ?? '');
@@ -98,76 +87,38 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
     _nomeFocus.dispose();
     _telefoneFocus.dispose();
     _enderecoFocus.dispose();
-    _marcaCustomController.dispose();
-    _modeloCustomController.dispose();
-    _corController.dispose();
-    _placaController.dispose();
-    _anoController.dispose();
-    _observacoesVeiculoController.dispose();
-    _corFocus.dispose();
-    _placaFocus.dispose();
-    _anoFocus.dispose();
+    _veiculoFormController.removeListener(_onVeiculoFormChanged);
+    _veiculoFormController.dispose();
     super.dispose();
+  }
+
+  /// Um veículo já "preparado" deixa de ser válido se marca/modelo mudarem
+  /// de novo (o controller só notifica nesses casos — ver setMarca/setModelo
+  /// /reset em VeiculoFormController).
+  void _onVeiculoFormChanged() {
+    if (_veiculoPreparado != null && mounted) {
+      setState(() => _veiculoPreparado = null);
+    }
   }
 
   bool _validarPrimeiroVeiculo() {
     setState(() => _showVehicleStepErrors = true);
-    final isValid = _formKey.currentState?.validate() ?? false;
-    if (!isValid) {
-      if (_selectedMarca == _otherOptionValue &&
-          _marcaCustomController.text.trim().isEmpty) {
-        FocusScope.of(context).requestFocus();
-      } else if ((_selectedMarca == _otherOptionValue ||
-              _selectedModelo == _otherOptionValue) &&
-          _modeloCustomController.text.trim().isEmpty) {
-        FocusScope.of(context).requestFocus();
-      } else if (_corController.text.trim().isEmpty) {
-        _corFocus.requestFocus();
-      } else if (_placaController.text.trim().isEmpty) {
-        _placaFocus.requestFocus();
-      } else if (_anoController.text.trim().isNotEmpty &&
-          int.tryParse(_anoController.text.trim()) == null) {
-        _anoFocus.requestFocus();
-      }
-    }
-    return isValid;
+    return _formKey.currentState?.validate() ?? false;
   }
 
   Future<void> _prepararPrimeiroVeiculo() async {
-    final provider = Provider.of<AppProvider>(context, listen: false);
-
-    final marcaFinal = (_selectedMarca == _otherOptionValue)
-        ? _marcaCustomController.text.trim()
-        : (_selectedMarca ?? '').trim();
-
-    final modeloFinal = (_selectedMarca == _otherOptionValue)
-        ? _modeloCustomController.text.trim()
-        : (_selectedModelo == _otherOptionValue)
-            ? _modeloCustomController.text.trim()
-            : (_selectedModelo ?? '').trim();
-
-    final cor = _corController.text.trim();
-    final placa = _placaController.text.trim().toUpperCase();
-    final anoText = _anoController.text.trim();
-
     if (!_validarPrimeiroVeiculo()) return;
 
-    final anoValue = anoText.isEmpty ? null : int.tryParse(anoText);
-
-    final veiculo = Veiculo(
+    final provider = Provider.of<AppProvider>(context, listen: false);
+    final veiculo = _veiculoFormController.buildVeiculo(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
       clienteId: '__pending__',
-      marca: marcaFinal,
-      modelo: modeloFinal,
-      cor: cor,
-      placa: placa,
-      ano: anoValue,
-      observacoes: _observacoesVeiculoController.text.trim().isEmpty
-          ? null
-          : _observacoesVeiculoController.text.trim(),
     );
 
-    await provider.addMarcaModeloCustom(marca: marcaFinal, modelo: modeloFinal);
+    await provider.addMarcaModeloCustom(
+      marca: _veiculoFormController.marcaFinal,
+      modelo: _veiculoFormController.modeloFinal,
+    );
 
     if (!mounted) return;
     setState(() {
@@ -531,7 +482,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
     );
   }
 
-  Widget _buildVehicleFields(AppProvider provider) {
+  Widget _buildVehicleFields() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -615,206 +566,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
             style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            initialValue: _selectedMarca,
-            decoration: formFieldDecoration(
-              label: 'Marca do veículo *',
-              prefixIcon: Icons.directions_car,
-            ),
-            items: [
-              ...provider.marcasDisponiveis.map<DropdownMenuItem<String>>(
-                (m) => DropdownMenuItem<String>(value: m, child: Text(m)),
-              ),
-              const DropdownMenuItem<String>(
-                value: _otherOptionValue,
-                child: Text('Outra... (digitar)'),
-              ),
-            ],
-            onChanged: (v) => setState(() {
-              _selectedMarca = v;
-              _selectedModelo = null;
-              if (v != _otherOptionValue) {
-                _marcaCustomController.clear();
-              }
-              _modeloCustomController.clear();
-              _veiculoPreparado = null;
-              _showVehicleStepAlert = false;
-            }),
-            validator: (value) {
-              if (_currentStep != 1) return null;
-              if (value == null || value.trim().isEmpty) {
-                return 'Selecione a marca';
-              }
-              return null;
-            },
-          ),
-          if (_selectedMarca == _otherOptionValue) ...[
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _marcaCustomController,
-              decoration: formFieldDecoration(
-                label: 'Digite a marca *',
-                prefixIcon: Icons.edit,
-              ),
-              validator: (_) {
-                if (_currentStep != 1 || _selectedMarca != _otherOptionValue) {
-                  return null;
-                }
-                if (_marcaCustomController.text.trim().isEmpty) {
-                  return 'Digite a marca';
-                }
-                return null;
-              },
-            ),
-          ],
-          const SizedBox(height: 12),
-          if (_selectedMarca == null)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Selecione a marca primeiro',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            )
-          else if (_selectedMarca == _otherOptionValue)
-            TextFormField(
-              controller: _modeloCustomController,
-              decoration: formFieldDecoration(
-                label: 'Modelo *',
-                prefixIcon: Icons.drive_eta,
-              ),
-            )
-          else
-            DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: _selectedModelo,
-              decoration: formFieldDecoration(
-                label: 'Modelo *',
-                prefixIcon: Icons.drive_eta,
-              ),
-              items: [
-                ...provider
-                    .modelosDisponiveis(_selectedMarca)
-                    .map<DropdownMenuItem<String>>(
-                      (m) => DropdownMenuItem<String>(
-                        value: m,
-                        child: Text(m),
-                      ),
-                    ),
-                const DropdownMenuItem<String>(
-                  value: _otherOptionValue,
-                  child: Text('Outro... (digitar)'),
-                ),
-              ],
-              onChanged: (v) => setState(() {
-                _selectedModelo = v;
-                if (v != _otherOptionValue) {
-                  _modeloCustomController.clear();
-                }
-                _veiculoPreparado = null;
-              }),
-              hint: const Text('Selecione o modelo'),
-              validator: (value) {
-                if (_currentStep != 1 ||
-                    _selectedMarca == null ||
-                    _selectedMarca == _otherOptionValue) {
-                  return null;
-                }
-                if (value == null || value.trim().isEmpty) {
-                  return 'Selecione o modelo';
-                }
-                return null;
-              },
-            ),
-          if (_selectedMarca != null &&
-              _selectedMarca != _otherOptionValue &&
-              _selectedModelo == _otherOptionValue) ...[
-            const SizedBox(height: 12),
-            TextFormField(
-              controller: _modeloCustomController,
-              decoration: formFieldDecoration(
-                label: 'Digite o modelo *',
-                prefixIcon: Icons.edit,
-              ),
-              validator: (_) {
-                if (_currentStep != 1) return null;
-                final needsCustomModel = _selectedMarca == _otherOptionValue ||
-                    (_selectedMarca != null &&
-                        _selectedMarca != _otherOptionValue &&
-                        _selectedModelo == _otherOptionValue);
-                if (!needsCustomModel) return null;
-                if (_modeloCustomController.text.trim().isEmpty) {
-                  return 'Digite o modelo';
-                }
-                return null;
-              },
-            ),
-          ],
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _corController,
-            focusNode: _corFocus,
-            textInputAction: TextInputAction.next,
-            onFieldSubmitted: (_) => _placaFocus.requestFocus(),
-            decoration: formFieldDecoration(
-              label: 'Cor *',
-              prefixIcon: Icons.color_lens,
-            ),
-            validator: (_) {
-              if (_currentStep != 1) return null;
-              if (_corController.text.trim().isEmpty) {
-                return 'Informe a cor';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _placaController,
-            focusNode: _placaFocus,
-            textInputAction: TextInputAction.next,
-            onFieldSubmitted: (_) => _anoFocus.requestFocus(),
-            decoration: formFieldDecoration(
-              label: 'Placa *',
-              prefixIcon: Icons.confirmation_number,
-            ),
-            validator: (_) {
-              if (_currentStep != 1) return null;
-              if (_placaController.text.trim().isEmpty) {
-                return 'Informe a placa';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _anoController,
-            focusNode: _anoFocus,
-            textInputAction: TextInputAction.next,
-            decoration: formFieldDecoration(
-              label: 'Ano',
-              prefixIcon: Icons.calendar_today,
-            ),
-            keyboardType: TextInputType.number,
-            validator: (_) {
-              if (_currentStep != 1) return null;
-              final value = _anoController.text.trim();
-              if (value.isNotEmpty && int.tryParse(value) == null) {
-                return 'Ano inválido';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _observacoesVeiculoController,
-            decoration: formFieldDecoration(
-              label: 'Observações do veículo',
-              prefixIcon: Icons.note,
-            ),
-            maxLines: 2,
-          ),
+          VeiculoFormFields(controller: _veiculoFormController),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -837,18 +589,8 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
                   onPressed: _isSaving
                       ? null
                       : () {
-                          setState(() {
-                            _veiculoPreparado = null;
-                            _selectedMarca = null;
-                            _selectedModelo = null;
-                            _marcaCustomController.clear();
-                            _modeloCustomController.clear();
-                            _corController.clear();
-                            _placaController.clear();
-                            _anoController.clear();
-                            _observacoesVeiculoController.clear();
-                            _showVehicleStepAlert = false;
-                          });
+                          _veiculoFormController.reset();
+                          setState(() => _showVehicleStepAlert = false);
                         },
                   child: const Text('Limpar'),
                 ),
@@ -891,11 +633,9 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
     );
   }
 
-  Widget _buildCurrentStepContent(AppProvider provider) {
+  Widget _buildCurrentStepContent() {
     if (_isEdit) return _buildClientFields();
-    return _currentStep == 0
-        ? _buildClientFields()
-        : _buildVehicleFields(provider);
+    return _currentStep == 0 ? _buildClientFields() : _buildVehicleFields();
   }
 
   AutovalidateMode get _autovalidateMode {
@@ -911,7 +651,6 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<AppProvider>(context, listen: false);
     final isMobile = ResponsiveUtils.isMobile(context);
     final isEdit = _isEdit;
 
@@ -970,7 +709,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
-                  child: _buildCurrentStepContent(provider),
+                  child: _buildCurrentStepContent(),
                 ),
               ),
               Container(
@@ -1050,7 +789,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
                   _buildStepperHeader(),
                   const SizedBox(height: 18),
                 ],
-                _buildCurrentStepContent(provider),
+                _buildCurrentStepContent(),
               ],
             ),
           ),

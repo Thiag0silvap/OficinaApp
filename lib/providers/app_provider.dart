@@ -338,27 +338,53 @@ class AppProvider extends ChangeNotifier {
     }
   }
 
+  /// Oculta o cliente (soft delete: ativo = false) e, em cascata, todos os
+  /// veículos dele. Orçamentos e transações vinculados NÃO são tocados —
+  /// permanecem intactos no histórico, com clienteId/veiculoId originais,
+  /// já que cliente e veículo continuam existindo no banco (só inativos).
   Future<void> deleteCliente(String id) async {
     try {
+      final index = _clientes.indexWhere((c) => c.id == id);
+      if (index == -1) return;
+
       await _ensureUserDbSelected();
-      await _db.deleteCliente(id);
-      _clientes.removeWhere((c) => c.id == id);
+
+      final clienteOculto = _clientes[index].copyWith(ativo: false);
+      await _db.updateCliente(clienteOculto);
+      _clientes.removeAt(index);
+
+      final veiculosDoCliente =
+          _veiculos.where((v) => v.clienteId == id).toList();
+      for (final veiculo in veiculosDoCliente) {
+        await _db.updateVeiculo(veiculo.copyWith(ativo: false));
+      }
       _veiculos.removeWhere((v) => v.clienteId == id);
 
-      final removedOrcamentoIds = _orcamentos
-          .where((o) => o.clienteId == id)
-          .map((o) => o.id)
-          .toSet();
-      _orcamentos.removeWhere((o) => o.clienteId == id);
-      _transacoes.removeWhere(
-        (t) =>
-            t.orcamentoId != null &&
-            removedOrcamentoIds.contains(t.orcamentoId),
-      );
-
       notifyListeners();
+      unawaited(AppLogger.instance.warning('Cliente ocultado (soft delete): $id'));
     } catch (e) {
       _recordError('Erro ao excluir cliente: $e');
+      rethrow;
+    }
+  }
+
+  /// Reverte o soft delete de um cliente. Não é chamado por nenhuma tela
+  /// hoje — deixado pronto para uma futura tela de "clientes ocultos".
+  Future<void> reativarCliente(Cliente cliente) async {
+    try {
+      await _ensureUserDbSelected();
+      final atualizado = cliente.copyWith(ativo: true);
+      await _db.updateCliente(atualizado);
+      final index = _clientes.indexWhere((c) => c.id == atualizado.id);
+      if (index != -1) {
+        _clientes[index] = atualizado;
+      } else {
+        _clientes.add(atualizado);
+      }
+      notifyListeners();
+      unawaited(AppLogger.instance.info('Cliente reativado: ${atualizado.id}'));
+    } catch (e) {
+      _recordError('Erro ao reativar cliente: $e');
       rethrow;
     }
   }
@@ -401,15 +427,42 @@ class AppProvider extends ChangeNotifier {
     }
   }
 
+  /// Oculta o veículo (soft delete: ativo = false via updateVeiculo).
+  /// Orçamentos vinculados a ele não são tocados — permanecem no histórico.
   Future<void> deleteVeiculo(String id) async {
     try {
+      final index = _veiculos.indexWhere((v) => v.id == id);
+      if (index == -1) return;
+
       await _ensureUserDbSelected();
-      await _db.deleteVeiculo(id);
-      _veiculos.removeWhere((v) => v.id == id);
+      final atualizado = _veiculos[index].copyWith(ativo: false);
+      await _db.updateVeiculo(atualizado);
+      _veiculos.removeAt(index);
       notifyListeners();
-      unawaited(AppLogger.instance.warning('Veiculo removido: $id'));
+      unawaited(AppLogger.instance.warning('Veiculo ocultado (soft delete): $id'));
     } catch (e) {
       _recordError('Erro ao excluir veiculo: $e');
+      rethrow;
+    }
+  }
+
+  /// Reverte o soft delete de um veículo. Não é chamado por nenhuma tela
+  /// hoje — deixado pronto para uso futuro.
+  Future<void> reativarVeiculo(Veiculo veiculo) async {
+    try {
+      await _ensureUserDbSelected();
+      final atualizado = veiculo.copyWith(ativo: true);
+      await _db.updateVeiculo(atualizado);
+      final index = _veiculos.indexWhere((v) => v.id == atualizado.id);
+      if (index != -1) {
+        _veiculos[index] = atualizado;
+      } else {
+        _veiculos.add(atualizado);
+      }
+      notifyListeners();
+      unawaited(AppLogger.instance.info('Veiculo reativado: ${atualizado.id}'));
+    } catch (e) {
+      _recordError('Erro ao reativar veiculo: $e');
       rethrow;
     }
   }
