@@ -304,6 +304,15 @@ modelo TEXT
     await _ensureColumnExists(db, 'veiculos', 'observacoes', 'TEXT');
     await _ensureColumnExists(db, 'veiculos', 'ativo', 'INTEGER DEFAULT 1');
 
+    // Correção retroativa defensiva: o DEFAULT 1 acima já faz o SQLite
+    // preencher `ativo = 1` em linhas pré-existentes ao adicionar a coluna
+    // (verificado empiricamente), mas rodamos este UPDATE idempotente mesmo
+    // assim como segunda camada de proteção — nunca deixar um registro
+    // antigo ficar escondido por causa de `ativo` nulo, independentemente
+    // da versão/plataforma do SQLite usada (Android/iOS/desktop).
+    await db.execute('UPDATE clientes SET ativo = 1 WHERE ativo IS NULL');
+    await db.execute('UPDATE veiculos SET ativo = 1 WHERE ativo IS NULL');
+
     await _ensureColumnExists(db, 'orcamentos', 'veiculoId', 'TEXT');
     await _ensureColumnExists(db, 'orcamentos', 'veiculoDescricao', 'TEXT');
     await _ensureColumnExists(db, 'orcamentos', 'itens', 'TEXT');

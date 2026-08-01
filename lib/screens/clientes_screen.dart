@@ -631,6 +631,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
     final veiculosVinculados = provider.getVeiculosByCliente(cliente.id).length;
     final orcamentosVinculados =
         provider.getOrcamentosByCliente(cliente.id).length;
+    final isOrcamentoSingular = orcamentosVinculados == 1;
+    final artigoOrcamentos = isOrcamentoSingular ? 'O' : 'Os';
+    final sufixoOrcamentos = isOrcamentoSingular ? '' : 's';
+    final verboContinuar = isOrcamentoSingular ? 'continua' : 'continuam';
+    final adjetivoVisivel = isOrcamentoSingular ? 'visível' : 'visíveis';
     bool isDeleting = false;
     showDialog(
       context: context,
@@ -644,9 +649,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
             ),
             content: Text(
               'Excluir ${cliente.nome} vai ocultar $veiculosVinculados '
-              'veículo${veiculosVinculados == 1 ? '' : 's'} e $orcamentosVinculados '
-              'orçamento${orcamentosVinculados == 1 ? '' : 's'} da lista ativa. '
-              'Nada é apagado — os dados continuam preservados no histórico.',
+              'veículo${veiculosVinculados == 1 ? '' : 's'} da lista ativa. '
+              '$artigoOrcamentos $orcamentosVinculados '
+              'orçamento$sufixoOrcamentos vinculado$sufixoOrcamentos a ele '
+              '$verboContinuar ativo$sufixoOrcamentos e $adjetivoVisivel '
+              'normalmente, mesmo sem o cliente aparecer mais na lista.',
               style: const TextStyle(color: AppColors.white),
             ),
             actions: [
