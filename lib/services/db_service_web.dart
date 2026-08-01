@@ -38,6 +38,14 @@ class DBService {
 
   Future<void> insertNota(Nota n) async => _unsupported();
 
+  Future<void> insertMarcaModeloCustom({
+    required String marca,
+    String? modelo,
+  }) async =>
+      _unsupported();
+  Future<List<Map<String, String?>>> getMarcasModelosCustom() async =>
+      _unsupported();
+
   Future<void> insertTransacao(Transacao t) async => _unsupported();
   Future<void> deleteTransacao(String id) async => _unsupported();
   Future<List<Transacao>> getTransacoes() async => _unsupported();

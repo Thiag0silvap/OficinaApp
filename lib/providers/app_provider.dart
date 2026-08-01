@@ -78,6 +78,8 @@ class AppProvider extends ChangeNotifier {
     _veiculos.clear();
     _orcamentos.clear();
     _transacoes.clear();
+    _customMarcas.clear();
+    _customModelosPorMarca.clear();
     notifyListeners();
 
     unawaited(_reloadForActiveUser());
@@ -109,6 +111,8 @@ class AppProvider extends ChangeNotifier {
     final fixedMarca = _prettyName(marca);
     if (fixedMarca.isEmpty) return;
 
+    await _ensureUserDbSelected();
+
     final hasMarcaBase = AppConstants.marcas.any(
       (m) => m.toLowerCase() == fixedMarca.toLowerCase(),
     );
@@ -117,6 +121,7 @@ class AppProvider extends ChangeNotifier {
     );
     if (!hasMarcaBase && !hasMarcaCustom) {
       _customMarcas.add(fixedMarca);
+      await _db.insertMarcaModeloCustom(marca: fixedMarca);
     }
 
     final fixedModelo = _prettyName(modelo ?? '');
@@ -137,10 +142,10 @@ class AppProvider extends ChangeNotifier {
 
       if (!hasModeloBase && !hasModeloCustom) {
         list.add(fixedModelo);
+        await _db.insertMarcaModeloCustom(marca: fixedMarca, modelo: fixedModelo);
       }
     }
 
-    await _saveVehicleCatalogToPrefs();
     notifyListeners();
   }
 
@@ -153,46 +158,81 @@ class AppProvider extends ChangeNotifier {
         .join(' ');
   }
 
-  Future<void> _loadVehicleCatalogFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
+  /// Busca o catálogo de marcas/modelos digitados manualmente a partir do
+  /// banco da conta ativa. Na primeira vez que a tabela da conta estiver
+  /// vazia, tenta migrar o catálogo antigo (compartilhado, gravado em
+  /// SharedPreferences) para dentro do banco dessa conta — só como fallback
+  /// de leitura nesse primeiro carregamento; nunca mais grava em prefs.
+  Future<({List<String> marcas, Map<String, List<String>> modelosPorMarca})>
+      _fetchVehicleCatalogFromDb() async {
+    var rows = await _db.getMarcasModelosCustom();
 
-    final marcas =
-        prefs.getStringList(_prefsKeyCustomMarcas) ?? const <String>[];
-    _customMarcas
-      ..clear()
-      ..addAll(marcas);
+    if (rows.isEmpty) {
+      await _migrateLegacyVehicleCatalogFromPrefs();
+      rows = await _db.getMarcasModelosCustom();
+    }
 
-    final raw = prefs.getString(_prefsKeyCustomModelosPorMarca);
-    _customModelosPorMarca.clear();
-    if (raw == null || raw.trim().isEmpty) return;
+    final marcas = <String>[];
+    final modelosPorMarca = <String, List<String>>{};
 
+    for (final row in rows) {
+      final marca = (row['marca'] ?? '').trim();
+      final modelo = (row['modelo'] ?? '').trim();
+      if (marca.isEmpty) continue;
+
+      if (modelo.isEmpty) {
+        if (!marcas.any((m) => m.toLowerCase() == marca.toLowerCase())) {
+          marcas.add(marca);
+        }
+        continue;
+      }
+
+      final list = modelosPorMarca.putIfAbsent(marca, () => <String>[]);
+      if (!list.any((m) => m.toLowerCase() == modelo.toLowerCase())) {
+        list.add(modelo);
+      }
+    }
+
+    return (marcas: marcas, modelosPorMarca: modelosPorMarca);
+  }
+
+  Future<void> _migrateLegacyVehicleCatalogFromPrefs() async {
     try {
-      final decoded = jsonDecode(raw);
-      if (decoded is! Map) return;
+      final prefs = await SharedPreferences.getInstance();
 
-      for (final entry in decoded.entries) {
-        final key = entry.key?.toString() ?? '';
-        final value = entry.value;
-        if (key.isEmpty) continue;
-        if (value is List) {
-          _customModelosPorMarca[key] = value
-              .map((e) => e.toString())
-              .where((s) => s.trim().isNotEmpty)
-              .toList();
+      final legacyMarcas =
+          prefs.getStringList(_prefsKeyCustomMarcas) ?? const <String>[];
+
+      final legacyModelosPorMarca = <String, List<String>>{};
+      final raw = prefs.getString(_prefsKeyCustomModelosPorMarca);
+      if (raw != null && raw.trim().isNotEmpty) {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          for (final entry in decoded.entries) {
+            final key = entry.key?.toString() ?? '';
+            final value = entry.value;
+            if (key.isEmpty || value is! List) continue;
+            legacyModelosPorMarca[key] = value
+                .map((e) => e.toString())
+                .where((s) => s.trim().isNotEmpty)
+                .toList();
+          }
+        }
+      }
+
+      if (legacyMarcas.isEmpty && legacyModelosPorMarca.isEmpty) return;
+
+      for (final marca in legacyMarcas) {
+        await _db.insertMarcaModeloCustom(marca: marca);
+      }
+      for (final entry in legacyModelosPorMarca.entries) {
+        for (final modelo in entry.value) {
+          await _db.insertMarcaModeloCustom(marca: entry.key, modelo: modelo);
         }
       }
     } catch (_) {
-      debugPrint('Falha ao ler catálogo de veículos do SharedPreferences');
+      debugPrint('Falha ao migrar catálogo legado de veículos (SharedPreferences)');
     }
-  }
-
-  Future<void> _saveVehicleCatalogToPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_prefsKeyCustomMarcas, _customMarcas);
-    await prefs.setString(
-      _prefsKeyCustomModelosPorMarca,
-      jsonEncode(_customModelosPorMarca),
-    );
   }
 
   double get totalEntradas => _transacoes
@@ -694,11 +734,9 @@ class AppProvider extends ChangeNotifier {
   // ===================== INIT / RELOAD =====================
 
   Future<void> initApp() async {
-    try {
-      await _loadVehicleCatalogFromPrefs();
-    } catch (e) {
-      debugPrint('Erro ao inicializar preferências do AppProvider: $e');
-    }
+    // Catálogo de marca/modelo agora é carregado por conta em
+    // _reloadForActiveUser (ver Parte 2), não há mais estado global para
+    // inicializar antes do login.
   }
 
   Future<void> reloadActiveUserData() async {
@@ -726,6 +764,7 @@ class AppProvider extends ChangeNotifier {
       final veiculosDB = await _db.getVeiculos();
       final orcamentosDB = await _db.getOrcamentos();
       final transacoesDB = await _db.getTransacoes();
+      final catalogo = await _fetchVehicleCatalogFromDb();
 
       if (_activeUserId != userIdAtStart) return;
 
@@ -741,6 +780,12 @@ class AppProvider extends ChangeNotifier {
       _transacoes
         ..clear()
         ..addAll(transacoesDB);
+      _customMarcas
+        ..clear()
+        ..addAll(catalogo.marcas);
+      _customModelosPorMarca
+        ..clear()
+        ..addAll(catalogo.modelosPorMarca);
     } catch (e) {
       debugPrint('Erro ao recarregar dados do AppProvider: $e');
     } finally {

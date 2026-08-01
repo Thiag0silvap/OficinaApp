@@ -612,6 +612,42 @@ WHERE orcamentoId IS NOT NULL
     return result.map((e) => Nota.fromMap(_deserializeNota(e))).toList();
   }
 
+  // ================= CATÁLOGO MARCA/MODELO (por conta) =================
+
+  Future<void> insertMarcaModeloCustom({
+    required String marca,
+    String? modelo,
+  }) async {
+    final db = await database;
+    final normalizedModelo = (modelo ?? '').trim();
+    final id =
+        '${marca.trim().toLowerCase()}|${normalizedModelo.toLowerCase()}';
+
+    await db.insert(
+      "marcas_modelos_custom",
+      {
+        'id': id,
+        'marca': marca.trim(),
+        'modelo': normalizedModelo.isEmpty ? null : normalizedModelo,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<Map<String, String?>>> getMarcasModelosCustom() async {
+    final db = await database;
+    final result = await db.query("marcas_modelos_custom");
+
+    return result
+        .map(
+          (row) => {
+            'marca': row['marca'] as String?,
+            'modelo': row['modelo'] as String?,
+          },
+        )
+        .toList();
+  }
+
   // ================= EMPRESA =================
 
   Future<Empresa?> getEmpresa() async {
