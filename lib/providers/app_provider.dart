@@ -589,11 +589,18 @@ class AppProvider extends ChangeNotifier {
 
       // ✅ Gera nota apenas uma vez
       // Mantendo compatibilidade com seu fluxo atual
+      // A nota é um registro auxiliar (histórico), não crítico para o fluxo
+      // principal: uma falha aqui não deve impedir a conclusão do orçamento,
+      // mas também não deve passar em silêncio — só logamos.
       final nota = Nota.fromOrcamento(atualizado);
       try {
         await _db.insertNota(nota);
-      } catch (_) {
-        // Se já existir ou ocorrer duplicidade, apenas ignora
+      } catch (e) {
+        unawaited(
+          AppLogger.instance.error(
+            'Falha ao gravar nota auxiliar do orcamento $id: $e',
+          ),
+        );
       }
 
       _orcamentos[index] = atualizado;
@@ -729,6 +736,19 @@ class AppProvider extends ChangeNotifier {
 
   List<Orcamento> getOrcamentosByCliente(String clienteId) {
     return _orcamentos.where((o) => o.clienteId == clienteId).toList();
+  }
+
+  /// Histórico de serviços (notas) de um cliente. Diferente de
+  /// clientes/veículos/orçamentos, notas não ficam em cache no provider —
+  /// são lidas direto do banco da conta ativa.
+  Future<List<Nota>> getNotasByCliente(String clienteId) async {
+    try {
+      await _ensureUserDbSelected();
+      return await _db.getNotasByCliente(clienteId);
+    } catch (e) {
+      _recordError('Erro ao buscar histórico de serviços: $e');
+      return const [];
+    }
   }
 
   // ===================== TRANSAÇÕES =====================

@@ -35,6 +35,8 @@ class DBService {
   Future<List<Orcamento>> getOrcamentos() async => _unsupported();
 
   Future<void> insertNota(Nota n) async => _unsupported();
+  Future<List<Nota>> getNotasByCliente(String clienteId) async =>
+      _unsupported();
 
   Future<void> insertMarcaModeloCustom({
     required String marca,

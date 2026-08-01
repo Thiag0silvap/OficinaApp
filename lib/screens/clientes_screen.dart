@@ -934,13 +934,16 @@ class _ClientesScreenState extends State<ClientesScreen> {
     );
   }
 
-  void _showClienteDetails(
+  Future<void> _showClienteDetails(
     BuildContext context,
     Cliente cliente,
     AppProvider provider,
-  ) {
+  ) async {
     final veiculos = provider.getVeiculosByCliente(cliente.id);
     final orcamentos = provider.getOrcamentosByCliente(cliente.id);
+    final notas = await provider.getNotasByCliente(cliente.id);
+
+    if (!context.mounted) return;
 
     showDialog(
       context: context,
@@ -1028,6 +1031,28 @@ class _ClientesScreenState extends State<ClientesScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: ResponsiveText(
                         '• ${o.status} - ${Formatters.currency(o.valorTotal)}',
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                ResponsiveText(
+                  'Histórico de Serviços (${notas.length})',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryYellow,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (notas.isEmpty)
+                  const ResponsiveText('Nenhum serviço concluído ainda')
+                else
+                  ...notas.map(
+                    (n) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: ResponsiveText(
+                        '• ${Formatters.dateShort(n.dataEmissao)} - '
+                        '${n.veiculoDescricao ?? '-'} - '
+                        '${Formatters.currency(n.valorTotal)}',
                       ),
                     ),
                   ),

@@ -598,6 +598,19 @@ WHERE orcamentoId IS NOT NULL
     return result.map((e) => Nota.fromMap(_deserializeNota(e))).toList();
   }
 
+  Future<List<Nota>> getNotasByCliente(String clienteId) async {
+    final db = await database;
+
+    final result = await db.query(
+      "notas",
+      where: "clienteId = ?",
+      whereArgs: [clienteId],
+      orderBy: "dataEmissao DESC",
+    );
+
+    return result.map((e) => Nota.fromMap(_deserializeNota(e))).toList();
+  }
+
   // ================= CATÁLOGO MARCA/MODELO (por conta) =================
 
   Future<void> insertMarcaModeloCustom({
