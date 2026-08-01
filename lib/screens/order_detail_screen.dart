@@ -14,6 +14,7 @@ import '../core/utils/app_feedback.dart';
 import '../core/utils/formatters.dart';
 import '../core/widgets/pdf_preview_dialog.dart';
 import '../core/components/orcamento_form_dialog.dart';
+import '../core/components/cancelar_orcamento_dialog.dart';
 import '../services/pdf_service.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -471,28 +472,41 @@ class _ActionsCard extends StatelessWidget {
 
     final actions = <Widget>[];
 
+    Future<void> cancelar() async {
+      try {
+        final cancelado = await collectMotivoAndCancelarOrcamento(
+          context,
+          provider,
+          orcamento,
+        );
+        if (!cancelado) return;
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Orçamento cancelado.')),
+        );
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao cancelar orçamento: $e')),
+        );
+      }
+    }
+
+    final cancelarButton = Expanded(
+      child: OutlinedButton.icon(
+        icon: const Icon(Icons.cancel),
+        label: const Text('Cancelar'),
+        style: OutlinedButton.styleFrom(foregroundColor: AppColors.error),
+        onPressed: cancelar,
+      ),
+    );
+
     // ✅ fluxo claro
     if (status == OrcamentoStatus.pendente) {
       actions.add(
         Row(
           children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.cancel),
-                label: const Text('Cancelar'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.error,
-                ),
-                onPressed: () async {
-                  final ok = await _confirm(
-                    context,
-                    'Cancelar orçamento?',
-                    'Essa ação muda o status para cancelado.',
-                  );
-                  if (ok) await provider.cancelarOrcamento(orcamento.id);
-                },
-              ),
-            ),
+            cancelarButton,
             const SizedBox(width: 10),
             Expanded(
               child: ElevatedButton.icon(
@@ -515,41 +529,52 @@ class _ActionsCard extends StatelessWidget {
 
     if (status == OrcamentoStatus.aprovado) {
       actions.add(
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.play_arrow),
-            label: const Text('Iniciar serviço'),
-            onPressed: () async {
-              final ok = await _confirm(
-                context,
-                'Iniciar serviço?',
-                'Deseja iniciar o serviço para esta ordem?',
-              );
-              if (ok) await provider.iniciarServico(orcamento.id);
-            },
-          ),
+        Row(
+          children: [
+            cancelarButton,
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Iniciar serviço'),
+                onPressed: () async {
+                  final ok = await _confirm(
+                    context,
+                    'Iniciar serviço?',
+                    'Deseja iniciar o serviço para esta ordem?',
+                  );
+                  if (ok) await provider.iniciarServico(orcamento.id);
+                },
+              ),
+            ),
+          ],
         ),
       );
     }
 
     if (status == OrcamentoStatus.emAndamento) {
       actions.add(
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            icon: const Icon(Icons.done),
-            label: const Text('Concluir serviço'),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
-            onPressed: () async {
-              final ok = await _confirm(
-                context,
-                'Concluir serviço?',
-                'Marcar como concluído? (Pagamento será registrado depois)',
-              );
-              if (ok) await provider.concluirOrcamento(orcamento.id);
-            },
-          ),
+        Row(
+          children: [
+            cancelarButton,
+            const SizedBox(width: 10),
+            Expanded(
+              child: ElevatedButton.icon(
+                icon: const Icon(Icons.done),
+                label: const Text('Concluir serviço'),
+                style:
+                    ElevatedButton.styleFrom(backgroundColor: AppColors.success),
+                onPressed: () async {
+                  final ok = await _confirm(
+                    context,
+                    'Concluir serviço?',
+                    'Marcar como concluído? (Pagamento será registrado depois)',
+                  );
+                  if (ok) await provider.concluirOrcamento(orcamento.id);
+                },
+              ),
+            ),
+          ],
         ),
       );
     }

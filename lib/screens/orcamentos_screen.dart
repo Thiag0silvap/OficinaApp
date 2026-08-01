@@ -10,6 +10,7 @@ import '../core/components/app_card.dart';
 import '../core/components/status_pill.dart';
 import '../core/components/app_buttons.dart';
 import '../core/components/app_snackbar.dart';
+import '../core/components/cancelar_orcamento_dialog.dart';
 import '../core/utils/formatters.dart';
 import '../providers/app_provider.dart';
 import '../models/orcamento.dart';
@@ -450,7 +451,9 @@ class _OrcamentoMobileCard extends StatelessWidget {
             Text('Imprimir'),
           ]),
         ),
-        if (orcamento.status == OrcamentoStatus.pendente)
+        if (orcamento.status == OrcamentoStatus.pendente ||
+            orcamento.status == OrcamentoStatus.aprovado ||
+            orcamento.status == OrcamentoStatus.emAndamento)
           const PopupMenuItem(
             value: 'cancelar',
             child: Row(children: [
@@ -509,9 +512,20 @@ class _OrcamentoActions {
 
   static Future<void> cancelar(
       BuildContext context, AppProvider provider, Orcamento o) async {
-    await provider.cancelarOrcamento(o.id);
-    if (!context.mounted) return;
-    AppSnackbar.show(context, 'Orçamento cancelado!', type: SnackType.info);
+    try {
+      final cancelado =
+          await collectMotivoAndCancelarOrcamento(context, provider, o);
+      if (!cancelado) return;
+      if (!context.mounted) return;
+      AppSnackbar.show(context, 'Orçamento cancelado!', type: SnackType.info);
+    } catch (e) {
+      if (!context.mounted) return;
+      AppSnackbar.show(
+        context,
+        'Erro ao cancelar orçamento: $e',
+        type: SnackType.error,
+      );
+    }
   }
 
   static Future<void> imprimir(BuildContext context, Orcamento o) async {
@@ -945,6 +959,29 @@ class _OrcamentoPremiumCard extends StatelessWidget {
     );
   }
 
+  Future<void> _cancelarComDialogo(
+    BuildContext context,
+    AppProvider provider,
+  ) async {
+    try {
+      final cancelado =
+          await collectMotivoAndCancelarOrcamento(context, provider, orcamento);
+      if (!cancelado) return;
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Orçamento cancelado!'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao cancelar orçamento: $e')),
+      );
+    }
+  }
+
   List<Widget> _buildActions(BuildContext context) {
     final isMobile = ResponsiveUtils.isMobile(context);
     final provider = Provider.of<AppProvider>(context, listen: false);
@@ -982,16 +1019,7 @@ class _OrcamentoPremiumCard extends StatelessWidget {
               icon: Icons.cancel,
               label: 'Cancelar',
               tone: _ActionTone.danger,
-              onPressed: () async {
-                await provider.cancelarOrcamento(orcamento.id);
-                if (!context.mounted) return;
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Orçamento cancelado!'),
-                    backgroundColor: AppColors.warning,
-                  ),
-                );
-              },
+              onPressed: () => _cancelarComDialogo(context, provider),
             ),
         ]);
         break;
@@ -1015,6 +1043,16 @@ class _OrcamentoPremiumCard extends StatelessWidget {
             },
           ),
         );
+        if (!isMobile) {
+          actions.add(
+            _ActionPill(
+              icon: Icons.cancel,
+              label: 'Cancelar',
+              tone: _ActionTone.danger,
+              onPressed: () => _cancelarComDialogo(context, provider),
+            ),
+          );
+        }
         break;
 
       case OrcamentoStatus.emAndamento:
@@ -1036,6 +1074,16 @@ class _OrcamentoPremiumCard extends StatelessWidget {
             },
           ),
         );
+        if (!isMobile) {
+          actions.add(
+            _ActionPill(
+              icon: Icons.cancel,
+              label: 'Cancelar',
+              tone: _ActionTone.danger,
+              onPressed: () => _cancelarComDialogo(context, provider),
+            ),
+          );
+        }
         break;
 
       case OrcamentoStatus.concluido:

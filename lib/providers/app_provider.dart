@@ -681,15 +681,40 @@ class AppProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> cancelarOrcamento(String id) async {
+  /// Cancela um orçamento Pendente, Aprovado ou Em andamento. Recusa
+  /// (lançando erro tratável) se já Concluído ou já Cancelado. [motivo] é
+  /// opcional a partir de Pendente/Aprovado, mas obrigatório quando o
+  /// status atual é Em andamento.
+  Future<void> cancelarOrcamento(String id, {String? motivo}) async {
     try {
       final index = _orcamentos.indexWhere((o) => o.id == id);
       if (index == -1) return;
 
       final atual = _orcamentos[index];
-      if (atual.status == OrcamentoStatus.cancelado) return;
+      final statusAtual = atual.status;
 
-      final atualizado = atual.copyWith(status: OrcamentoStatus.cancelado);
+      if (statusAtual == OrcamentoStatus.concluido) {
+        throw StateError('Não é possível cancelar um orçamento já Concluído.');
+      }
+      if (statusAtual == OrcamentoStatus.cancelado) {
+        throw StateError('Este orçamento já está Cancelado.');
+      }
+
+      final motivoTrimmed = motivo?.trim();
+      if (statusAtual == OrcamentoStatus.emAndamento &&
+          (motivoTrimmed == null || motivoTrimmed.isEmpty)) {
+        throw StateError(
+          'Informe o motivo do cancelamento para orçamentos Em andamento.',
+        );
+      }
+
+      final atualizado = atual.copyWith(
+        status: OrcamentoStatus.cancelado,
+        motivoCancelamento:
+            (motivoTrimmed != null && motivoTrimmed.isNotEmpty)
+                ? motivoTrimmed
+                : null,
+      );
 
       await _ensureUserDbSelected();
       await _db.updateOrcamento(atualizado);
