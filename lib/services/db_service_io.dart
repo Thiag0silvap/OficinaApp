@@ -17,7 +17,7 @@ import 'app_logger.dart';
 class DBService {
   DBService._();
   static final DBService instance = DBService._();
-  static const int schemaVersion = 2;
+  static const int schemaVersion = 3;
   static const String _backupFolderName = 'OficinaAppBackups';
 
   Database? _database;
@@ -69,7 +69,8 @@ observacoes TEXT,
 tipo TEXT,
 nomeSeguradora TEXT,
 cnpj TEXT,
-contato TEXT
+contato TEXT,
+ativo INTEGER DEFAULT 1
 )
 ''');
 
@@ -82,7 +83,8 @@ modelo TEXT,
 cor TEXT,
 placa TEXT,
 ano INTEGER,
-observacoes TEXT
+observacoes TEXT,
+ativo INTEGER DEFAULT 1
 )
 ''');
 
@@ -105,7 +107,8 @@ observacoes TEXT,
 observacoesCliente TEXT,
 observacoesInternas TEXT,
 dataPrevistaEntrega TEXT,
-tipoAtendimento TEXT
+tipoAtendimento TEXT,
+motivoCancelamento TEXT
 )
 ''');
 
@@ -143,6 +146,14 @@ nome TEXT,
 telefone TEXT,
 endereco TEXT,
 cnpj TEXT
+)
+''');
+
+    await db.execute('''
+CREATE TABLE marcas_modelos_custom(
+id TEXT PRIMARY KEY,
+marca TEXT,
+modelo TEXT
 )
 ''');
 
@@ -268,6 +279,17 @@ cnpj TEXT
 )
 ''',
     );
+    await _ensureTableExists(
+      db,
+      'marcas_modelos_custom',
+      '''
+CREATE TABLE marcas_modelos_custom(
+id TEXT PRIMARY KEY,
+marca TEXT,
+modelo TEXT
+)
+''',
+    );
 
     await _ensureColumnExists(db, 'clientes', 'endereco', 'TEXT');
     await _ensureColumnExists(db, 'clientes', 'dataCadastro', 'TEXT');
@@ -276,9 +298,11 @@ cnpj TEXT
     await _ensureColumnExists(db, 'clientes', 'nomeSeguradora', 'TEXT');
     await _ensureColumnExists(db, 'clientes', 'cnpj', 'TEXT');
     await _ensureColumnExists(db, 'clientes', 'contato', 'TEXT');
+    await _ensureColumnExists(db, 'clientes', 'ativo', 'INTEGER DEFAULT 1');
 
     await _ensureColumnExists(db, 'veiculos', 'cor', 'TEXT');
     await _ensureColumnExists(db, 'veiculos', 'observacoes', 'TEXT');
+    await _ensureColumnExists(db, 'veiculos', 'ativo', 'INTEGER DEFAULT 1');
 
     await _ensureColumnExists(db, 'orcamentos', 'veiculoId', 'TEXT');
     await _ensureColumnExists(db, 'orcamentos', 'veiculoDescricao', 'TEXT');
@@ -288,6 +312,7 @@ cnpj TEXT
     await _ensureColumnExists(db, 'orcamentos', 'observacoesInternas', 'TEXT');
     await _ensureColumnExists(db, 'orcamentos', 'dataPrevistaEntrega', 'TEXT');
     await _ensureColumnExists(db, 'orcamentos', 'tipoAtendimento', 'TEXT');
+    await _ensureColumnExists(db, 'orcamentos', 'motivoCancelamento', 'TEXT');
 
     await _ensureColumnExists(db, 'transacoes', 'observacoes', 'TEXT');
 

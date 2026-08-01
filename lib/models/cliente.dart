@@ -29,6 +29,7 @@ class Cliente {
   final String? nomeSeguradora; // Para quando tipo for seguradora
   final String? cnpj;
   final String? contato; // Pessoa de contato na seguradora/empresa
+  final bool ativo;
 
   Cliente({
     required this.id,
@@ -41,6 +42,7 @@ class Cliente {
     this.nomeSeguradora,
     this.cnpj,
     this.contato,
+    this.ativo = true,
   });
 
   Cliente copyWith({
@@ -54,6 +56,7 @@ class Cliente {
     String? nomeSeguradora,
     String? cnpj,
     String? contato,
+    bool? ativo,
   }) {
     return Cliente(
       id: id ?? this.id,
@@ -66,6 +69,7 @@ class Cliente {
       nomeSeguradora: nomeSeguradora ?? this.nomeSeguradora,
       cnpj: cnpj ?? this.cnpj,
       contato: contato ?? this.contato,
+      ativo: ativo ?? this.ativo,
     );
   }
 
@@ -81,6 +85,7 @@ class Cliente {
       'nomeSeguradora': nomeSeguradora,
       'cnpj': cnpj,
       'contato': contato,
+      'ativo': ativo ? 1 : 0,
     };
   }
 
@@ -99,6 +104,7 @@ class Cliente {
       nomeSeguradora: map['nomeSeguradora'],
       cnpj: map['cnpj'],
       contato: map['contato'],
+      ativo: (map['ativo'] ?? 1) == 1,
     );
   }
 

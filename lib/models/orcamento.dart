@@ -85,6 +85,11 @@ class OrcamentoModel {
 
   final TipoAtendimento tipoAtendimento;
 
+  /// Preenchido quando o orçamento é cancelado a partir de "Em andamento"
+  /// (obrigatório nesse caso) ou informado opcionalmente a partir de
+  /// Pendente/Aprovado.
+  final String? motivoCancelamento;
+
   OrcamentoModel({
     required this.id,
     required this.clienteId,
@@ -104,6 +109,7 @@ class OrcamentoModel {
     this.observacoesInternas,
     this.dataPrevistaEntrega,
     this.tipoAtendimento = TipoAtendimento.particular,
+    this.motivoCancelamento,
   });
 
   String get statusDescricao => status.displayName;
@@ -127,6 +133,7 @@ class OrcamentoModel {
     String? observacoesInternas,
     DateTime? dataPrevistaEntrega,
     TipoAtendimento? tipoAtendimento,
+    String? motivoCancelamento,
   }) {
     return OrcamentoModel(
       id: id ?? this.id,
@@ -147,6 +154,7 @@ class OrcamentoModel {
       observacoesInternas: observacoesInternas ?? this.observacoesInternas,
       dataPrevistaEntrega: dataPrevistaEntrega ?? this.dataPrevistaEntrega,
       tipoAtendimento: tipoAtendimento ?? this.tipoAtendimento,
+      motivoCancelamento: motivoCancelamento ?? this.motivoCancelamento,
     );
   }
 
@@ -169,6 +177,7 @@ class OrcamentoModel {
         'observacoesInternas': observacoesInternas,
         'dataPrevistaEntrega': dataPrevistaEntrega?.toIso8601String(),
         'tipoAtendimento': tipoAtendimento.name,
+        'motivoCancelamento': motivoCancelamento,
       };
 
   factory OrcamentoModel.fromMap(Map<String, dynamic> m) => OrcamentoModel(
@@ -208,6 +217,7 @@ class OrcamentoModel {
           (t) => t.name == (m['tipoAtendimento'] ?? 'particular'),
           orElse: () => TipoAtendimento.particular,
         ),
+        motivoCancelamento: m['motivoCancelamento'],
       );
 }
 

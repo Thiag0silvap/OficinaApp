@@ -7,6 +7,7 @@ class Veiculo {
   final String placa;
   final int? ano;
   final String? observacoes;
+  final bool ativo;
 
   Veiculo({
     required this.id,
@@ -17,6 +18,7 @@ class Veiculo {
     required this.placa,
     this.ano,
     this.observacoes,
+    this.ativo = true,
   });
 
   Veiculo copyWith({
@@ -28,6 +30,7 @@ class Veiculo {
     String? placa,
     int? ano,
     String? observacoes,
+    bool? ativo,
   }) {
     return Veiculo(
       id: id ?? this.id,
@@ -38,6 +41,7 @@ class Veiculo {
       placa: placa ?? this.placa,
       ano: ano ?? this.ano,
       observacoes: observacoes ?? this.observacoes,
+      ativo: ativo ?? this.ativo,
     );
   }
 
@@ -53,6 +57,7 @@ class Veiculo {
       'placa': placa,
       'ano': ano,
       'observacoes': observacoes,
+      'ativo': ativo ? 1 : 0,
     };
   }
 
@@ -66,6 +71,7 @@ class Veiculo {
       placa: map['placa'] ?? '',
       ano: map['ano'],
       observacoes: map['observacoes'],
+      ativo: (map['ativo'] ?? 1) == 1,
     );
   }
 }
