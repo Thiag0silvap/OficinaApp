@@ -32,7 +32,7 @@ class AppTheme {
 
       // ---------- AppBar ----------
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.bg,
+        backgroundColor: AppColors.bgHeader,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
@@ -54,7 +54,7 @@ class AppTheme {
       // ---------- Campos ----------
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surface,
+        fillColor: AppColors.elevated,
         // Um rótulo só: usamos label flutuante e NÃO hint ao mesmo tempo,
         // evitando a sobreposição de textos vista no formulário de orçamento.
         floatingLabelBehavior: FloatingLabelBehavior.auto,
@@ -65,8 +65,8 @@ class AppTheme {
         hintStyle: AppText.body.copyWith(color: AppColors.textTertiary),
         labelStyle: AppText.bodySecondary,
         floatingLabelStyle: AppText.caption.copyWith(color: AppColors.primary),
-        border: _fieldBorder(AppColors.line),
-        enabledBorder: _fieldBorder(AppColors.line),
+        border: _fieldBorder(AppColors.inputBorder),
+        enabledBorder: _fieldBorder(AppColors.inputBorder),
         focusedBorder: _fieldBorder(AppColors.primary, width: 1.5),
         errorBorder: _fieldBorder(AppColors.danger),
         focusedErrorBorder: _fieldBorder(AppColors.danger, width: 1.5),
@@ -75,7 +75,7 @@ class AppTheme {
 
       // ---------- Bottom navigation ----------
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-        backgroundColor: AppColors.bg,
+        backgroundColor: AppColors.bgHeader,
         selectedItemColor: AppColors.primary,
         unselectedItemColor: AppColors.textTertiary,
         type: BottomNavigationBarType.fixed,

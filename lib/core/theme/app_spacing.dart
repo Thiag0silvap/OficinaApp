@@ -14,12 +14,23 @@ class AppSpacing {
   static const double screen = 20;
 }
 
-/// Raios de borda. Campo < card < pílula(full).
+/// Raios de borda ("Confiança Noturna" — Sprint 0). Campo < botão < card <
+/// modal < pílula/avatar (full).
 class AppRadius {
   AppRadius._();
 
   static const double field = 12;
-  static const double card = 18;
-  static const double button = 12;
+
+  /// Handoff: 8–10px. Escolhido 10 (mesmo tom do handoff para o teto da
+  /// faixa); ajuste se o design system tiver um valor mais específico.
+  static const double card = 10;
+
+  /// Handoff: 8–10px. Escolhido 8 (piso da faixa, levemente menor que card).
+  static const double button = 8;
+
+  /// Handoff: modais 14px.
+  static const double modal = 14;
+
+  /// Avatares/dots: totalmente arredondado (círculo).
   static const double pill = 999;
 }
