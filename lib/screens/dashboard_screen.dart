@@ -4,13 +4,33 @@ import 'package:provider/provider.dart';
 
 import '../core/theme/app_theme.dart';
 import '../core/components/responsive_components.dart';
+import '../core/components/status_pill.dart';
 import '../core/utils/formatters.dart';
 import '../providers/app_provider.dart';
 import '../providers/auth_provider.dart';
+import '../models/orcamento.dart';
 import '../models/transacao.dart';
 import 'clientes_screen.dart';
 import 'financeiro_screen.dart';
 import 'orcamentos_screen.dart';
+
+/// Mapeia o status de domínio para o status visual do design system. Espelha
+/// a mesma função privada de orcamentos_screen.dart (não pode ser
+/// reaproveitada por ser private daquele arquivo).
+AppStatus _toAppStatus(OrcamentoStatus s) {
+  switch (s) {
+    case OrcamentoStatus.pendente:
+      return AppStatus.pendente;
+    case OrcamentoStatus.aprovado:
+      return AppStatus.aprovado;
+    case OrcamentoStatus.emAndamento:
+      return AppStatus.emAndamento;
+    case OrcamentoStatus.concluido:
+      return AppStatus.concluido;
+    case OrcamentoStatus.cancelado:
+      return AppStatus.cancelado;
+  }
+}
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -54,7 +74,7 @@ class DashboardScreen extends StatelessWidget {
               final statCards = <Widget>[
                 _buildStatCard(
                   context,
-                  title: 'Faturamento Mensal',
+                  title: 'Faturamento do mês',
                   value: Formatters.currency(faturamento),
                   icon: Icons.monetization_on,
                   trend: faturamentoVar['label'],
@@ -75,21 +95,23 @@ class DashboardScreen extends StatelessWidget {
                 ),
                 _buildStatCard(
                   context,
-                  title: 'Ordens Ativas',
+                  title: 'Ordens ativas',
                   value: ordensAtivas.toString(),
                   icon: Icons.build_circle,
                 ),
                 _buildStatCard(
                   context,
-                  title: 'Concluídos Hoje',
+                  title: 'Concluídos hoje',
                   value: concluidosHoje.toString(),
                   icon: Icons.check_circle,
+                  valueColor: AppColors.success,
                 ),
                 _buildStatCard(
                   context,
                   title: 'Pendentes',
                   value: pendentes.toString(),
                   icon: Icons.pending_actions,
+                  valueColor: AppColors.pending,
                 ),
               ];
 
@@ -200,7 +222,7 @@ class DashboardScreen extends StatelessWidget {
     final saldoHoje = entradasHoje - saidasHoje;
 
     final chart = _sectionContainer(
-      title: 'Evolução de Faturamento',
+      title: 'Entradas × Saídas (6 meses)',
       child: SizedBox(
         height: isMobile ? 180 : 260,
         child: _buildLineChart(
@@ -521,11 +543,11 @@ class DashboardScreen extends StatelessWidget {
             spots: spotsFrom(saidas),
             isCurved: true,
             barWidth: 2,
-            color: AppColors.danger.withValues(alpha: 0.85),
+            color: AppColors.textSecondary,
             dotData: const FlDotData(show: false),
             belowBarData: BarAreaData(
               show: true,
-              color: AppColors.danger.withValues(alpha: 0.08),
+              color: AppColors.textSecondary.withValues(alpha: 0.08),
             ),
           ),
         ],
@@ -731,6 +753,7 @@ class DashboardScreen extends StatelessWidget {
     required IconData icon,
     String? trend,
     bool trendUp = true,
+    Color? valueColor,
     VoidCallback? onTap,
   }) {
     bool hover = false;
@@ -808,7 +831,10 @@ class DashboardScreen extends StatelessWidget {
                         value,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: AppText.money.copyWith(fontSize: 20),
+                        style: AppText.money.copyWith(
+                          fontSize: 20,
+                          color: valueColor,
+                        ),
                       ),
                     ],
                   ),
@@ -854,9 +880,17 @@ class DashboardScreen extends StatelessWidget {
                           o.veiculoDescricao,
                           style: AppText.bodySecondary,
                         ),
-                        trailing: Text(
-                          Formatters.currency(o.valorTotal),
-                          style: const TextStyle(fontWeight: FontWeight.w800),
+                        trailing: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            StatusPill(_toAppStatus(o.status)),
+                            const SizedBox(height: 4),
+                            Text(
+                              Formatters.currency(o.valorTotal),
+                              style: const TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ],
                         ),
                       ),
                     ),
