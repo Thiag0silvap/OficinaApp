@@ -47,3 +47,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+/android/build/
+/android/app/build/
+
+# PDFs gerados pelo app (dados reais de clientes)
+/PDFs/
