@@ -1,0 +1,84 @@
+name: oficina_app
+description: "Sistema de gestão para oficinas automotivas - OficinaApp"
+publish_to: 'none'
+
+version: 1.0.4+11
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # UI & State
+  cupertino_icons: ^1.0.8
+  provider: ^6.1.2
+
+  # Storage & Auth
+  shared_preferences: ^2.1.0
+  flutter_secure_storage: ^9.2.2
+
+  # Banco de dados (mobile)
+  sqflite: ^2.2.7+3
+  path: ^1.8.3
+  path_provider: ^2.0.14
+
+  # Imagens e câmera
+  image_picker: ^0.8.7+4
+  flutter_image_compress: ^2.4.0
+
+  # Assinatura
+  signature: ^6.3.0
+
+  # PDF e impressão
+  pdf: ^3.10.1
+  printing: ^5.10.0
+
+  # Gráficos
+  fl_chart: ^0.68.0
+
+  # Utilitários
+  intl: ^0.18.0
+  crypto: ^3.0.2
+  uuid: ^3.0.7
+  url_launcher: ^6.3.0
+  file_picker: ^8.1.7
+
+  # Compartilhamento (novo — para backup e PDF via WhatsApp)
+  share_plus: ^12.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+  # msix removido — exclusivo de Windows
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/fonts/
+
+  fonts:
+    - family: Work Sans
+      fonts:
+        - asset: assets/fonts/WorkSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/WorkSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/WorkSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/WorkSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/WorkSans-ExtraBold.ttf
+          weight: 800
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: assets/images/logo.png
+
+# msix_config removido — exclusivo de Windows
