@@ -630,8 +630,57 @@ class AppProvider extends ChangeNotifier {
   }
 
   Future<void> deleteTransacao(String id) async {
+    await _ensureUserDbSelected();
+
+    // Se a transação é o pagamento de um orçamento, reverte o status de
+    // pagamento do orçamento ANTES de excluir a transação — nessa ordem,
+    // para que uma falha na reversão não deixe a transação apagada sem o
+    // orçamento correspondente atualizado.
+    final transacao =
+        _transacoes.where((t) => t.id == id).cast<Transacao?>().firstOrNull;
+    final orcamentoId = transacao?.orcamentoId;
+
+    if (orcamentoId != null) {
+      final index = _orcamentos.indexWhere((o) => o.id == orcamentoId);
+      if (index != -1 && _orcamentos[index].pago) {
+        try {
+          final atual = _orcamentos[index];
+          final revertido = Orcamento(
+            id: atual.id,
+            clienteId: atual.clienteId,
+            clienteNome: atual.clienteNome,
+            veiculoId: atual.veiculoId,
+            veiculoDescricao: atual.veiculoDescricao,
+            itens: atual.itens,
+            valorTotal: atual.valorTotal,
+            status: atual.status,
+            dataCriacao: atual.dataCriacao,
+            dataAprovacao: atual.dataAprovacao,
+            dataConclusao: atual.dataConclusao,
+            pago: false,
+            dataPagamento: null,
+            observacoes: atual.observacoes,
+            observacoesCliente: atual.observacoesCliente,
+            observacoesInternas: atual.observacoesInternas,
+            dataPrevistaEntrega: atual.dataPrevistaEntrega,
+            tipoAtendimento: atual.tipoAtendimento,
+          );
+          await _db.updateOrcamento(revertido);
+          _orcamentos[index] = revertido;
+          notifyListeners();
+          unawaited(
+            AppLogger.instance.info(
+              'Pagamento revertido no orcamento $orcamentoId ao excluir transacao $id',
+            ),
+          );
+        } catch (e) {
+          _recordError('Erro ao reverter pagamento do orcamento: $e');
+          rethrow;
+        }
+      }
+    }
+
     try {
-      await _ensureUserDbSelected();
       await _db.deleteTransacao(id);
       _transacoes.removeWhere((t) => t.id == id);
       notifyListeners();

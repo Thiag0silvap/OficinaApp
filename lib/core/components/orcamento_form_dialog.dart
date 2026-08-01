@@ -52,6 +52,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
   int _currentStep = 0;
   bool _showStepValidation = false;
   bool _showItensStepAlert = false;
+  bool _isSaving = false;
 
   final _observacoesController = TextEditingController();
   final _descontoController = TextEditingController();
@@ -434,17 +435,28 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
           ),
           actions: [
             TextButton(
-              onPressed: _currentStep == 3 ? _salvarOrcamento : _avancarPasso,
-              child: Text(
-                _currentStep == 3
-                    ? (isEdit ? 'Salvar' : 'Gerar')
-                    : 'Próximo',
-                style: const TextStyle(
-                  color: AppColors.primaryYellow,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
+              onPressed: _isSaving
+                  ? null
+                  : (_currentStep == 3 ? _salvarOrcamento : _avancarPasso),
+              child: (_isSaving && _currentStep == 3)
+                  ? const SizedBox(
+                      height: 16,
+                      width: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primaryYellow,
+                      ),
+                    )
+                  : Text(
+                      _currentStep == 3
+                          ? (isEdit ? 'Salvar' : 'Gerar')
+                          : 'Próximo',
+                      style: const TextStyle(
+                        color: AppColors.primaryYellow,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
             ),
             const SizedBox(width: 8),
           ],
@@ -494,7 +506,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                     if (_currentStep > 0) ...[
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: _voltarPasso,
+                          onPressed: _isSaving ? null : _voltarPasso,
                           child: const Text('← Voltar'),
                         ),
                       ),
@@ -502,8 +514,11 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                     ],
                     Expanded(
                       child: ElevatedButton(
-                        onPressed:
-                            _currentStep == 3 ? _salvarOrcamento : _avancarPasso,
+                        onPressed: _isSaving
+                            ? null
+                            : (_currentStep == 3
+                                ? _salvarOrcamento
+                                : _avancarPasso),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primaryYellow,
                           foregroundColor: Colors.black,
@@ -512,15 +527,24 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: Text(
-                          _currentStep == 3
-                              ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
-                              : 'Próximo →',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
+                        child: (_isSaving && _currentStep == 3)
+                            ? const SizedBox(
+                                height: 18,
+                                width: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.black,
+                                ),
+                              )
+                            : Text(
+                                _currentStep == 3
+                                    ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
+                                    : 'Próximo →',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 15,
+                                ),
+                              ),
                       ),
                     ),
                   ],
@@ -563,21 +587,29 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
       ),
       actions: [
         OutlinedButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
           child: const Text('Cancelar'),
         ),
         if (_currentStep > 0)
           OutlinedButton(
-            onPressed: _voltarPasso,
+            onPressed: _isSaving ? null : _voltarPasso,
             child: const Text('Voltar'),
           ),
         ElevatedButton(
-          onPressed: _currentStep == 3 ? _salvarOrcamento : _avancarPasso,
-          child: Text(
-            _currentStep == 3
-                ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
-                : 'Próximo',
-          ),
+          onPressed: _isSaving
+              ? null
+              : (_currentStep == 3 ? _salvarOrcamento : _avancarPasso),
+          child: (_isSaving && _currentStep == 3)
+              ? const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(
+                  _currentStep == 3
+                      ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
+                      : 'Próximo',
+                ),
         ),
       ],
     );
@@ -1612,7 +1644,8 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
     });
   }
 
-  void _salvarOrcamento() {
+  Future<void> _salvarOrcamento() async {
+    if (_isSaving) return;
     if (!_formKey.currentState!.validate()) return;
 
     if (_selectedCliente == null || _selectedVeiculo == null) {
@@ -1688,19 +1721,30 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
       observacoesInternas: widget.orcamentoEditar?.observacoesInternas,
     );
 
-    if (widget.orcamentoEditar != null) {
-      appProvider.updateOrcamento(novoOrcamento);
-    } else {
-      appProvider.addOrcamento(novoOrcamento);
+    setState(() => _isSaving = true);
+
+    try {
+      if (widget.orcamentoEditar != null) {
+        await appProvider.updateOrcamento(novoOrcamento);
+      } else {
+        await appProvider.addOrcamento(novoOrcamento);
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Orçamento salvo com sucesso!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao salvar orçamento: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Orçamento salvo com sucesso!'),
-        backgroundColor: AppColors.success,
-      ),
-    );
-
-    Navigator.pop(context);
   }
 }

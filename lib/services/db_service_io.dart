@@ -753,6 +753,29 @@ WHERE orcamentoId IS NOT NULL
     );
   }
 
+  /// Tenta localizar um manifesto (.json) ao lado de um arquivo de backup
+  /// `.db` escolhido manualmente pelo usuário (fora do fluxo guiado de
+  /// backups, que já tem seu manifesto conhecido). Procura pelo mesmo nome
+  /// base do arquivo `.db`. Retorna null se não existir, não puder ser lido
+  /// ou não puder ser decodificado — nesse caso o backup é tratado como
+  /// "sem metadados conhecidos", e cabe a quem chamar decidir como avisar o
+  /// usuário, sem bloquear a restauração automaticamente.
+  Future<BackupManifest?> findManifestForBackupFile(String dbFilePath) async {
+    try {
+      final manifestPath = '${withoutExtension(dbFilePath)}.json';
+      final manifestFile = File(manifestPath);
+      if (!await manifestFile.exists()) return null;
+
+      final raw = await manifestFile.readAsString();
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return null;
+
+      return BackupManifest.fromMap(decoded);
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<String> restoreBackupFromFilePath(String filePath) async {
     final sourceFile = File(filePath);
     if (!await sourceFile.exists()) {
@@ -760,6 +783,20 @@ WHERE orcamentoId IS NOT NULL
     }
     if (await sourceFile.length() <= 0) {
       throw StateError('Arquivo de backup está vazio.');
+    }
+
+    // Se houver um manifesto correspondente com um usuário dono conhecido,
+    // recusa restaurar um backup de outro usuário — mesma checagem usada
+    // no fluxo guiado (_validateBackupManifest), aplicada aqui de forma
+    // best-effort já que um .db solto pode não ter manifesto ao lado.
+    final manifest = await findManifestForBackupFile(filePath);
+    final manifestUserId = manifest?.userId.trim() ?? '';
+    if (manifestUserId.isNotEmpty &&
+        _activeUserId != null &&
+        manifestUserId != _activeUserId) {
+      throw StateError(
+        'Este backup pertence ao usuário $manifestUserId e não ao usuário atual.',
+      );
     }
 
     final dir = await getApplicationDocumentsDirectory();

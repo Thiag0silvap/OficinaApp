@@ -373,23 +373,69 @@ class ResponsiveLayout extends StatelessWidget {
       return;
     }
 
+    // Tenta confirmar a quem pertence este .db (via manifesto ao lado, se
+    // existir). Se pertencer comprovadamente a outro usuário, recusa direto
+    // — sem nem mostrar a confirmação, já que o resultado é certo. Se não
+    // for possível confirmar o dono, deixa a decisão para o usuário, mas
+    // com um aviso explícito do risco.
+    final manifest = await DBService.instance.findManifestForBackupFile(
+      selectedPath,
+    );
+    if (!context.mounted) return;
+
+    final currentUserId = context.read<AuthProvider>().currentUser?.id;
+    final manifestUserId = manifest?.userId.trim() ?? '';
+    final ownerConfirmed = manifestUserId.isNotEmpty;
+
+    if (ownerConfirmed &&
+        currentUserId != null &&
+        manifestUserId != currentUserId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Este backup pertence ao usuário $manifestUserId e não ao usuário atual.',
+          ),
+        ),
+      );
+      return;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Restaurar backup?'),
+        title: Text(
+          ownerConfirmed
+              ? 'Restaurar backup?'
+              : 'Restaurar backup de origem desconhecida?',
+        ),
         content: Text(
-          'O banco atual sera substituido pelos dados do backup '
-          '$selectedName.',
+          ownerConfirmed
+              ? 'O banco atual sera substituido pelos dados do backup '
+                  '$selectedName.'
+              : 'Não foi possível confirmar a qual oficina este backup '
+                  'pertence. Restaurar um backup de outra conta vai '
+                  'substituir todos os dados desta oficina. Tem certeza '
+                  'que quer continuar?',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
             child: const Text('Cancelar'),
           ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Restaurar'),
-          ),
+          if (ownerConfirmed)
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Restaurar'),
+            )
+          else
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: AppColors.white,
+              ),
+              child: const Text('Restaurar mesmo assim'),
+            ),
         ],
       ),
     );

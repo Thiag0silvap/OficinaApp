@@ -8,6 +8,7 @@ import '../core/components/responsive_components.dart';
 import '../core/theme/app_theme.dart';
 import '../core/utils/app_feedback.dart';
 import '../core/utils/currency_input_formatter.dart';
+import '../models/orcamento.dart';
 import '../models/transacao.dart';
 import '../providers/app_provider.dart';
 
@@ -121,30 +122,67 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
   }
 
   Future<void> _confirmDelete(BuildContext context, Transacao t) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        return AlertDialog(
-          backgroundColor: AppColors.secondaryGray,
-          title: const Text('Excluir transação?'),
-          content: Text('“${t.descricao}” será removida permanentemente.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
+    // Se a transação está vinculada a um orçamento e é o pagamento dele
+    // (orçamento atualmente marcado como pago), a confirmação avisa que
+    // excluir vai reverter o status de pagamento — em vez da confirmação
+    // genérica de exclusão.
+    final provider = context.read<AppProvider>();
+    Orcamento? orcamentoVinculado;
+    if (t.orcamentoId != null) {
+      for (final o in provider.orcamentos) {
+        if (o.id == t.orcamentoId && o.pago) {
+          orcamentoVinculado = o;
+          break;
+        }
+      }
+    }
+
+    final WidgetBuilder confirmBuilder = orcamentoVinculado != null
+        ? (ctx) => AlertDialog(
+            backgroundColor: AppColors.secondaryGray,
+            title: const Text('Excluir pagamento de orçamento?'),
+            content: Text(
+              'Esta transação é o pagamento do orçamento de '
+              '${orcamentoVinculado!.clienteNome}. Excluí-la vai marcar '
+              'o orçamento como "Concluído, aguardando pagamento" '
+              'novamente. Deseja continuar?',
             ),
-            FilledButton.tonal(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.error,
-                foregroundColor: AppColors.white,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
               ),
-              child: const Text('Excluir'),
-            ),
-          ],
-        );
-      },
-    );
+              FilledButton.tonal(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  foregroundColor: AppColors.white,
+                ),
+                child: const Text('Excluir mesmo assim'),
+              ),
+            ],
+          )
+        : (ctx) => AlertDialog(
+            backgroundColor: AppColors.secondaryGray,
+            title: const Text('Excluir transação?'),
+            content: Text('“${t.descricao}” será removida permanentemente.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton.tonal(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                  foregroundColor: AppColors.white,
+                ),
+                child: const Text('Excluir'),
+              ),
+            ],
+          );
+
+    final ok = await showDialog<bool>(context: context, builder: confirmBuilder);
 
     if (ok == true && context.mounted) {
       try {
