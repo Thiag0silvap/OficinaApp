@@ -23,6 +23,7 @@ class AppProvider extends ChangeNotifier {
   static const _prefsKeyCustomMarcas = 'custom_vehicle_marcas';
   static const _prefsKeyCustomModelosPorMarca =
       'custom_vehicle_modelos_por_marca';
+  static const _prefsKeyMarcasModelosMigrado = 'marcas_modelos_migrado_v1';
 
   final List<String> _customMarcas = [];
   final Map<String, List<String>> _customModelosPorMarca = {};
@@ -161,7 +162,9 @@ class AppProvider extends ChangeNotifier {
   /// Busca o catálogo de marcas/modelos digitados manualmente a partir do
   /// banco da conta ativa. Na primeira vez que a tabela da conta estiver
   /// vazia, tenta migrar o catálogo antigo (compartilhado, gravado em
-  /// SharedPreferences) para dentro do banco dessa conta — só como fallback
+  /// SharedPreferences) para dentro do banco dessa conta — mas só se essa
+  /// migração ainda não tiver sido feita para NENHUMA conta neste
+  /// dispositivo (ver `_migrateLegacyVehicleCatalogFromPrefs`) — só como fallback
   /// de leitura nesse primeiro carregamento; nunca mais grava em prefs.
   Future<({List<String> marcas, Map<String, List<String>> modelosPorMarca})>
       _fetchVehicleCatalogFromDb() async {
@@ -196,9 +199,21 @@ class AppProvider extends ChangeNotifier {
     return (marcas: marcas, modelosPorMarca: modelosPorMarca);
   }
 
+  /// Migra o catálogo legado do SharedPreferences (compartilhado entre
+  /// TODAS as contas do aparelho) para o banco da conta atual — mas só uma
+  /// única vez por dispositivo, nunca uma vez por conta. Sem essa trava,
+  /// cada conta que carregasse pela primeira vez após o update herdaria o
+  /// mesmo snapshot do catálogo antigo, duplicando o mesmo dado "vazado"
+  /// em várias contas. A primeira conta a carregar após este update é a
+  /// única que herda o catálogo histórico; qualquer conta seguinte (nova ou
+  /// já existente) começa com o catálogo vazio.
   Future<void> _migrateLegacyVehicleCatalogFromPrefs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+
+      final jaMigradoNesteAparelho =
+          prefs.getBool(_prefsKeyMarcasModelosMigrado) ?? false;
+      if (jaMigradoNesteAparelho) return;
 
       final legacyMarcas =
           prefs.getStringList(_prefsKeyCustomMarcas) ?? const <String>[];
@@ -220,7 +235,10 @@ class AppProvider extends ChangeNotifier {
         }
       }
 
-      if (legacyMarcas.isEmpty && legacyModelosPorMarca.isEmpty) return;
+      if (legacyMarcas.isEmpty && legacyModelosPorMarca.isEmpty) {
+        await prefs.setBool(_prefsKeyMarcasModelosMigrado, true);
+        return;
+      }
 
       for (final marca in legacyMarcas) {
         await _db.insertMarcaModeloCustom(marca: marca);
@@ -230,6 +248,11 @@ class AppProvider extends ChangeNotifier {
           await _db.insertMarcaModeloCustom(marca: entry.key, modelo: modelo);
         }
       }
+
+      // Só marca como concluído depois que todas as inserções deram certo —
+      // se algo falhar no meio do caminho, a flag não é gravada e a próxima
+      // conta a carregar tenta migrar de novo (retry seguro/idempotente).
+      await prefs.setBool(_prefsKeyMarcasModelosMigrado, true);
     } catch (_) {
       debugPrint('Falha ao migrar catálogo legado de veículos (SharedPreferences)');
     }

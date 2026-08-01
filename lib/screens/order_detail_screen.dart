@@ -122,7 +122,11 @@ class OrderDetailScreen extends StatelessWidget {
                   const SizedBox(height: 18),
                   _InfoBanner(
                     icon: Icons.cancel,
-                    text: 'Orçamento cancelado. Nenhuma ação disponível.',
+                    text: (current.motivoCancelamento != null &&
+                            current.motivoCancelamento!.trim().isNotEmpty)
+                        ? 'Orçamento cancelado. Motivo: '
+                            '${current.motivoCancelamento!.trim()}'
+                        : 'Orçamento cancelado. Nenhuma ação disponível.',
                     color: AppColors.error,
                   ),
                 ],
