@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../core/components/app_buttons.dart';
+import '../core/constants/app_constants.dart';
 import '../core/theme/app_theme.dart';
 import '../core/utils/app_feedback.dart';
-import '../core/widgets/app_logo.dart';
 import '../providers/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -49,198 +50,157 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [AppColors.primaryDark, Color(0xFF111111)],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 440),
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: Opacity(
-                          opacity: 0.10,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: RadialGradient(
-                                colors: [
-                                  AppColors.primaryYellow,
-                                  Colors.transparent,
-                                ],
-                                radius: 1.2,
-                                center: Alignment.topLeft,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppSpacing.screen),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 340),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.xl,
+                    AppSpacing.xxl,
+                    AppSpacing.xl,
+                    AppSpacing.xl,
+                  ),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          AppConstants.appName,
+                          textAlign: TextAlign.center,
+                          style: AppText.display,
+                        ),
+                        const SizedBox(height: AppSpacing.xl),
+                        TextFormField(
+                          controller: nameController,
+                          textInputAction: TextInputAction.next,
+                          autofillHints: const [AutofillHints.username],
+                          onFieldSubmitted: (_) =>
+                              _passwordFocus.requestFocus(),
+                          decoration: const InputDecoration(
+                            labelText: 'Usuario',
+                            prefixIcon: Icon(Icons.person_outline),
+                          ),
+                          validator: (v) {
+                            final value = v?.trim() ?? '';
+                            if (value.isEmpty) return 'Usuario e obrigatorio';
+                            if (value.length < 3) {
+                              return 'Usuario deve ter ao menos 3 caracteres';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        TextFormField(
+                          controller: passwordController,
+                          focusNode: _passwordFocus,
+                          textInputAction: TextInputAction.done,
+                          autofillHints: const [AutofillHints.password],
+                          obscureText: _obscurePassword,
+                          onFieldSubmitted: (_) => _submit(),
+                          onEditingComplete: _submit,
+                          decoration: InputDecoration(
+                            labelText: 'Senha',
+                            prefixIcon: const Icon(Icons.lock_outline),
+                            suffixIcon: IconButton(
+                              tooltip: _obscurePassword
+                                  ? 'Mostrar senha'
+                                  : 'Ocultar senha',
+                              onPressed: () {
+                                setState(
+                                  () => _obscurePassword = !_obscurePassword,
+                                );
+                              },
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
                               ),
                             ),
                           ),
+                          validator: (v) {
+                            final value = v ?? '';
+                            if (value.isEmpty) return 'Senha e obrigatoria';
+                            if (value.length < 6) {
+                              return 'Senha deve ter ao menos 6 caracteres';
+                            }
+                            return null;
+                          },
                         ),
-                      ),
-                    ),
-                    Card(
-                      margin: EdgeInsets.zero,
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const SizedBox(
-                                height: 140,
-                                child: Center(child: SplashLogo()),
+                        const SizedBox(height: AppSpacing.sm),
+                        Row(
+                          children: [
+                            Checkbox(
+                              value: _rememberCredentials,
+                              onChanged: (v) => setState(
+                                () => _rememberCredentials = v ?? true,
                               ),
-                              const SizedBox(height: 10),
-                              Text(
-                                'Acesse sua conta',
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.titleLarge,
+                            ),
+                            Expanded(
+                              child: Text(
+                                'Lembrar usuario neste computador',
+                                style: AppText.bodySecondary,
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Use seu usuario e senha para entrar no sistema.',
-                                textAlign: TextAlign.center,
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(
-                                      color: AppColors.white.withValues(alpha: 0.75),
-                                    ),
-                              ),
-                              const SizedBox(height: 18),
-                              TextFormField(
-                                controller: nameController,
-                                textInputAction: TextInputAction.next,
-                                autofillHints: const [AutofillHints.username],
-                                onFieldSubmitted: (_) =>
-                                    _passwordFocus.requestFocus(),
-                                decoration: const InputDecoration(
-                                  labelText: 'Usuario',
-                                  prefixIcon: Icon(Icons.person_outline),
-                                ),
-                                validator: (v) {
-                                  final value = v?.trim() ?? '';
-                                  if (value.isEmpty) return 'Usuario e obrigatorio';
-                                  if (value.length < 3) {
-                                    return 'Usuario deve ter ao menos 3 caracteres';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: passwordController,
-                                focusNode: _passwordFocus,
-                                textInputAction: TextInputAction.done,
-                                autofillHints: const [AutofillHints.password],
-                                obscureText: _obscurePassword,
-                                onFieldSubmitted: (_) => _submit(),
-                                onEditingComplete: _submit,
-                                decoration: InputDecoration(
-                                  labelText: 'Senha',
-                                  prefixIcon: const Icon(Icons.lock_outline),
-                                  suffixIcon: IconButton(
-                                    tooltip: _obscurePassword
-                                        ? 'Mostrar senha'
-                                        : 'Ocultar senha',
-                                    onPressed: () {
-                                      setState(
-                                        () =>
-                                            _obscurePassword = !_obscurePassword,
-                                      );
-                                    },
-                                    icon: Icon(
-                                      _obscurePassword
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
-                                    ),
-                                  ),
-                                ),
-                                validator: (v) {
-                                  final value = v ?? '';
-                                  if (value.isEmpty) return 'Senha e obrigatoria';
-                                  if (value.length < 6) {
-                                    return 'Senha deve ter ao menos 6 caracteres';
-                                  }
-                                  return null;
-                                },
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Checkbox(
-                                    value: _rememberCredentials,
-                                    onChanged: (v) => setState(
-                                      () => _rememberCredentials = v ?? true,
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      'Lembrar usuario neste computador',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            color: AppColors.white.withValues(
-                                              alpha: 0.9,
-                                            ),
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              SizedBox(
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        _loading
+                            ? const SizedBox(
                                 height: 48,
-                                child: ElevatedButton(
-                                  onPressed: _loading ? null : _submit,
-                                  child: _loading
-                                      ? const SizedBox(
-                                          width: 22,
-                                          height: 22,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : const Text('Entrar'),
+                                child: Center(
+                                  child: SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
                                 ),
+                              )
+                            : PrimaryButton(
+                                label: 'Entrar',
+                                onPressed: _submit,
+                                expanded: true,
                               ),
-                              const SizedBox(height: 12),
-                              Wrap(
-                                alignment: WrapAlignment.center,
-                                crossAxisAlignment: WrapCrossAlignment.center,
-                                spacing: 6,
-                                children: [
-                                  Text(
-                                    'Ainda nao tem conta?',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: AppColors.white.withValues(
-                                            alpha: 0.8,
-                                          ),
-                                        ),
-                                  ),
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.pushNamed(context, '/register'),
-                                    child: const Text('Criar conta'),
-                                  ),
-                                ],
-                              ),
-                            ],
+                        const SizedBox(height: AppSpacing.md),
+                        Center(
+                          child: TextButton(
+                            onPressed: () => AppFeedback.showInfo(
+                              context,
+                              'Recuperacao de senha ainda nao esta disponivel.',
+                            ),
+                            child: Text(
+                              'Esqueci minha senha',
+                              style: AppText.bodySecondary,
+                            ),
                           ),
                         ),
-                      ),
+                        Wrap(
+                          alignment: WrapAlignment.center,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: AppSpacing.sm,
+                          children: [
+                            Text(
+                              'Ainda nao tem conta?',
+                              style: AppText.bodySecondary,
+                            ),
+                            TextButton(
+                              onPressed: () =>
+                                  Navigator.pushNamed(context, '/register'),
+                              child: const Text('Criar conta'),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),

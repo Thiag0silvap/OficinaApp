@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:oficina_app/core/constants/app_constants.dart';
 import 'package:oficina_app/providers/auth_provider.dart';
 import 'package:oficina_app/screens/login_screen.dart';
 import 'package:oficina_app/screens/register_screen.dart';
@@ -24,7 +25,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(find.text('Acesse sua conta'), findsOneWidget);
+    expect(find.text(AppConstants.appName), findsOneWidget);
     expect(find.text('Entrar'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
