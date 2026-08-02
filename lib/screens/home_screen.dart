@@ -17,6 +17,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  // Índice da aba Orçamentos em _screens/_titles.
+  static const _orcamentosTabIndex = 2;
+
   int _currentIndex = 0;
 
   final List<Widget> _screens = const [
@@ -37,7 +40,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final app = context.watch<AppProvider>();
     final error = app.lastErrorMessage;
-    if (error != null && error.trim().isNotEmpty) {
+    // A aba Orçamentos trata lastErrorMessage com seu próprio banner inline
+    // + "Tentar novamente" — mostrar o snackbar global aqui duplicaria o
+    // aviso e o limparia antes do banner poder ser exibido.
+    if (_currentIndex != _orcamentosTabIndex &&
+        error != null &&
+        error.trim().isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!context.mounted) return;
         AppFeedback.showError(context, error);

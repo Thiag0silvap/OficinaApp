@@ -869,6 +869,7 @@ class AppProvider extends ChangeNotifier {
     final isAdminAtStart = _activeUserIsAdmin;
 
     _isLoading = true;
+    _lastErrorMessage = null;
     notifyListeners();
 
     try {
@@ -908,7 +909,7 @@ class AppProvider extends ChangeNotifier {
         ..clear()
         ..addAll(catalogo.modelosPorMarca);
     } catch (e) {
-      debugPrint('Erro ao recarregar dados do AppProvider: $e');
+      _recordError('Erro ao recarregar dados do AppProvider: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
