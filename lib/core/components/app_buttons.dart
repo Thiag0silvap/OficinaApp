@@ -106,14 +106,20 @@ class GhostButton extends StatelessWidget {
 
 /// Botão só-ícone contido (ex.: menu ⋮). Mesma linguagem do ghost.
 class GhostIconButton extends StatelessWidget {
-  const GhostIconButton({super.key, required this.icon, this.onPressed});
+  const GhostIconButton({
+    super.key,
+    required this.icon,
+    this.onPressed,
+    this.tooltip,
+  });
 
   final IconData icon;
   final VoidCallback? onPressed;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    final button = Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(AppRadius.button),
       child: InkWell(
@@ -129,5 +135,8 @@ class GhostIconButton extends StatelessWidget {
         ),
       ),
     );
+
+    if (tooltip == null) return button;
+    return Tooltip(message: tooltip!, child: button);
   }
 }

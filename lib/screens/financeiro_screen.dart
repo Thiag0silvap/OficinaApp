@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../core/components/app_buttons.dart';
 import '../core/components/form_styles.dart';
 import '../core/components/responsive_components.dart';
 import '../core/theme/app_theme.dart';
@@ -139,7 +140,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
 
     final WidgetBuilder confirmBuilder = orcamentoVinculado != null
         ? (ctx) => AlertDialog(
-            backgroundColor: AppColors.secondaryGray,
+            backgroundColor: AppColors.elevated,
             title: const Text('Excluir pagamento de orçamento?'),
             content: Text(
               'Esta transação é o pagamento do orçamento de '
@@ -148,34 +149,34 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
               'novamente. Deseja continuar?',
             ),
             actions: [
-              TextButton(
+              GhostButton(
+                label: 'Cancelar',
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancelar'),
               ),
               FilledButton.tonal(
                 onPressed: () => Navigator.pop(ctx, true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.error,
-                  foregroundColor: AppColors.white,
+                  backgroundColor: AppColors.danger,
+                  foregroundColor: AppColors.textPrimary,
                 ),
                 child: const Text('Excluir mesmo assim'),
               ),
             ],
           )
         : (ctx) => AlertDialog(
-            backgroundColor: AppColors.secondaryGray,
+            backgroundColor: AppColors.elevated,
             title: const Text('Excluir transação?'),
             content: Text('“${t.descricao}” será removida permanentemente.'),
             actions: [
-              TextButton(
+              GhostButton(
+                label: 'Cancelar',
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancelar'),
               ),
               FilledButton.tonal(
                 onPressed: () => Navigator.pop(ctx, true),
                 style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.error,
-                  foregroundColor: AppColors.white,
+                  backgroundColor: AppColors.danger,
+                  foregroundColor: AppColors.textPrimary,
                 ),
                 child: const Text('Excluir'),
               ),
@@ -188,10 +189,10 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
       try {
         await context.read<AppProvider>().deleteTransacao(t.id);
         if (!context.mounted) return;
-        AppFeedback.showSuccess(context, 'Transacao excluida com sucesso.');
+        AppFeedback.showSuccess(context, 'Transação excluída com sucesso.');
       } catch (e) {
         if (!context.mounted) return;
-        AppFeedback.showError(context, 'Erro ao excluir transacao: $e');
+        AppFeedback.showError(context, 'Erro ao excluir transação: $e');
       }
     }
   }
@@ -220,31 +221,16 @@ class _Header extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Row(
           children: [
-            const Expanded(
+            Expanded(
               child: Text(
                 'Financeiro',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.primaryYellow,
-                ),
+                style: AppText.display.copyWith(fontSize: 22),
               ),
             ),
-            FilledButton.icon(
+            PrimaryButton(
+              label: 'Nova',
+              icon: Icons.add,
               onPressed: onAdd,
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text('Nova'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.primaryYellow,
-                foregroundColor: AppColors.primaryDark,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
             ),
           ],
         ),
@@ -259,20 +245,11 @@ class _Header extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Financeiro',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.primaryYellow,
-                  ),
-                ),
+                Text('Financeiro', style: AppText.display),
                 const SizedBox(height: 4),
                 Text(
                   'Controle de entradas e saídas com histórico e filtros.',
-                  style: TextStyle(
-                    color: AppColors.white.withValues(alpha: 0.72),
-                  ),
+                  style: AppText.bodySecondary,
                 ),
               ],
             ),
@@ -280,21 +257,10 @@ class _Header extends StatelessWidget {
           const SizedBox(width: 12),
           _CountPill(label: countLabel),
           const SizedBox(width: 10),
-          FilledButton.icon(
+          PrimaryButton(
+            label: 'Nova Transação',
+            icon: Icons.add,
             onPressed: onAdd,
-            icon: const Icon(Icons.add),
-            label: const Text('Nova Transação'),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primaryYellow,
-              foregroundColor: AppColors.primaryDark,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: 14,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
           ),
         ],
       ),
@@ -312,12 +278,12 @@ class _CountPill extends StatelessWidget {
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
-        color: AppColors.secondaryGray,
+        color: AppColors.elevated,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.lightGray.withValues(alpha: 0.7)),
+        border: Border.all(color: AppColors.textTertiary.withValues(alpha: 0.7)),
       ),
       alignment: Alignment.center,
-      child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+      child: Text(label, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -350,10 +316,10 @@ class _FiltersRow extends StatelessWidget {
         height: h,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: AppColors.secondaryGray,
+          color: AppColors.elevated,
           borderRadius: r,
           border: Border.all(
-            color: AppColors.lightGray.withValues(alpha: 0.7),
+            color: AppColors.textTertiary.withValues(alpha: 0.7),
           ),
         ),
         alignment: Alignment.center,
@@ -370,10 +336,10 @@ class _FiltersRow extends StatelessWidget {
           hintText: isMobile ? 'Buscar...' : 'Buscar por descrição, categoria ou valor…',
           prefixIcon: Icon(
             Icons.search,
-            color: AppColors.white.withValues(alpha: 0.65),
+            color: AppColors.textPrimary.withValues(alpha: 0.65),
           ),
           filled: true,
-          fillColor: AppColors.secondaryGray,
+          fillColor: AppColors.elevated,
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(
             horizontal: 14,
@@ -382,19 +348,19 @@ class _FiltersRow extends StatelessWidget {
           border: OutlineInputBorder(
             borderRadius: r,
             borderSide: BorderSide(
-              color: AppColors.lightGray.withValues(alpha: 0.7),
+              color: AppColors.textTertiary.withValues(alpha: 0.7),
             ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: r,
             borderSide: BorderSide(
-              color: AppColors.lightGray.withValues(alpha: 0.7),
+              color: AppColors.textTertiary.withValues(alpha: 0.7),
             ),
           ),
           focusedBorder: const OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(14)),
             borderSide: BorderSide(
-              color: AppColors.primaryYellow,
+              color: AppColors.primary,
               width: 2,
             ),
           ),
@@ -406,7 +372,7 @@ class _FiltersRow extends StatelessWidget {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<_TipoFiltro>(
           value: tipoFiltro,
-          dropdownColor: AppColors.secondaryGray,
+          dropdownColor: AppColors.elevated,
           borderRadius: BorderRadius.circular(14),
           onChanged: (v) {
             if (v != null) onTipoChanged(v);
@@ -433,7 +399,7 @@ class _FiltersRow extends StatelessWidget {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<_Ordenacao>(
           value: ordenacao,
-          dropdownColor: AppColors.secondaryGray,
+          dropdownColor: AppColors.elevated,
           borderRadius: BorderRadius.circular(14),
           onChanged: (v) {
             if (v != null) onOrdenacaoChanged(v);
@@ -507,36 +473,55 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = ResponsiveUtils.isMobile(context);
+    final padding = isMobile
+        ? const EdgeInsets.symmetric(horizontal: 16)
+        : const EdgeInsets.symmetric(horizontal: 22);
+
+    final entradasCard = _SummaryCard(
+      title: 'Entradas',
+      value: entradas,
+      icon: Icons.arrow_downward_rounded,
+      chipColor: AppColors.success,
+    );
+    final saidasCard = _SummaryCard(
+      title: 'Saídas',
+      value: saidas,
+      icon: Icons.arrow_upward_rounded,
+      chipColor: AppColors.danger,
+    );
+
+    // Mobile segue o handoff: sem o card Saldo, só Entradas/Saídas lado a
+    // lado (grid 2 colunas). Desktop/tablet mantêm os 3 cards em linha.
+    if (isMobile) {
+      return Padding(
+        padding: padding,
+        child: Row(
+          children: [
+            Expanded(child: entradasCard),
+            const SizedBox(width: 12),
+            Expanded(child: saidasCard),
+          ],
+        ),
+      );
+    }
+
+    final saldoCard = _SummaryCard(
+      title: 'Saldo',
+      value: saldo,
+      icon: Icons.account_balance_wallet_outlined,
+      chipColor: saldo >= 0 ? AppColors.success : AppColors.danger,
+    );
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22),
+      padding: padding,
       child: Row(
         children: [
-          Expanded(
-            child: _SummaryCard(
-              title: 'Entradas',
-              value: entradas,
-              icon: Icons.arrow_downward_rounded,
-              chipColor: AppColors.success,
-            ),
-          ),
+          Expanded(child: entradasCard),
           const SizedBox(width: 12),
-          Expanded(
-            child: _SummaryCard(
-              title: 'Saídas',
-              value: saidas,
-              icon: Icons.arrow_upward_rounded,
-              chipColor: AppColors.error,
-            ),
-          ),
+          Expanded(child: saidasCard),
           const SizedBox(width: 12),
-          Expanded(
-            child: _SummaryCard(
-              title: 'Saldo',
-              value: saldo,
-              icon: Icons.account_balance_wallet_outlined,
-              chipColor: saldo >= 0 ? AppColors.success : AppColors.error,
-            ),
-          ),
+          Expanded(child: saldoCard),
         ],
       ),
     );
@@ -565,10 +550,10 @@ class _SummaryCard extends StatelessWidget {
     return Container(
       padding: EdgeInsets.all(isMobile ? 12 : 16),
       decoration: BoxDecoration(
-        color: AppColors.secondaryGray,
+        color: AppColors.elevated,
         borderRadius: br,
         border: Border.all(
-          color: AppColors.lightGray.withValues(alpha: 0.7),
+          color: AppColors.textTertiary.withValues(alpha: 0.7),
         ),
       ),
       child: isMobile
@@ -590,21 +575,14 @@ class _SummaryCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.white.withValues(alpha: 0.75),
-                  ),
+                  style: AppText.bodySecondary.copyWith(fontSize: 11),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   money.format(value),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    color: chipColor,
-                  ),
+                  style: AppText.money.copyWith(fontSize: 13, color: chipColor),
                 ),
               ],
             )
@@ -627,21 +605,13 @@ class _SummaryCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: TextStyle(
-                          color: AppColors.white.withValues(alpha: 0.75),
-                        ),
-                      ),
+                      Text(title, style: AppText.bodySecondary),
                       const SizedBox(height: 6),
                       Text(
                         money.format(value),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                        ),
+                        style: AppText.money.copyWith(fontSize: 20),
                       ),
                     ],
                   ),
@@ -665,14 +635,15 @@ class _TransacoesList extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: AppColors.secondaryGray,
+            color: AppColors.elevated,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: AppColors.lightGray.withValues(alpha: 0.7),
+              color: AppColors.textTertiary.withValues(alpha: 0.7),
             ),
           ),
-          child: const Text(
+          child: Text(
             'Nenhuma transação encontrada com os filtros atuais.',
+            style: AppText.body,
           ),
         ),
       );
@@ -699,16 +670,16 @@ class _TransacaoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isEntrada = transacao.tipo == TipoTransacao.entrada;
-    final badgeColor = isEntrada ? AppColors.success : AppColors.error;
+    final badgeColor = isEntrada ? AppColors.success : AppColors.danger;
     final money = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
     final dateFmt = DateFormat('dd/MM/yyyy');
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: AppColors.secondaryGray,
+        color: AppColors.elevated,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.lightGray.withValues(alpha: 0.7)),
+        border: Border.all(color: AppColors.textTertiary.withValues(alpha: 0.7)),
       ),
       child: Row(
         children: [
@@ -721,7 +692,10 @@ class _TransacaoTile extends StatelessWidget {
             ),
             child: Text(
               isEntrada ? 'Entrada' : 'Saída',
-              style: TextStyle(color: badgeColor, fontWeight: FontWeight.w800),
+              style: AppText.caption.copyWith(
+                color: badgeColor,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -733,14 +707,12 @@ class _TransacaoTile extends StatelessWidget {
                   transacao.descricao,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  style: AppText.body.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   '${transacao.categoria} • ${dateFmt.format(transacao.data)}',
-                  style: TextStyle(
-                    color: AppColors.white.withValues(alpha: 0.7),
-                  ),
+                  style: AppText.bodySecondary,
                 ),
               ],
             ),
@@ -748,16 +720,13 @@ class _TransacaoTile extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             money.format(transacao.valor),
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              color: isEntrada ? AppColors.success : AppColors.error,
-            ),
+            style: AppText.money.copyWith(color: badgeColor),
           ),
           const SizedBox(width: 10),
-          IconButton(
-            tooltip: 'Excluir',
+          GhostIconButton(
+            icon: Icons.delete_outline,
             onPressed: onDelete,
-            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Excluir',
           ),
         ],
       ),
@@ -794,14 +763,12 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      backgroundColor: AppColors.secondaryGray,
-      title: const Text('Nova Transação'),
-      content: Form(
-        key: _formKey,
-        autovalidateMode: AutovalidateMode.onUserInteraction,
-        child: SizedBox(
-          width: 560,
+    final dialog = ResponsiveDialog(
+      title: 'Nova Transação',
+      content: SingleChildScrollView(
+        child: Form(
+          key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -810,7 +777,7 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
                   Expanded(
                     child: DropdownButtonFormField<TipoTransacao>(
                       initialValue: _tipo,
-                      dropdownColor: AppColors.secondaryGray,
+                      dropdownColor: AppColors.elevated,
                       decoration: formFieldDecoration(label: 'Tipo'),
                       items: const [
                         DropdownMenuItem(
@@ -847,11 +814,11 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
                             return Theme(
                               data: Theme.of(ctx).copyWith(
                                 colorScheme: Theme.of(ctx).colorScheme.copyWith(
-                                  primary: AppColors.primaryYellow,
-                                  surface: AppColors.secondaryGray,
+                                  primary: AppColors.primary,
+                                  surface: AppColors.elevated,
                                 ),
                                 dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
-                                  backgroundColor: AppColors.secondaryGray,
+                                  backgroundColor: AppColors.elevated,
                                 ),
                               ),
                               child: child!,
@@ -927,20 +894,18 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
         ),
       ),
       actions: [
-        TextButton(
+        GhostButton(
+          label: 'Cancelar',
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
         ),
-        FilledButton(
+        PrimaryButton(
+          label: 'Salvar',
           onPressed: _salvar,
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.primaryYellow,
-            foregroundColor: AppColors.primaryDark,
-          ),
-          child: const Text('Salvar'),
         ),
       ],
     );
+
+    return Focus(autofocus: false, child: dialog);
   }
 
   Future<void> _salvar() async {
@@ -965,11 +930,11 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
     try {
       await context.read<AppProvider>().addTransacao(t);
       if (!mounted) return;
-      AppFeedback.showSuccess(context, 'Transacao salva com sucesso.');
+      AppFeedback.showSuccess(context, 'Transação salva com sucesso.');
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      AppFeedback.showError(context, 'Erro ao salvar transacao: $e');
+      AppFeedback.showError(context, 'Erro ao salvar transação: $e');
     }
   }
 }
