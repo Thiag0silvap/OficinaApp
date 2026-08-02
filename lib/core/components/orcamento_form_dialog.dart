@@ -11,6 +11,7 @@ import '../../providers/app_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../constants/app_constants.dart';
+import 'app_buttons.dart';
 import 'form_styles.dart';
 import 'responsive_components.dart';
 import 'veiculo_form_fields.dart';
@@ -177,7 +178,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
             return Dialog(
               backgroundColor: AppColors.surface,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadius.modal),
               ),
               child: Container(
                 width: 460,
@@ -189,18 +190,14 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Selecionar peça',
-                      style: TextStyle(
-                        color: AppColors.primaryYellow,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: AppText.title.copyWith(color: AppColors.primary),
                     ),
                     const SizedBox(height: 14),
                     TextField(
                       controller: searchController,
-                      style: const TextStyle(color: AppColors.white),
+                      style: AppText.body.copyWith(color: AppColors.textPrimary),
                       decoration: formFieldDecoration(
                         label: 'Pesquisar peça',
                         prefixIcon: Icons.search,
@@ -227,45 +224,43 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                             Container(
                               margin: const EdgeInsets.only(bottom: 10),
                               decoration: BoxDecoration(
-                                color: AppColors.primaryYellow.withValues(alpha: 0.08),
+                                color: AppColors.primary.withValues(alpha: 0.08),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: AppColors.primaryYellow.withValues(alpha: 0.30),
+                                  color: AppColors.primary.withValues(alpha: 0.30),
                                 ),
                               ),
                               child: ListTile(
                                 leading: const Icon(
                                   Icons.edit,
-                                  color: AppColors.primaryYellow,
+                                  color: AppColors.primary,
                                 ),
                                 title: Text(
                                   'Usar "$textoDigitado"',
-                                  style: const TextStyle(
-                                    color: AppColors.primaryYellow,
+                                  style: AppText.body.copyWith(
+                                    color: AppColors.primary,
                                     fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                subtitle: const Text(
+                                subtitle: Text(
                                   'Adicionar peça digitada manualmente',
-                                  style: TextStyle(color: AppColors.textSecondary),
+                                  style: AppText.caption,
                                 ),
                                 onTap: () => Navigator.of(ctx).pop(textoDigitado),
                               ),
                             ),
                           Expanded(
                             child: pecasFiltradas.isEmpty
-                                ? const Center(
+                                ? Center(
                                     child: Text(
                                       'Nenhuma peça encontrada',
-                                      style: TextStyle(
-                                        color: AppColors.textSecondary,
-                                      ),
+                                      style: AppText.bodySecondary,
                                     ),
                                   )
                                 : ListView.separated(
                                     itemCount: pecasFiltradas.length,
-                                    separatorBuilder: (_, __) => Divider(
-                                      color: AppColors.lightGray.withValues(alpha: 0.18),
+                                    separatorBuilder: (_, __) => const Divider(
+                                      color: AppColors.line,
                                       height: 1,
                                     ),
                                     itemBuilder: (_, index) {
@@ -275,17 +270,19 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                                       return ListTile(
                                         dense: true,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(10),
+                                          borderRadius: BorderRadius.circular(
+                                            AppRadius.field,
+                                          ),
                                         ),
                                         tileColor: isSelected
-                                            ? AppColors.primaryYellow.withValues(alpha: 0.10)
+                                            ? AppColors.primary.withValues(alpha: 0.10)
                                             : Colors.transparent,
                                         title: Text(
                                           peca,
-                                          style: TextStyle(
+                                          style: AppText.body.copyWith(
                                             color: isSelected
-                                                ? AppColors.primaryYellow
-                                                : AppColors.white,
+                                                ? AppColors.primary
+                                                : AppColors.textPrimary,
                                             fontWeight: isSelected
                                                 ? FontWeight.w700
                                                 : FontWeight.w500,
@@ -303,15 +300,15 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        TextButton(
+                        GhostButton(
+                          label: 'Cancelar',
                           onPressed: () => Navigator.of(ctx).pop(),
-                          child: const Text('Cancelar'),
                         ),
                         const SizedBox(width: 8),
                         if (_pecaSelecionada != null && _pecaSelecionada!.isNotEmpty)
-                          OutlinedButton(
+                          GhostButton(
+                            label: 'Limpar peça',
                             onPressed: () => Navigator.of(ctx).pop(''),
-                            child: const Text('Limpar peça'),
                           ),
                       ],
                     ),
@@ -429,10 +426,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
           ),
           title: Text(
             isEdit ? 'Editar Orçamento' : 'Novo Orçamento',
-            style: const TextStyle(
-              color: AppColors.primaryYellow,
-              fontWeight: FontWeight.bold,
-            ),
+            style: AppText.title.copyWith(color: AppColors.primary),
           ),
           actions: [
             TextButton(
@@ -445,18 +439,14 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                       width: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppColors.primaryYellow,
+                        color: AppColors.primary,
                       ),
                     )
                   : Text(
                       _currentStep == 3
                           ? (isEdit ? 'Salvar' : 'Gerar')
                           : 'Próximo',
-                      style: const TextStyle(
-                        color: AppColors.primaryYellow,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                      style: AppText.button.copyWith(color: AppColors.primary),
                     ),
             ),
             const SizedBox(width: 8),
@@ -471,7 +461,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
             children: [
               // Barra de progresso dos steps
               Container(
-                color: AppColors.secondaryGray,
+                color: AppColors.elevated,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: _buildStepperHeader(context),
               ),
@@ -499,54 +489,46 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                 decoration: const BoxDecoration(
                   color: AppColors.surface,
                   border: Border(
-                    top: BorderSide(color: AppColors.border),
+                    top: BorderSide(color: AppColors.line),
                   ),
                 ),
                 child: Row(
                   children: [
                     if (_currentStep > 0) ...[
                       Expanded(
-                        child: OutlinedButton(
+                        child: GhostButton(
+                          label: '← Voltar',
                           onPressed: _isSaving ? null : _voltarPasso,
-                          child: const Text('← Voltar'),
                         ),
                       ),
                       const SizedBox(width: 12),
                     ],
                     Expanded(
-                      child: ElevatedButton(
-                        onPressed: _isSaving
-                            ? null
-                            : (_currentStep == 3
-                                ? _salvarOrcamento
-                                : _avancarPasso),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryYellow,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: (_isSaving && _currentStep == 3)
-                            ? const SizedBox(
-                                height: 18,
-                                width: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.black,
-                                ),
-                              )
-                            : Text(
-                                _currentStep == 3
-                                    ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
-                                    : 'Próximo →',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
+                      child: (_isSaving && _currentStep == 3)
+                          ? const SizedBox(
+                              height: 48,
+                              child: Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.primary,
+                                  ),
                                 ),
                               ),
-                      ),
+                            )
+                          : PrimaryButton(
+                              label: _currentStep == 3
+                                  ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
+                                  : 'Próximo →',
+                              expanded: true,
+                              onPressed: _isSaving
+                                  ? null
+                                  : (_currentStep == 3
+                                      ? _salvarOrcamento
+                                      : _avancarPasso),
+                            ),
                     ),
                   ],
                 ),
@@ -587,31 +569,38 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
         ),
       ),
       actions: [
-        OutlinedButton(
+        GhostButton(
+          label: 'Cancelar',
           onPressed: _isSaving ? null : () => Navigator.pop(context),
-          child: const Text('Cancelar'),
         ),
         if (_currentStep > 0)
-          OutlinedButton(
+          GhostButton(
+            label: 'Voltar',
             onPressed: _isSaving ? null : _voltarPasso,
-            child: const Text('Voltar'),
           ),
-        ElevatedButton(
-          onPressed: _isSaving
-              ? null
-              : (_currentStep == 3 ? _salvarOrcamento : _avancarPasso),
-          child: (_isSaving && _currentStep == 3)
-              ? const SizedBox(
-                  height: 16,
-                  width: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(
-                  _currentStep == 3
-                      ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
-                      : 'Próximo',
+        (_isSaving && _currentStep == 3)
+            ? const SizedBox(
+                width: 44,
+                height: 44,
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primary,
+                    ),
+                  ),
                 ),
-        ),
+              )
+            : PrimaryButton(
+                label: _currentStep == 3
+                    ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
+                    : 'Próximo',
+                onPressed: _isSaving
+                    ? null
+                    : (_currentStep == 3 ? _salvarOrcamento : _avancarPasso),
+              ),
       ],
     );
 
@@ -706,17 +695,17 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: isActive
-                ? AppColors.primaryYellow.withValues(alpha: 0.14)
+                ? AppColors.primary.withValues(alpha: 0.14)
                 : isDone
                     ? AppColors.success.withValues(alpha: 0.12)
                     : AppColors.surface,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: isActive
-                  ? AppColors.primaryYellow
+                  ? AppColors.primary
                   : isDone
                       ? AppColors.success.withValues(alpha: 0.60)
-                      : AppColors.border.withValues(alpha: 0.75),
+                      : AppColors.line.withValues(alpha: 0.75),
             ),
           ),
           child: Row(
@@ -727,17 +716,19 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                 height: 22,
                 decoration: BoxDecoration(
                   color: isActive
-                      ? AppColors.primaryYellow
+                      ? AppColors.primary
                       : isDone
                           ? AppColors.success
-                          : AppColors.lightGray.withValues(alpha: 0.18),
+                          : AppColors.textTertiary.withValues(alpha: 0.18),
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   '${index + 1}',
-                  style: TextStyle(
-                    color: isActive || isDone ? Colors.black : AppColors.white,
+                  style: AppText.caption.copyWith(
+                    color: isActive || isDone
+                        ? AppColors.onPrimary
+                        : AppColors.textPrimary,
                     fontWeight: FontWeight.bold,
                     fontSize: 12,
                   ),
@@ -748,7 +739,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                 stepIcons[index],
                 size: 16,
                 color: isActive
-                    ? AppColors.primaryYellow
+                    ? AppColors.primary
                     : isDone
                         ? AppColors.success
                         : AppColors.textSecondary,
@@ -756,9 +747,9 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
               const SizedBox(width: 6),
               Text(
                 stepLabels[index],
-                style: TextStyle(
+                style: AppText.caption.copyWith(
                   color: isActive
-                      ? AppColors.primaryYellow
+                      ? AppColors.primary
                       : isDone
                           ? AppColors.success
                           : AppColors.textSecondary,
@@ -800,24 +791,24 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: AppColors.warning.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadius.card),
                   border: Border.all(
                     color: AppColors.warning.withValues(alpha: 0.28),
                   ),
                 ),
-                child: const Row(
+                child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.info_outline,
                       color: AppColors.warning,
                       size: 18,
                     ),
-                    SizedBox(width: 8),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Adicione pelo menos um item para continuar o orçamento.',
-                        style: TextStyle(
+                        style: AppText.bodySecondary.copyWith(
                           color: AppColors.warning,
                           fontWeight: FontWeight.w600,
                         ),
@@ -930,59 +921,51 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
 
       return Container(
         width: double.infinity,
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(AppSpacing.lg),
         decoration: BoxDecoration(
-          color: AppColors.lightGray.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.lightGray.withValues(alpha: 0.22),
-          ),
+          color: AppColors.elevated,
+          borderRadius: BorderRadius.circular(AppRadius.card),
+          border: Border.all(color: AppColors.line),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               isClienteStep ? '1. Escolha o cliente' : '2. Escolha o veículo',
-              style: const TextStyle(
-                color: AppColors.primaryYellow,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
+              style: AppText.title.copyWith(color: AppColors.primary, fontSize: 18),
             ),
             const SizedBox(height: 4),
             Text(
               isClienteStep
                   ? 'Selecione quem será atendido neste orçamento.'
                   : 'Agora selecione o veículo do cliente escolhido.',
-              style: TextStyle(
-                color: AppColors.textSecondary.withValues(alpha: 0.82),
-                fontSize: 13,
-              ),
+              style: AppText.bodySecondary.copyWith(fontSize: 13),
             ),
             if (!isClienteStep && _selectedCliente != null) ...[
               const SizedBox(height: 14),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: AppSpacing.sm,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: AppColors.border.withValues(alpha: 0.75),
-                  ),
+                  borderRadius: BorderRadius.circular(AppRadius.field),
+                  border: Border.all(color: AppColors.line),
                 ),
                 child: Row(
                   children: [
                     const Icon(
                       Icons.person_outline,
                       size: 18,
-                      color: AppColors.primaryYellow,
+                      color: AppColors.primary,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _selectedCliente!.nome,
-                        style: const TextStyle(
-                          color: AppColors.white,
+                        style: AppText.bodySecondary.copyWith(
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -999,12 +982,17 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
               const SizedBox(height: 8),
               Align(
                 alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: _selectedCliente == null
+                // Desabilitado em modo edição pelo mesmo motivo do dropdown
+                // de veículo acima (onChanged: isEdit ? null : ...): o
+                // atalho selecionava o veículo recém-cadastrado incondicio-
+                // nalmente, contornando o travamento do dropdown. Ver
+                // _abrirCadastroRapidoVeiculo.
+                child: GhostButton(
+                  label: 'Cadastrar veículo',
+                  icon: Icons.add,
+                  onPressed: (isEdit || _selectedCliente == null)
                       ? null
                       : () => _abrirCadastroRapidoVeiculo(context),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Cadastrar veículo'),
                 ),
               ),
             ],
@@ -1035,6 +1023,11 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
   /// Cadastro rápido de veículo sem sair do formulário de orçamento: abre o
   /// mesmo [VeiculoFormFields] usado no cadastro de cliente/veículo, dentro
   /// de um dialog simples. Ao salvar, o veículo novo já entra selecionado.
+  ///
+  /// Só é chamado com o formulário em modo de criação — o botão que a
+  /// aciona fica desabilitado em modo edição (ver `_buildClienteVeiculoSection`),
+  /// já que o `setState` abaixo reatribuiria `_selectedVeiculo` mesmo com o
+  /// dropdown de veículo travado.
   Future<void> _abrirCadastroRapidoVeiculo(BuildContext context) async {
     final cliente = _selectedCliente;
     if (cliente == null) return;
@@ -1085,8 +1078,11 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
           }
 
           return AlertDialog(
-            backgroundColor: AppColors.secondaryGray,
-            title: Text('Cadastrar veículo - ${cliente.nome}'),
+            backgroundColor: AppColors.elevated,
+            title: Text(
+              'Cadastrar veículo - ${cliente.nome}',
+              style: AppText.title,
+            ),
             content: SingleChildScrollView(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 480),
@@ -1097,21 +1093,27 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
               ),
             ),
             actions: [
-              OutlinedButton(
+              GhostButton(
+                label: 'Cancelar',
                 onPressed:
                     isSaving ? null : () => Navigator.pop(dialogContext),
-                child: const Text('Cancelar'),
               ),
-              ElevatedButton(
-                onPressed: isSaving ? null : submit,
-                child: isSaving
-                    ? const SizedBox(
-                        height: 16,
-                        width: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Salvar'),
-              ),
+              isSaving
+                  ? const SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    )
+                  : PrimaryButton(label: 'Salvar', onPressed: submit),
             ],
           );
         },
@@ -1123,13 +1125,11 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
 
   Widget _buildAdicionarItemSection(BuildContext context, bool isMobile) {
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
-        color: AppColors.lightGray.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: AppColors.lightGray.withValues(alpha: 0.25),
-        ),
+        color: AppColors.elevated,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.line),
       ),
       child: Form(
         key: _itemFormKey,
@@ -1139,10 +1139,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
           children: [
             Text(
               _editingIndex == null ? 'Adicionar item' : 'Editar item',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppColors.primaryYellow,
-                    fontWeight: FontWeight.bold,
-                  ),
+              style: AppText.title.copyWith(color: AppColors.primary, fontSize: 18),
             ),
             const SizedBox(height: 14),
             if (isMobile)
@@ -1198,19 +1195,20 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                   Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton.icon(
+                        child: PrimaryButton(
+                          label: _editingIndex == null
+                              ? 'Adicionar item'
+                              : 'Salvar item',
+                          icon: _editingIndex == null ? Icons.add : Icons.save,
+                          expanded: true,
                           onPressed: _adicionarItem,
-                          icon: Icon(_editingIndex == null ? Icons.add : Icons.save),
-                          label: Text(
-                            _editingIndex == null ? 'Adicionar item' : 'Salvar item',
-                          ),
                         ),
                       ),
                       if (_editingIndex != null) ...[
                         const SizedBox(width: 8),
-                        OutlinedButton(
+                        GhostButton(
+                          label: 'Cancelar',
                           onPressed: () => setState(_limparFormularioItem),
-                          child: const Text('Cancelar'),
                         ),
                       ],
                     ],
@@ -1227,19 +1225,19 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                     children: [
                       SizedBox(
                         height: 48,
-                        child: ElevatedButton.icon(
+                        child: PrimaryButton(
+                          label: _editingIndex == null ? 'Adicionar' : 'Salvar',
+                          icon: _editingIndex == null ? Icons.add : Icons.save,
                           onPressed: _adicionarItem,
-                          icon: Icon(_editingIndex == null ? Icons.add : Icons.save),
-                          label: Text(_editingIndex == null ? 'Adicionar' : 'Salvar'),
                         ),
                       ),
                       if (_editingIndex != null) ...[
                         const SizedBox(height: 8),
                         SizedBox(
                           height: 40,
-                          child: OutlinedButton(
+                          child: GhostButton(
+                            label: 'Cancelar',
                             onPressed: () => setState(_limparFormularioItem),
-                            child: const Text('Cancelar'),
                           ),
                         ),
                       ],
@@ -1330,7 +1328,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         InkWell(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.field),
           onTap: _abrirSeletorPeca,
           child: InputDecorator(
             decoration: formFieldDecoration(
@@ -1365,9 +1363,8 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
             isEmpty: !hasPeca,
             child: Text(
               hasPeca ? _pecaSelecionada! : 'Clique para selecionar ou pesquisar',
-              style: TextStyle(
-                color: hasPeca ? AppColors.white : AppColors.textSecondary,
-                fontSize: 16,
+              style: AppText.body.copyWith(
+                color: hasPeca ? AppColors.textPrimary : AppColors.textSecondary,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -1377,10 +1374,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
           const SizedBox(height: 6),
           Text(
             'Peça selecionada: ${_pecaSelecionada!}',
-            style: TextStyle(
-              color: AppColors.textSecondary.withValues(alpha: 0.85),
-              fontSize: 12,
-            ),
+            style: AppText.caption,
           ),
         ],
       ],
@@ -1418,7 +1412,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
         child: Center(
           child: Text(
             'Nenhum item adicionado',
-            style: TextStyle(color: Colors.grey),
+            style: AppText.bodySecondary,
           ),
         ),
       );
@@ -1440,11 +1434,9 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.lightGray.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: AppColors.lightGray.withValues(alpha: 0.25),
-              ),
+              color: AppColors.elevated,
+              borderRadius: BorderRadius.circular(AppRadius.card),
+              border: Border.all(color: AppColors.line),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1464,8 +1456,8 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                     children: [
                       Text(
                         item.descricao,
-                        style: const TextStyle(
-                          color: AppColors.white,
+                        style: AppText.body.copyWith(
+                          color: AppColors.textPrimary,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -1474,17 +1466,14 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                         item.peca != null && item.peca!.isNotEmpty
                             ? 'Serviço: ${item.servico} • Peça: ${item.peca}'
                             : 'Serviço: ${item.servico}',
-                        style: TextStyle(
-                          color: AppColors.white.withValues(alpha: 0.70),
-                          fontSize: 13,
-                        ),
+                        style: AppText.bodySecondary.copyWith(fontSize: 13),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         _currencyFmt.format(item.valor),
-                        style: const TextStyle(
+                        style: AppText.bodySecondary.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: AppColors.primaryYellow,
+                          color: AppColors.primary,
                         ),
                       ),
                     ],
@@ -1496,7 +1485,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                     IconButton(
                       icon: const Icon(
                         Icons.edit,
-                        color: AppColors.primaryYellow,
+                        color: AppColors.primary,
                         size: 20,
                       ),
                       onPressed: () {
@@ -1561,7 +1550,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
               const Expanded(
                 child: Text(
                   'Aplicar desconto (opcional)',
-                  style: TextStyle(color: AppColors.white),
+                  style: AppText.body,
                 ),
               ),
             ],
@@ -1601,7 +1590,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
               const SizedBox(width: 6),
               const Text(
                 'Aplicar desconto (opcional)',
-                style: TextStyle(color: AppColors.white),
+                style: AppText.body,
               ),
             ],
           ),
@@ -1647,22 +1636,8 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Valor Total:',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.white,
-                ),
-              ),
-              Text(
-                _formatValor(_valorTotal),
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.white,
-                ),
-              ),
+              Text('Valor Total:', style: AppText.title),
+              Text(_formatValor(_valorTotal), style: AppText.money),
             ],
           ),
           if (_aplicarDesconto && desconto > 0) ...[
@@ -1670,19 +1645,10 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Desconto:',
-                  style: TextStyle(
-                    color: AppColors.white,
-                    fontSize: 14,
-                  ),
-                ),
+                Text('Desconto:', style: AppText.bodySecondary),
                 Text(
                   '- ${_formatValor(desconto)}',
-                  style: const TextStyle(
-                    color: AppColors.white,
-                    fontSize: 14,
-                  ),
+                  style: AppText.bodySecondary,
                 ),
               ],
             ),
@@ -1690,20 +1656,18 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
+                Text(
                   'Total com desconto:',
-                  style: TextStyle(
-                    color: AppColors.primaryYellow,
+                  style: AppText.title.copyWith(
+                    color: AppColors.primary,
                     fontSize: 16,
-                    fontWeight: FontWeight.bold,
                   ),
                 ),
                 Text(
                   _formatValor(totalComDesconto),
-                  style: const TextStyle(
-                    color: AppColors.primaryYellow,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                  style: AppText.money.copyWith(
+                    color: AppColors.primary,
+                    fontSize: 18,
                   ),
                 ),
               ],

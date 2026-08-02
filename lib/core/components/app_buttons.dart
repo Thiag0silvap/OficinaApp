@@ -43,7 +43,11 @@ class PrimaryButton extends StatelessWidget {
             horizontal: AppSpacing.lg,
             vertical: 13,
           ),
-          child: child,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 150),
+            opacity: onPressed == null ? 0.4 : 1,
+            child: child,
+          ),
         ),
       ),
     );
@@ -71,24 +75,28 @@ class GhostButton extends StatelessWidget {
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(AppRadius.button),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppRadius.button),
-            border: Border.all(color: AppColors.line),
-          ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.lg,
-            vertical: 13,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (icon != null) ...[
-                Icon(icon, size: 17, color: AppColors.textPrimary),
-                const SizedBox(width: AppSpacing.sm),
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 150),
+          opacity: onPressed == null ? 0.4 : 1,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppRadius.button),
+              border: Border.all(color: AppColors.line),
+            ),
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: 13,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (icon != null) ...[
+                  Icon(icon, size: 17, color: AppColors.textPrimary),
+                  const SizedBox(width: AppSpacing.sm),
+                ],
+                Text(label, style: AppText.button.copyWith(color: AppColors.textPrimary)),
               ],
-              Text(label, style: AppText.button.copyWith(color: AppColors.textPrimary)),
-            ],
+            ),
           ),
         ),
       ),
