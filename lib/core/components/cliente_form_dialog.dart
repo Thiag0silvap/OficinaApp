@@ -345,34 +345,89 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
     );
   }
 
+  // Ordem visual do handoff (Particular/Seguradora/Frota/Oficina) — diferente
+  // da ordem de TipoCliente.values, que é só a ordem de declaração do enum.
+  static const List<TipoCliente> _tipoOrdemVisual = [
+    TipoCliente.particular,
+    TipoCliente.seguradora,
+    TipoCliente.frota,
+    TipoCliente.oficinaParceira,
+  ];
+
+  Widget _buildTipoSegmentedControl() {
+    // Grid 2x2 em vez de 4-em-linha do handoff: "Seguradora" não cabe numa
+    // única linha de 4 segmentos em ~360px (medido: precisa de 71px, sobra
+    // 64px) — decisão confirmada com o usuário.
+    Widget row(List<TipoCliente> tipos) {
+      return Row(
+        children: [
+          for (final tipo in tipos) ...[
+            if (tipo != tipos.first) const SizedBox(width: 8),
+            Expanded(
+              child: _TipoSegmentButton(
+                label: _tipoShortLabel(tipo),
+                selected: tipo == _tipoSelecionado,
+                onTap: () => setState(() {
+                  _tipoSelecionado = tipo;
+                  if (_tipoSelecionado == TipoCliente.seguradora) {
+                    _nomeSeguradoraFocus.requestFocus();
+                  } else {
+                    _nomeFocus.requestFocus();
+                  }
+                }),
+              ),
+            ),
+          ],
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Tipo de Cliente *',
+          style: AppText.caption.copyWith(color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 8),
+        row(_tipoOrdemVisual.sublist(0, 2)),
+        const SizedBox(height: 8),
+        row(_tipoOrdemVisual.sublist(2, 4)),
+      ],
+    );
+  }
+
+  String _tipoShortLabel(TipoCliente tipo) {
+    switch (tipo) {
+      case TipoCliente.particular:
+        return 'Particular';
+      case TipoCliente.seguradora:
+        return 'Seguradora';
+      case TipoCliente.frota:
+        return 'Frota';
+      case TipoCliente.oficinaParceira:
+        return 'Oficina';
+    }
+  }
+
+  /// Exige DDD + número completo (10 dígitos fixo, 11 celular). Não valida
+  /// lista de DDDs nem exige "9" no celular — validação intencionalmente
+  /// simples, só o suficiente para pegar número incompleto.
+  String? _validarTelefone(String? value) {
+    final digits = (value ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return 'Telefone é obrigatório';
+    if (digits.length != 10 && digits.length != 11) {
+      return 'Telefone inválido — informe DDD + número (10 ou 11 dígitos)';
+    }
+    return null;
+  }
+
   Widget _buildClientFields() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        DropdownButtonFormField<TipoCliente>(
-          initialValue: _tipoSelecionado,
-          decoration: formFieldDecoration(
-            label: 'Tipo de Cliente *',
-            prefixIcon: Icons.category,
-          ),
-          items: TipoCliente.values
-              .map(
-                (tipo) => DropdownMenuItem(
-                  value: tipo,
-                  child: Text(tipo.displayName),
-                ),
-              )
-              .toList(),
-          onChanged: (value) => setState(() {
-            _tipoSelecionado = value!;
-            if (_tipoSelecionado == TipoCliente.seguradora) {
-              _nomeSeguradoraFocus.requestFocus();
-            } else {
-              _nomeFocus.requestFocus();
-            }
-          }),
-        ),
+        _buildTipoSegmentedControl(),
         const SizedBox(height: 16),
         if (_tipoSelecionado == TipoCliente.seguradora) ...[
           TextFormField(
@@ -452,9 +507,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
           ),
           keyboardType: TextInputType.phone,
           inputFormatters: [PhoneInputFormatter()],
-          validator: (value) => (value?.trim().isEmpty ?? true)
-              ? 'Telefone é obrigatório'
-              : null,
+          validator: _validarTelefone,
         ),
         const SizedBox(height: 16),
         TextFormField(
@@ -819,5 +872,52 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
     );
 
     return Focus(autofocus: false, child: dialog);
+  }
+}
+
+/// Botão de um segmento do controle de Tipo de Cliente (Particular /
+/// Seguradora / Frota / Oficina). Exclusivo deste form.
+class _TipoSegmentButton extends StatelessWidget {
+  const _TipoSegmentButton({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.button),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.button),
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primary : AppColors.elevated,
+            borderRadius: BorderRadius.circular(AppRadius.button),
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.line,
+            ),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppText.caption.copyWith(
+              fontWeight: FontWeight.w700,
+              color: selected ? AppColors.onPrimary : AppColors.textSecondary,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

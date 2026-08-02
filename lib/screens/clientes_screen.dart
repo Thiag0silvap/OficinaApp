@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../core/theme/app_theme.dart';
 import '../core/components/responsive_components.dart';
 import '../core/components/common_widgets.dart';
+import '../core/components/app_buttons.dart';
 import '../core/components/orcamento_form_dialog.dart';
 import '../core/components/cliente_form_dialog.dart';
 import '../core/components/veiculo_form_fields.dart';
@@ -45,11 +46,7 @@ class _ClienteInfoChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: const TextStyle(
-              color: AppColors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
+            style: AppText.caption.copyWith(color: AppColors.textPrimary),
           ),
         ],
       ),
@@ -496,7 +493,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
       ),
       trailing: PopupMenuButton<String>(
         icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
-        color: AppColors.secondaryGray,
+        color: AppColors.elevated,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppRadius.field),
+          side: const BorderSide(color: AppColors.line),
+        ),
         onSelected: (value) {
           switch (value) {
             case 'editar':
@@ -541,9 +542,9 @@ class _ClientesScreenState extends State<ClientesScreen> {
           PopupMenuItem(
             value: 'excluir',
             child: Row(children: [
-              Icon(Icons.delete, size: 20, color: AppColors.error),
+              Icon(Icons.delete, size: 20, color: AppColors.danger),
               const SizedBox(width: 8),
-              Text('Excluir', style: TextStyle(color: AppColors.error)),
+              Text('Excluir', style: TextStyle(color: AppColors.danger)),
             ]),
           ),
         ],
@@ -697,7 +698,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                         }
                       },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryYellow,
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.black,
                 ),
                 child: isDeleting
@@ -911,7 +912,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                         }
                       },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryYellow,
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.black,
                 ),
                 child: isDeleting
@@ -974,14 +975,17 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 const SizedBox(height: 16),
                 ResponsiveText(
                   'Veículos (${veiculos.length})',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryYellow,
+                  style: AppText.body.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
                   ),
                 ),
                 const SizedBox(height: 8),
                 if (veiculos.isEmpty)
-                  const ResponsiveText('Nenhum veículo cadastrado')
+                  ResponsiveText(
+                    'Nenhum veículo cadastrado',
+                    style: AppText.body,
+                  )
                 else
                   ...veiculos.map(
                     (v) => Padding(
@@ -989,7 +993,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
                       child: Row(
                         children: [
                           Expanded(
-                            child: ResponsiveText('• ${v.descricaoCompleta}'),
+                            child: ResponsiveText(
+                              '• ${v.descricaoCompleta}',
+                              style: AppText.body,
+                            ),
                           ),
                           IconButton(
                             tooltip: 'Editar veículo',
@@ -997,7 +1004,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                             icon: const Icon(
                               Icons.edit,
                               size: 18,
-                              color: AppColors.primaryYellow,
+                              color: AppColors.primary,
                             ),
                             onPressed: () {
                               Navigator.pop(context);
@@ -1010,7 +1017,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                             icon: const Icon(
                               Icons.delete_outline,
                               size: 18,
-                              color: AppColors.error,
+                              color: AppColors.danger,
                             ),
                             onPressed: () {
                               Navigator.pop(context);
@@ -1024,34 +1031,41 @@ class _ClientesScreenState extends State<ClientesScreen> {
                 const SizedBox(height: 16),
                 ResponsiveText(
                   'Orçamentos (${orcamentos.length})',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryYellow,
+                  style: AppText.body.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
                   ),
                 ),
                 const SizedBox(height: 8),
                 if (orcamentos.isEmpty)
-                  const ResponsiveText('Nenhum orçamento criado')
+                  ResponsiveText(
+                    'Nenhum orçamento criado',
+                    style: AppText.body,
+                  )
                 else
                   ...orcamentos.map(
                     (o) => Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: ResponsiveText(
                         '• ${o.status} - ${Formatters.currency(o.valorTotal)}',
+                        style: AppText.body,
                       ),
                     ),
                   ),
                 const SizedBox(height: 16),
                 ResponsiveText(
                   'Histórico de Serviços (${notas.length})',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryYellow,
+                  style: AppText.body.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.primary,
                   ),
                 ),
                 const SizedBox(height: 8),
                 if (notas.isEmpty)
-                  const ResponsiveText('Nenhum serviço concluído ainda')
+                  ResponsiveText(
+                    'Nenhum serviço concluído ainda',
+                    style: AppText.body,
+                  )
                 else
                   ...notas.map(
                     (n) => Padding(
@@ -1060,6 +1074,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                         '• ${Formatters.dateShort(n.dataEmissao)} - '
                         '${n.veiculoDescricao ?? '-'} - '
                         '${Formatters.currency(n.valorTotal)}',
+                        style: AppText.body,
                       ),
                     ),
                   ),
@@ -1067,16 +1082,16 @@ class _ClientesScreenState extends State<ClientesScreen> {
             ),
           ),
           actions: [
-            OutlinedButton(
+            GhostButton(
+              label: 'Fechar',
               onPressed: () => Navigator.pop(context),
-              child: const Text('Fechar'),
             ),
-            ElevatedButton(
+            PrimaryButton(
+              label: 'Editar',
               onPressed: () {
                 Navigator.pop(context);
                 _showEditClienteDialog(context, cliente);
               },
-              child: const Text('Editar'),
             ),
           ],
         );
@@ -1092,22 +1107,16 @@ class _ClientesScreenState extends State<ClientesScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: AppColors.primaryYellow),
+          Icon(icon, size: 20, color: AppColors.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ResponsiveText(
-                  label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.white.withValues(alpha: 0.7),
-                  ),
-                ),
+                ResponsiveText(label, style: AppText.caption),
                 ResponsiveText(
                   value,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
+                  style: AppText.body.copyWith(fontWeight: FontWeight.w500),
                 ),
               ],
             ),
