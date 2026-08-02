@@ -9,16 +9,12 @@ import '../core/components/orcamento_form_dialog.dart';
 import '../core/components/app_card.dart';
 import '../core/components/status_pill.dart';
 import '../core/components/app_buttons.dart';
-import '../core/components/app_snackbar.dart';
-import '../core/components/cancelar_orcamento_dialog.dart';
+// Sprint 4 — lógica de ação compartilhada com o diálogo de detalhe.
+import '../core/components/orcamento_actions.dart';
+import '../core/components/orcamento_detail_dialog.dart';
 import '../core/utils/formatters.dart';
 import '../providers/app_provider.dart';
 import '../models/orcamento.dart';
-import '../services/pdf_service.dart';
-import '../services/pdf_file_service.dart';
-import '../services/whatsapp_service.dart';
-import '../core/widgets/pdf_preview_dialog.dart';
-import 'order_detail_screen.dart';
 
 class OrcamentosScreen extends StatefulWidget {
   const OrcamentosScreen({super.key});
@@ -237,155 +233,19 @@ class _OrcamentosScreenState extends State<OrcamentosScreen> {
   }
 
   void _openDetails(BuildContext context, Orcamento orcamento) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OrderDetailScreen(orcamento: orcamento),
-      ),
+    showDialog(
+      context: context,
+      builder: (_) => OrcamentoDetailDialog(orcamento: orcamento),
     );
   }
 }
 
 // ===========================================================================
 // SPRINT 1 — CARD MOBILE (novo, baseado no design system)
+// A lógica de ação primária e do menu de 3 pontos foi extraída para
+// core/components/orcamento_actions.dart no Sprint 4, para ser
+// compartilhada também com o diálogo de detalhe.
 // ===========================================================================
-
-/// Mapeia o status de domínio para o status visual do design system.
-AppStatus _toAppStatus(OrcamentoStatus s) {
-  switch (s) {
-    case OrcamentoStatus.pendente:
-      return AppStatus.pendente;
-    case OrcamentoStatus.aprovado:
-      return AppStatus.aprovado;
-    case OrcamentoStatus.emAndamento:
-      return AppStatus.emAndamento;
-    case OrcamentoStatus.concluido:
-      return AppStatus.concluido;
-    case OrcamentoStatus.cancelado:
-      return AppStatus.cancelado;
-  }
-}
-
-/// Descreve a ação primária (amarela) de um card conforme o status.
-class _PrimaryAction {
-  final String label;
-  final IconData icon;
-  final Future<void> Function() onTap;
-  const _PrimaryAction(this.label, this.icon, this.onTap);
-}
-
-/// Ação primária por status (mesma posição, sempre amarela) — compartilhada
-/// entre o card mobile e o card desktop.
-_PrimaryAction? _resolvePrimaryAction(
-  Orcamento orcamento,
-  BuildContext context,
-  AppProvider provider,
-) {
-  switch (orcamento.status) {
-    case OrcamentoStatus.pendente:
-      return _PrimaryAction(
-        'Aprovar',
-        Icons.check,
-        () => _OrcamentoActions.aprovar(context, provider, orcamento),
-      );
-    case OrcamentoStatus.aprovado:
-      return _PrimaryAction(
-        'Iniciar',
-        Icons.play_arrow,
-        () => _OrcamentoActions.iniciar(context, provider, orcamento),
-      );
-    case OrcamentoStatus.emAndamento:
-      return _PrimaryAction(
-        'Concluir',
-        Icons.done,
-        () => _OrcamentoActions.concluir(context, provider, orcamento),
-      );
-    case OrcamentoStatus.concluido:
-      if (!orcamento.pago) {
-        return _PrimaryAction(
-          'Receber',
-          Icons.attach_money,
-          () => _OrcamentoActions.receber(context, provider, orcamento),
-        );
-      }
-      return null;
-    case OrcamentoStatus.cancelado:
-      return null;
-  }
-}
-
-/// Menu de 3 pontos (Editar/Imprimir/Cancelar/Excluir) — mesmas regras de
-/// visibilidade por status, compartilhadas entre o card mobile e o desktop.
-Widget _buildOrcamentoMenu(
-  BuildContext context,
-  AppProvider provider,
-  Orcamento orcamento, {
-  required Future<void> Function() onEdit,
-}) {
-  return PopupMenuButton<String>(
-    icon: const Icon(Icons.more_horiz, color: AppColors.textSecondary),
-    color: AppColors.elevated,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(AppRadius.field),
-      side: const BorderSide(color: AppColors.line),
-    ),
-    onSelected: (value) async {
-      switch (value) {
-        case 'editar':
-          await onEdit();
-          break;
-        case 'imprimir':
-          await _OrcamentoActions.imprimir(context, orcamento);
-          break;
-        case 'cancelar':
-          await _OrcamentoActions.cancelar(context, provider, orcamento);
-          break;
-        case 'excluir':
-          await _OrcamentoActions.excluir(context, provider, orcamento);
-          break;
-      }
-    },
-    itemBuilder: (_) => [
-      if (orcamento.status == OrcamentoStatus.pendente)
-        const PopupMenuItem(
-          value: 'editar',
-          child: Row(children: [
-            Icon(Icons.edit, size: 18),
-            SizedBox(width: 8),
-            Text('Editar'),
-          ]),
-        ),
-      const PopupMenuItem(
-        value: 'imprimir',
-        child: Row(children: [
-          Icon(Icons.print, size: 18),
-          SizedBox(width: 8),
-          Text('Imprimir'),
-        ]),
-      ),
-      if (orcamento.status == OrcamentoStatus.pendente ||
-          orcamento.status == OrcamentoStatus.aprovado ||
-          orcamento.status == OrcamentoStatus.emAndamento)
-        const PopupMenuItem(
-          value: 'cancelar',
-          child: Row(children: [
-            Icon(Icons.cancel, size: 18),
-            SizedBox(width: 8),
-            Text('Cancelar'),
-          ]),
-        ),
-      const PopupMenuDivider(),
-      PopupMenuItem(
-        value: 'excluir',
-        child: Row(children: [
-          const Icon(Icons.delete_outline, size: 18, color: AppColors.danger),
-          const SizedBox(width: 8),
-          Text('Excluir', style: TextStyle(color: AppColors.danger)),
-        ]),
-      ),
-    ],
-  );
-}
 
 class _OrcamentoMobileCard extends StatelessWidget {
   final Orcamento orcamento;
@@ -401,7 +261,7 @@ class _OrcamentoMobileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<AppProvider>(context, listen: false);
-    final primary = _resolvePrimaryAction(orcamento, context, provider);
+    final primary = resolvePrimaryOrcamentoAction(orcamento, context, provider);
 
     return AppCard(
       onTap: onOpen,
@@ -435,7 +295,7 @@ class _OrcamentoMobileCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppSpacing.md),
-              StatusPill(_toAppStatus(orcamento.status)),
+              StatusPill(toAppStatus(orcamento.status)),
             ],
           ),
 
@@ -465,152 +325,24 @@ class _OrcamentoMobileCard extends StatelessWidget {
                   label: 'PDF',
                   icon: Icons.picture_as_pdf_outlined,
                   onPressed: () =>
-                      _OrcamentoActions.pdfWhatsapp(context, provider, orcamento),
+                      OrcamentoActions.pdfWhatsapp(context, provider, orcamento),
                 ),
               ] else ...[
                 GhostButton(
                   label: 'PDF',
                   icon: Icons.picture_as_pdf_outlined,
                   onPressed: () =>
-                      _OrcamentoActions.pdfWhatsapp(context, provider, orcamento),
+                      OrcamentoActions.pdfWhatsapp(context, provider, orcamento),
                 ),
                 const Spacer(),
               ],
               const SizedBox(width: AppSpacing.sm),
-              _buildOrcamentoMenu(context, provider, orcamento, onEdit: onEdit),
+              buildOrcamentoMenu(context, provider, orcamento, onEdit: onEdit),
             ],
           ),
         ],
       ),
     );
-  }
-}
-
-/// Ações de negócio dos orçamentos — fonte única de verdade para os cards
-/// mobile e desktop.
-class _OrcamentoActions {
-  const _OrcamentoActions._();
-
-  static Future<void> aprovar(
-      BuildContext context, AppProvider provider, Orcamento o) async {
-    await provider.aprovarOrcamento(o.id);
-    if (!context.mounted) return;
-    AppSnackbar.show(context, 'Orçamento aprovado!', type: SnackType.success);
-  }
-
-  static Future<void> iniciar(
-      BuildContext context, AppProvider provider, Orcamento o) async {
-    await provider.iniciarServico(o.id);
-    if (!context.mounted) return;
-    AppSnackbar.show(context, 'Serviço iniciado!', type: SnackType.success);
-  }
-
-  static Future<void> concluir(
-      BuildContext context, AppProvider provider, Orcamento o) async {
-    await provider.concluirOrcamento(o.id);
-    if (!context.mounted) return;
-    AppSnackbar.show(context, 'Serviço concluído! Pagamento pendente.',
-        type: SnackType.success);
-  }
-
-  static Future<void> receber(
-      BuildContext context, AppProvider provider, Orcamento o) async {
-    await provider.registrarPagamento(o.id);
-    if (!context.mounted) return;
-    AppSnackbar.show(context, 'Pagamento registrado!', type: SnackType.success);
-  }
-
-  static Future<void> cancelar(
-      BuildContext context, AppProvider provider, Orcamento o) async {
-    try {
-      final cancelado =
-          await collectMotivoAndCancelarOrcamento(context, provider, o);
-      if (!cancelado) return;
-      if (!context.mounted) return;
-      AppSnackbar.show(context, 'Orçamento cancelado!', type: SnackType.info);
-    } catch (e) {
-      if (!context.mounted) return;
-      AppSnackbar.show(
-        context,
-        'Erro ao cancelar orçamento: $e',
-        type: SnackType.error,
-      );
-    }
-  }
-
-  static Future<void> imprimir(BuildContext context, Orcamento o) async {
-    final filename = PDFService.buildPdfFilename(o);
-    final title =
-        o.status == OrcamentoStatus.concluido ? 'Nota de Serviço' : 'Orçamento';
-    await showPdfPreviewDialog(
-      context,
-      title: title,
-      fileName: filename,
-      buildPdf: (_) => PDFService.generateOrcamentoPdf(o),
-    );
-  }
-
-  static Future<void> excluir(
-      BuildContext context, AppProvider provider, Orcamento o) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Excluir orçamento?'),
-        content: const Text('Esta ação não pode ser desfeita.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Excluir'),
-          ),
-        ],
-      ),
-    );
-    if (!context.mounted) return;
-    if (confirmed == true) {
-      await provider.deleteOrcamento(o.id);
-      if (!context.mounted) return;
-      AppSnackbar.show(context, 'Orçamento excluído', type: SnackType.error);
-    }
-  }
-
-  /// Gera PDF e abre o WhatsApp. Lógica preservada da versão original;
-  /// o tratamento amigável do PlatformException fica para a Sprint 5.
-  static Future<void> pdfWhatsapp(
-      BuildContext context, AppProvider provider, Orcamento o) async {
-    try {
-      final cliente = provider.getClienteById(o.clienteId);
-      if (cliente == null || cliente.telefone.trim().isEmpty) {
-        if (!context.mounted) return;
-        AppSnackbar.show(context, 'Cliente sem telefone cadastrado.',
-            type: SnackType.info);
-        return;
-      }
-      final bytes = await PDFService.generateOrcamentoPdf(o);
-      final filename = PDFService.buildPdfFilename(o);
-      final savedPath = await PdfFileService.savePdfToUserFolder(
-        bytes: bytes,
-        filename: filename,
-      );
-      final mensagem =
-          'Olá ${o.clienteNome}, segue seu orçamento referente ao veículo '
-          '${o.veiculoDescricao}.';
-      await PdfFileService.openFileFolder(savedPath);
-      await WhatsAppService.openChat(
-        phone: cliente.telefone,
-        message: mensagem,
-      );
-      if (!context.mounted) return;
-      AppSnackbar.show(context, 'PDF gerado! Escolha o app para compartilhar.',
-          type: SnackType.success);
-    } catch (e) {
-      if (!context.mounted) return;
-      AppSnackbar.show(context, 'Erro ao preparar envio: $e',
-          type: SnackType.error);
-    }
   }
 }
 
@@ -884,7 +616,7 @@ class _OrcamentoPremiumCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<AppProvider>(context, listen: false);
-    final primary = _resolvePrimaryAction(orcamento, context, provider);
+    final primary = resolvePrimaryOrcamentoAction(orcamento, context, provider);
 
     return AppCard(
       onTap: onOpen,
@@ -911,7 +643,7 @@ class _OrcamentoPremiumCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: AppSpacing.lg),
-          StatusPill(_toAppStatus(orcamento.status)),
+          StatusPill(toAppStatus(orcamento.status)),
           const SizedBox(width: AppSpacing.lg),
           SizedBox(
             width: 110,
@@ -936,10 +668,10 @@ class _OrcamentoPremiumCard extends StatelessWidget {
             label: 'PDF',
             icon: Icons.picture_as_pdf_outlined,
             onPressed: () =>
-                _OrcamentoActions.pdfWhatsapp(context, provider, orcamento),
+                OrcamentoActions.pdfWhatsapp(context, provider, orcamento),
           ),
           const SizedBox(width: AppSpacing.sm),
-          _buildOrcamentoMenu(context, provider, orcamento, onEdit: onEdit),
+          buildOrcamentoMenu(context, provider, orcamento, onEdit: onEdit),
         ],
       ),
     );
