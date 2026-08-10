@@ -1200,49 +1200,44 @@ class ResponsiveDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: AnimatedPadding(
-        padding: MediaQuery.of(context).viewInsets,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.decelerate,
-        child: Container(
-          width: isDesktop ? 520 : ResponsiveUtils.getContentWidth(context),
-          padding: EdgeInsets.all(isDesktop ? 24 : 16),
-          constraints: BoxConstraints(
-            maxHeight: availableHeight * 0.9,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 20 * fontMultiplier,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.primaryYellow,
-                  ),
+      child: Container(
+        width: isDesktop ? 520 : ResponsiveUtils.getContentWidth(context),
+        padding: EdgeInsets.all(isDesktop ? 24 : 16),
+        constraints: BoxConstraints(
+          maxHeight: availableHeight * 0.9,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 20 * fontMultiplier,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.primaryYellow,
                 ),
-                const SizedBox(height: 16),
-                content,
-                if (actions != null && actions!.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 10,
-                    alignment: WrapAlignment.end,
-                    children: actions!
-                        .map(
-                          (a) => ConstrainedBox(
-                            constraints: const BoxConstraints(minWidth: 140),
-                            child: a,
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ],
+              ),
+              const SizedBox(height: 16),
+              content,
+              if (actions != null && actions!.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 10,
+                  alignment: WrapAlignment.end,
+                  children: actions!
+                      .map(
+                        (a) => ConstrainedBox(
+                          constraints: const BoxConstraints(minWidth: 140),
+                          child: a,
+                        ),
+                      )
+                      .toList(),
+                ),
               ],
-            ),
+            ],
           ),
         ),
       ),

@@ -1347,6 +1347,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
               dense: true,
               prefixIcon: hasPeca ? Icons.car_repair : Icons.search,
             ).copyWith(
+              floatingLabelBehavior: FloatingLabelBehavior.always,
               suffixIcon: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
