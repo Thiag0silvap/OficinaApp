@@ -9,6 +9,7 @@ import '../core/components/cliente_form_dialog.dart';
 import '../core/components/veiculo_form_fields.dart';
 import '../providers/app_provider.dart';
 import '../models/cliente.dart';
+import '../models/orcamento.dart';
 import '../models/veiculo.dart';
 import '../core/utils/formatters.dart';
 
@@ -1047,7 +1048,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
                     (o) => Padding(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       child: ResponsiveText(
-                        '• ${o.status} - ${Formatters.currency(o.valorTotal)}',
+                        '• ${o.status.displayName} - ${Formatters.currency(o.valorTotal)}',
                         style: AppText.body,
                       ),
                     ),

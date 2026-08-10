@@ -712,6 +712,8 @@ class _TransacaoTile extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   '${transacao.categoria} • ${dateFmt.format(transacao.data)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppText.bodySecondary,
                 ),
               ],
@@ -720,7 +722,7 @@ class _TransacaoTile extends StatelessWidget {
           const SizedBox(width: 12),
           Text(
             money.format(transacao.valor),
-            style: AppText.money.copyWith(color: badgeColor),
+            style: AppText.money.copyWith(fontSize: 15, color: badgeColor),
           ),
           const SizedBox(width: 10),
           GhostIconButton(

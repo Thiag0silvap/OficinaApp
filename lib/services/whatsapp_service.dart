@@ -24,18 +24,28 @@ class WhatsAppService {
       'https://wa.me/$normalized?text=$encodedMessage',
     );
 
-    final openedApp = await launchUrl(
-      appUri,
-      mode: LaunchMode.externalApplication,
-    );
+    // launchUrl pode lançar (em vez de retornar false) quando o Android
+    // bloqueia a checagem de visibilidade do pacote (API 30+) ou quando o
+    // WhatsApp não está instalado — captura os dois casos e cai pro
+    // fallback web antes de desistir, com uma mensagem amigável no final.
+    var openedApp = false;
+    try {
+      openedApp = await launchUrl(appUri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      openedApp = false;
+    }
     if (openedApp) return;
 
-    final openedWeb = await launchUrl(
-      webUri,
-      mode: LaunchMode.externalApplication,
-    );
+    var openedWeb = false;
+    try {
+      openedWeb = await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      openedWeb = false;
+    }
     if (!openedWeb) {
-      throw Exception('Não foi possível abrir o WhatsApp.');
+      throw Exception(
+        'Não foi possível abrir o WhatsApp. Verifique se o app está instalado.',
+      );
     }
   }
 

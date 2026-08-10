@@ -1191,6 +1191,12 @@ class ResponsiveDialog extends StatelessWidget {
     final isDesktop = ResponsiveUtils.isDesktop(context);
     final fontMultiplier = ResponsiveUtils.getFontSizeMultiplier(context);
 
+    // Desconta o teclado (viewInsets.bottom) da altura disponível — sem
+    // isso, o maxHeight ficava fixo em 90% da tela cheia mesmo com o
+    // teclado aberto, deixando um vão vazio entre o conteúdo e o teclado.
+    final availableHeight =
+        MediaQuery.of(context).size.height - MediaQuery.of(context).viewInsets.bottom;
+
     return Dialog(
       backgroundColor: AppColors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -1202,7 +1208,7 @@ class ResponsiveDialog extends StatelessWidget {
           width: isDesktop ? 520 : ResponsiveUtils.getContentWidth(context),
           padding: EdgeInsets.all(isDesktop ? 24 : 16),
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.9,
+            maxHeight: availableHeight * 0.9,
           ),
           child: SingleChildScrollView(
             child: Column(

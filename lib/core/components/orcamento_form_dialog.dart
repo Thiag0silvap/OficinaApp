@@ -67,7 +67,18 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
     symbol: 'R\$ ',
   );
 
+  // Sem símbolo — usado só pra pré-preencher _valorItemController.text
+  // programaticamente. O "R$ " visual desse campo já vem do
+  // prefixText da decoração; usar _formatValor (com símbolo) ali duplicava
+  // o prefixo ("R$ R$ 150,00"), já que atribuição direta a .text não passa
+  // pelo CurrencyTextInputFormatter (que só atua na digitação do usuário).
+  final NumberFormat _currencyFmtSemSimbolo = NumberFormat.currency(
+    locale: 'pt_BR',
+    symbol: '',
+  );
+
   String _formatValor(double v) => _currencyFmt.format(v);
+  String _formatValorItemField(double v) => _currencyFmtSemSimbolo.format(v);
 
   double? _parseCurrency(String text) {
     if (text.isEmpty) return null;
@@ -1275,7 +1286,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
           if (value != null &&
               value != 'Outro' &&
               AppConstants.servicosPreco.containsKey(value)) {
-            _valorItemController.text = _formatValor(
+            _valorItemController.text = _formatValorItemField(
               AppConstants.servicosPreco[value]!,
             );
           }
@@ -1507,7 +1518,8 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                           _pecaSelecionada = item.peca;
                           _pecaController.text = item.peca ?? '';
                           _descricaoItemController.text = item.descricao;
-                          _valorItemController.text = _formatValor(item.valor);
+                          _valorItemController.text =
+                              _formatValorItemField(item.valor);
                         });
                       },
                     ),
