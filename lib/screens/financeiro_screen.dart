@@ -774,64 +774,58 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<TipoTransacao>(
-                      initialValue: _tipo,
-                      dropdownColor: AppColors.elevated,
-                      decoration: formFieldDecoration(label: 'Tipo'),
-                      items: const [
-                        DropdownMenuItem(
-                          value: TipoTransacao.entrada,
-                          child: Text('Entrada'),
-                        ),
-                        DropdownMenuItem(
-                          value: TipoTransacao.saida,
-                          child: Text('Saída'),
-                        ),
-                      ],
-                      onChanged: (v) =>
-                          setState(() => _tipo = v ?? TipoTransacao.entrada),
+              _FieldPair(
+                first: DropdownButtonFormField<TipoTransacao>(
+                  initialValue: _tipo,
+                  isExpanded: true,
+                  dropdownColor: AppColors.elevated,
+                  decoration: formFieldDecoration(label: 'Tipo'),
+                  items: const [
+                    DropdownMenuItem(
+                      value: TipoTransacao.entrada,
+                      child: Text('Entrada'),
                     ),
+                    DropdownMenuItem(
+                      value: TipoTransacao.saida,
+                      child: Text('Saída'),
+                    ),
+                  ],
+                  onChanged: (v) =>
+                      setState(() => _tipo = v ?? TipoTransacao.entrada),
+                ),
+                second: TextFormField(
+                  readOnly: true,
+                  decoration: formFieldDecoration(
+                    label: 'Data',
+                    prefixIcon: Icons.calendar_today_outlined,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      readOnly: true,
-                      decoration: formFieldDecoration(
-                        label: 'Data',
-                        prefixIcon: Icons.calendar_today_outlined,
-                      ),
-                      controller: TextEditingController(
-                        text: DateFormat('dd/MM/yyyy').format(_data),
-                      ),
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: _data,
-                          firstDate: DateTime(2020),
-                          lastDate: DateTime(2100),
-                          builder: (ctx, child) {
-                            return Theme(
-                              data: Theme.of(ctx).copyWith(
-                                colorScheme: Theme.of(ctx).colorScheme.copyWith(
-                                  primary: AppColors.primary,
-                                  surface: AppColors.elevated,
-                                ),
-                                dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
-                                  backgroundColor: AppColors.elevated,
-                                ),
-                              ),
-                              child: child!,
-                            );
-                          },
+                  controller: TextEditingController(
+                    text: DateFormat('dd/MM/yyyy').format(_data),
+                  ),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _data,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2100),
+                      builder: (ctx, child) {
+                        return Theme(
+                          data: Theme.of(ctx).copyWith(
+                            colorScheme: Theme.of(ctx).colorScheme.copyWith(
+                              primary: AppColors.primary,
+                              surface: AppColors.elevated,
+                            ),
+                            dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
+                              backgroundColor: AppColors.elevated,
+                            ),
+                          ),
+                          child: child!,
                         );
-                        if (picked != null) setState(() => _data = picked);
                       },
-                    ),
-                  ),
-                ],
+                    );
+                    if (picked != null) setState(() => _data = picked);
+                  },
+                ),
               ),
               const SizedBox(height: 12),
               TextFormField(
@@ -849,47 +843,40 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
                 },
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _valorCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [CurrencyTextInputFormatter()],
-                      decoration: formFieldDecoration(
-                        label: 'Valor',
-                        prefixText: 'R\$ ',
-                        prefixIcon: Icons.payments_outlined,
-                      ),
-                      validator: (value) {
-                        final raw = (value ?? '')
-                            .replaceAll('.', '')
-                            .replaceAll(',', '.')
-                            .trim();
-                        final parsed = double.tryParse(raw) ?? 0.0;
-                        if (parsed <= 0) return 'Valor inválido';
-                        if (parsed > _maxCurrencyValue) return 'Valor muito alto';
-                        return null;
-                      },
-                    ),
+              _FieldPair(
+                first: TextFormField(
+                  controller: _valorCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [CurrencyTextInputFormatter()],
+                  decoration: formFieldDecoration(
+                    label: 'Valor',
+                    prefixText: 'R\$ ',
+                    prefixIcon: Icons.payments_outlined,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _catCtrl,
-                      inputFormatters: [LengthLimitingTextInputFormatter(_maxCatLen)],
-                      decoration: formFieldDecoration(
-                        label: 'Categoria',
-                        prefixIcon: Icons.sell_outlined,
-                      ),
-                      validator: (value) {
-                        final v = value?.trim() ?? '';
-                        if (v.length > _maxCatLen) return 'Categoria muito longa';
-                        return null;
-                      },
-                    ),
+                  validator: (value) {
+                    final raw = (value ?? '')
+                        .replaceAll('.', '')
+                        .replaceAll(',', '.')
+                        .trim();
+                    final parsed = double.tryParse(raw) ?? 0.0;
+                    if (parsed <= 0) return 'Valor inválido';
+                    if (parsed > _maxCurrencyValue) return 'Valor muito alto';
+                    return null;
+                  },
+                ),
+                second: TextFormField(
+                  controller: _catCtrl,
+                  inputFormatters: [LengthLimitingTextInputFormatter(_maxCatLen)],
+                  decoration: formFieldDecoration(
+                    label: 'Categoria',
+                    prefixIcon: Icons.sell_outlined,
                   ),
-                ],
+                  validator: (value) {
+                    final v = value?.trim() ?? '';
+                    if (v.length > _maxCatLen) return 'Categoria muito longa';
+                    return null;
+                  },
+                ),
               ),
             ],
           ),
@@ -938,5 +925,31 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
       if (!mounted) return;
       AppFeedback.showError(context, 'Erro ao salvar transação: $e');
     }
+  }
+}
+
+/// Lado a lado no desktop/tablet; empilhado em coluna única no mobile —
+/// labels como "Categoria" não cabem ao lado de outro campo em telas
+/// estreitas mesmo com o diálogo em largura máxima (medição real).
+class _FieldPair extends StatelessWidget {
+  final Widget first;
+  final Widget second;
+
+  const _FieldPair({required this.first, required this.second});
+
+  @override
+  Widget build(BuildContext context) {
+    if (ResponsiveUtils.isMobile(context)) {
+      return Column(
+        children: [first, const SizedBox(height: 12), second],
+      );
+    }
+    return Row(
+      children: [
+        Expanded(child: first),
+        const SizedBox(width: 12),
+        Expanded(child: second),
+      ],
+    );
   }
 }
