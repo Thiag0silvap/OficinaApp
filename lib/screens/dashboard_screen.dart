@@ -40,6 +40,7 @@ class DashboardScreen extends StatelessWidget {
     return Consumer<AppProvider>(
       builder: (context, provider, child) {
         final faturamento = provider.entradasMesAtual;
+        final resultadoMes = faturamento - provider.saidasMesAtual;
         final faturamentoAnterior = provider.entradasMesAnterior;
         final faturamentoVar = provider.percentageChange(
           faturamento,
@@ -65,18 +66,15 @@ class DashboardScreen extends StatelessWidget {
 
               // Limita a largura máxima dos cards para evitar ficar “gigante”
               // quando o app estiver em uma largura intermediária.
-              final maxCardWidth =
-                  isMobile ? (constraints.maxWidth / 2) - 8 : 290.0;
-
-              // Altura estável dos stat cards (evita RenderFlex overflow).
-              const statCardHeight = 112.0;
+              final maxCardWidth = isMobile
+                  ? (constraints.maxWidth / 2) - 8
+                  : 290.0;
 
               final statCards = <Widget>[
                 _buildStatCard(
                   context,
-                  title: 'Faturamento do mês',
+                  title: 'Entradas do mês',
                   value: Formatters.currency(faturamento),
-                  icon: Icons.monetization_on,
                   trend: faturamentoVar['label'],
                   trendUp: faturamentoVar['up'] ?? true,
                   onTap: () => Navigator.push(
@@ -95,22 +93,40 @@ class DashboardScreen extends StatelessWidget {
                 ),
                 _buildStatCard(
                   context,
+                  title: 'Resultado do mês',
+                  value: Formatters.currency(resultadoMes),
+                  valueColor: resultadoMes >= 0
+                      ? AppColors.success
+                      : AppColors.danger,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => Scaffold(
+                        appBar: AppBar(
+                          backgroundColor: AppColors.surface,
+                          automaticallyImplyLeading: true,
+                          title: const Text('Financeiro'),
+                        ),
+                        body: const FinanceiroScreen(),
+                      ),
+                    ),
+                  ),
+                ),
+                _buildStatCard(
+                  context,
                   title: 'Ordens ativas',
                   value: ordensAtivas.toString(),
-                  icon: Icons.build_circle,
                 ),
                 _buildStatCard(
                   context,
                   title: 'Concluídos hoje',
                   value: concluidosHoje.toString(),
-                  icon: Icons.check_circle,
                   valueColor: AppColors.success,
                 ),
                 _buildStatCard(
                   context,
                   title: 'Pendentes',
                   value: pendentes.toString(),
-                  icon: Icons.pending_actions,
                   valueColor: AppColors.pending,
                 ),
               ];
@@ -128,18 +144,15 @@ class DashboardScreen extends StatelessWidget {
 
                     SizedBox(height: spacing),
 
-                    /// ======= CARDS (GRID ALINHADO) =======
-                    GridView.builder(
-                      itemCount: statCards.length,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: maxCardWidth,
-                        mainAxisExtent: statCardHeight,
-                        mainAxisSpacing: spacing,
-                        crossAxisSpacing: spacing,
-                      ),
-                      itemBuilder: (context, index) => statCards[index],
+                    /// ======= CARDS (largura fixa, altura intrínseca ao
+                    /// conteúdo — como no handoff) =======
+                    Wrap(
+                      spacing: spacing,
+                      runSpacing: spacing,
+                      children: [
+                        for (final card in statCards)
+                          SizedBox(width: maxCardWidth, child: card),
+                      ],
                     ),
 
                     SizedBox(height: spacing * 1.5),
@@ -429,7 +442,10 @@ class DashboardScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              Text(value, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+              Text(
+                value,
+                style: AppText.body.copyWith(fontWeight: FontWeight.w700),
+              ),
             ],
           ),
         ),
@@ -630,7 +646,10 @@ class DashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Dashboard', style: AppText.display.copyWith(fontSize: 26)),
+                Text(
+                  'Dashboard',
+                  style: AppText.display.copyWith(fontSize: 26),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   'Visão geral da sua oficina hoje',
@@ -746,16 +765,25 @@ class DashboardScreen extends StatelessWidget {
   }
 
   /// ================= CARD ESTATÍSTICA =================
+  /// Compactado pra bater com a densidade do handoff (Confiança Noturna):
+  /// só label + valor, sem ícone/caixa colorida, altura intrínseca ao
+  /// conteúdo. A pílula de tendência (dado real, não decorativo) entra numa
+  /// linha própria abaixo do valor — testei ao lado do título e ao lado do
+  /// valor e nenhum dos dois cabe em ~360px sem apertar.
   Widget _buildStatCard(
     BuildContext context, {
     required String title,
     required String value,
-    required IconData icon,
     String? trend,
     bool trendUp = true,
     Color? valueColor,
     VoidCallback? onTap,
   }) {
+    final isMobile = ResponsiveUtils.isMobile(context);
+    final padding = isMobile
+        ? const EdgeInsets.all(12)
+        : const EdgeInsets.symmetric(horizontal: 16, vertical: 14);
+
     bool hover = false;
 
     return StatefulBuilder(
@@ -766,12 +794,7 @@ class DashboardScreen extends StatelessWidget {
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 180),
             transform: Matrix4.identity()
-              ..scaleByDouble(
-                hover ? 1.02 : 1.0,
-                hover ? 1.02 : 1.0,
-                1.0,
-                1.0,
-              ),
+              ..scaleByDouble(hover ? 1.02 : 1.0, hover ? 1.02 : 1.0, 1.0, 1.0),
             child: Material(
               color: Colors.transparent,
               borderRadius: BorderRadius.circular(AppRadius.card),
@@ -779,7 +802,7 @@ class DashboardScreen extends StatelessWidget {
                 onTap: onTap,
                 borderRadius: BorderRadius.circular(AppRadius.card),
                 child: Ink(
-                  padding: const EdgeInsets.all(12),
+                  padding: padding,
                   decoration: BoxDecoration(
                     color: AppColors.surface,
                     borderRadius: BorderRadius.circular(AppRadius.card),
@@ -796,30 +819,8 @@ class DashboardScreen extends StatelessWidget {
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Row(
-                        children: [
-                          // Ícone monocromático em caixa neutra (sem arco-íris).
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: AppColors.elevated,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              icon,
-                              color: AppColors.textSecondary,
-                              size: 18,
-                            ),
-                          ),
-                          if (trend != null) ...[
-                            const Spacer(),
-                            _TrendPill(label: trend, up: trendUp),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 10),
                       Text(
                         title,
                         maxLines: 1,
@@ -836,6 +837,10 @@ class DashboardScreen extends StatelessWidget {
                           color: valueColor,
                         ),
                       ),
+                      if (trend != null) ...[
+                        const SizedBox(height: 6),
+                        _TrendPill(label: trend, up: trendUp),
+                      ],
                     ],
                   ),
                 ),
@@ -888,7 +893,9 @@ class DashboardScreen extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               Formatters.currency(o.valorTotal),
-                              style: const TextStyle(fontWeight: FontWeight.w800),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ],
                         ),

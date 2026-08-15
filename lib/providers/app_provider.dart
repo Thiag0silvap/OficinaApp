@@ -143,7 +143,10 @@ class AppProvider extends ChangeNotifier {
 
       if (!hasModeloBase && !hasModeloCustom) {
         list.add(fixedModelo);
-        await _db.insertMarcaModeloCustom(marca: fixedMarca, modelo: fixedModelo);
+        await _db.insertMarcaModeloCustom(
+          marca: fixedMarca,
+          modelo: fixedModelo,
+        );
       }
     }
 
@@ -167,7 +170,7 @@ class AppProvider extends ChangeNotifier {
   /// dispositivo (ver `_migrateLegacyVehicleCatalogFromPrefs`) — só como fallback
   /// de leitura nesse primeiro carregamento; nunca mais grava em prefs.
   Future<({List<String> marcas, Map<String, List<String>> modelosPorMarca})>
-      _fetchVehicleCatalogFromDb() async {
+  _fetchVehicleCatalogFromDb() async {
     var rows = await _db.getMarcasModelosCustom();
 
     if (rows.isEmpty) {
@@ -254,7 +257,9 @@ class AppProvider extends ChangeNotifier {
       // conta a carregar tenta migrar de novo (retry seguro/idempotente).
       await prefs.setBool(_prefsKeyMarcasModelosMigrado, true);
     } catch (_) {
-      debugPrint('Falha ao migrar catálogo legado de veículos (SharedPreferences)');
+      debugPrint(
+        'Falha ao migrar catálogo legado de veículos (SharedPreferences)',
+      );
     }
   }
 
@@ -287,6 +292,18 @@ class AppProvider extends ChangeNotifier {
         .where(
           (t) =>
               t.tipo == TipoTransacao.entrada &&
+              t.data.month == now.month &&
+              t.data.year == now.year,
+        )
+        .fold(0, (sum, t) => sum + t.valor);
+  }
+
+  double get saidasMesAtual {
+    final now = DateTime.now();
+    return _transacoes
+        .where(
+          (t) =>
+              t.tipo == TipoTransacao.saida &&
               t.data.month == now.month &&
               t.data.year == now.year,
         )
@@ -376,15 +393,18 @@ class AppProvider extends ChangeNotifier {
       await _db.updateCliente(clienteOculto);
       _clientes.removeAt(index);
 
-      final veiculosDoCliente =
-          _veiculos.where((v) => v.clienteId == id).toList();
+      final veiculosDoCliente = _veiculos
+          .where((v) => v.clienteId == id)
+          .toList();
       for (final veiculo in veiculosDoCliente) {
         await _db.updateVeiculo(veiculo.copyWith(ativo: false));
       }
       _veiculos.removeWhere((v) => v.clienteId == id);
 
       notifyListeners();
-      unawaited(AppLogger.instance.warning('Cliente ocultado (soft delete): $id'));
+      unawaited(
+        AppLogger.instance.warning('Cliente ocultado (soft delete): $id'),
+      );
     } catch (e) {
       _recordError('Erro ao excluir cliente: $e');
       rethrow;
@@ -424,7 +444,9 @@ class AppProvider extends ChangeNotifier {
       await _db.insertVeiculo(veiculo);
       _veiculos.add(veiculo);
       notifyListeners();
-      unawaited(AppLogger.instance.info('Veiculo adicionado: ${veiculo.placa}'));
+      unawaited(
+        AppLogger.instance.info('Veiculo adicionado: ${veiculo.placa}'),
+      );
     } catch (e) {
       _recordError('Erro ao adicionar veiculo: $e');
       rethrow;
@@ -462,7 +484,9 @@ class AppProvider extends ChangeNotifier {
       await _db.updateVeiculo(atualizado);
       _veiculos.removeAt(index);
       notifyListeners();
-      unawaited(AppLogger.instance.warning('Veiculo ocultado (soft delete): $id'));
+      unawaited(
+        AppLogger.instance.warning('Veiculo ocultado (soft delete): $id'),
+      );
     } catch (e) {
       _recordError('Erro ao excluir veiculo: $e');
       rethrow;
@@ -529,9 +553,16 @@ class AppProvider extends ChangeNotifier {
   Future<void> deleteOrcamento(String id) async {
     try {
       await _ensureUserDbSelected();
+      final hasPagamentoVinculado =
+          _transacoes.any((t) => t.orcamentoId == id) ||
+          (await _db.getTransacaoByOrcamentoId(id)) != null;
+      if (hasPagamentoVinculado) {
+        throw StateError(
+          'Este orçamento tem um pagamento registrado. Exclua a transação financeira correspondente primeiro.',
+        );
+      }
       await _db.deleteOrcamento(id);
       _orcamentos.removeWhere((o) => o.id == id);
-      _transacoes.removeWhere((t) => t.orcamentoId == id);
       notifyListeners();
       unawaited(AppLogger.instance.warning('Orcamento removido: $id'));
     } catch (e) {
@@ -580,7 +611,9 @@ class AppProvider extends ChangeNotifier {
       await _db.updateOrcamento(atualizado);
       _orcamentos[index] = atualizado;
       notifyListeners();
-      unawaited(AppLogger.instance.info('Servico iniciado para orcamento: $id'));
+      unawaited(
+        AppLogger.instance.info('Servico iniciado para orcamento: $id'),
+      );
     } catch (e) {
       _recordError('Erro ao iniciar servico: $e');
       rethrow;
@@ -740,10 +773,9 @@ class AppProvider extends ChangeNotifier {
 
       final atualizado = atual.copyWith(
         status: OrcamentoStatus.cancelado,
-        motivoCancelamento:
-            (motivoTrimmed != null && motivoTrimmed.isNotEmpty)
-                ? motivoTrimmed
-                : null,
+        motivoCancelamento: (motivoTrimmed != null && motivoTrimmed.isNotEmpty)
+            ? motivoTrimmed
+            : null,
       );
 
       await _ensureUserDbSelected();
@@ -797,8 +829,10 @@ class AppProvider extends ChangeNotifier {
     // pagamento do orçamento ANTES de excluir a transação — nessa ordem,
     // para que uma falha na reversão não deixe a transação apagada sem o
     // orçamento correspondente atualizado.
-    final transacao =
-        _transacoes.where((t) => t.id == id).cast<Transacao?>().firstOrNull;
+    final transacao = _transacoes
+        .where((t) => t.id == id)
+        .cast<Transacao?>()
+        .firstOrNull;
     final orcamentoId = transacao?.orcamentoId;
 
     if (orcamentoId != null) {
@@ -932,7 +966,8 @@ class AppProvider extends ChangeNotifier {
   }
 
   void _validateVeiculo(Veiculo veiculo) {
-    if (veiculo.clienteId.trim().isEmpty || veiculo.clienteId == '__pending__') {
+    if (veiculo.clienteId.trim().isEmpty ||
+        veiculo.clienteId == '__pending__') {
       throw StateError('Associe o veiculo a um cliente valido.');
     }
     if (veiculo.marca.trim().isEmpty || veiculo.modelo.trim().isEmpty) {

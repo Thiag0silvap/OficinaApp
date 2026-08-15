@@ -118,40 +118,54 @@ Widget buildOrcamentoMenu(
       if (orcamento.status == OrcamentoStatus.pendente)
         const PopupMenuItem(
           value: 'editar',
-          child: Row(children: [
-            Icon(Icons.edit, size: 18),
-            SizedBox(width: 8),
-            Text('Editar'),
-          ]),
+          child: Row(
+            children: [
+              Icon(Icons.edit, size: 18),
+              SizedBox(width: 8),
+              Text('Editar'),
+            ],
+          ),
         ),
       const PopupMenuItem(
         value: 'imprimir',
-        child: Row(children: [
-          Icon(Icons.print, size: 18),
-          SizedBox(width: 8),
-          Text('Imprimir'),
-        ]),
+        child: Row(
+          children: [
+            Icon(Icons.print, size: 18),
+            SizedBox(width: 8),
+            Text('Imprimir'),
+          ],
+        ),
       ),
       if (orcamento.status == OrcamentoStatus.pendente ||
           orcamento.status == OrcamentoStatus.aprovado ||
           orcamento.status == OrcamentoStatus.emAndamento)
         const PopupMenuItem(
           value: 'cancelar',
-          child: Row(children: [
-            Icon(Icons.cancel, size: 18),
-            SizedBox(width: 8),
-            Text('Cancelar'),
-          ]),
+          child: Row(
+            children: [
+              Icon(Icons.cancel, size: 18),
+              SizedBox(width: 8),
+              Text('Cancelar'),
+            ],
+          ),
         ),
-      const PopupMenuDivider(),
-      PopupMenuItem(
-        value: 'excluir',
-        child: Row(children: [
-          const Icon(Icons.delete_outline, size: 18, color: AppColors.danger),
-          const SizedBox(width: 8),
-          Text('Excluir', style: TextStyle(color: AppColors.danger)),
-        ]),
-      ),
+      if (!orcamento.pago) ...[
+        const PopupMenuDivider(),
+        PopupMenuItem(
+          value: 'excluir',
+          child: Row(
+            children: [
+              const Icon(
+                Icons.delete_outline,
+                size: 18,
+                color: AppColors.danger,
+              ),
+              const SizedBox(width: 8),
+              Text('Excluir', style: TextStyle(color: AppColors.danger)),
+            ],
+          ),
+        ),
+      ],
     ],
   );
 }
@@ -162,39 +176,60 @@ class OrcamentoActions {
   const OrcamentoActions._();
 
   static Future<void> aprovar(
-      BuildContext context, AppProvider provider, Orcamento o) async {
+    BuildContext context,
+    AppProvider provider,
+    Orcamento o,
+  ) async {
     await provider.aprovarOrcamento(o.id);
     if (!context.mounted) return;
     AppSnackbar.show(context, 'Orçamento aprovado!', type: SnackType.success);
   }
 
   static Future<void> iniciar(
-      BuildContext context, AppProvider provider, Orcamento o) async {
+    BuildContext context,
+    AppProvider provider,
+    Orcamento o,
+  ) async {
     await provider.iniciarServico(o.id);
     if (!context.mounted) return;
     AppSnackbar.show(context, 'Serviço iniciado!', type: SnackType.success);
   }
 
   static Future<void> concluir(
-      BuildContext context, AppProvider provider, Orcamento o) async {
+    BuildContext context,
+    AppProvider provider,
+    Orcamento o,
+  ) async {
     await provider.concluirOrcamento(o.id);
     if (!context.mounted) return;
-    AppSnackbar.show(context, 'Serviço concluído! Pagamento pendente.',
-        type: SnackType.success);
+    AppSnackbar.show(
+      context,
+      'Serviço concluído! Pagamento pendente.',
+      type: SnackType.success,
+    );
   }
 
   static Future<void> receber(
-      BuildContext context, AppProvider provider, Orcamento o) async {
+    BuildContext context,
+    AppProvider provider,
+    Orcamento o,
+  ) async {
     await provider.registrarPagamento(o.id);
     if (!context.mounted) return;
     AppSnackbar.show(context, 'Pagamento registrado!', type: SnackType.success);
   }
 
   static Future<void> cancelar(
-      BuildContext context, AppProvider provider, Orcamento o) async {
+    BuildContext context,
+    AppProvider provider,
+    Orcamento o,
+  ) async {
     try {
-      final cancelado =
-          await collectMotivoAndCancelarOrcamento(context, provider, o);
+      final cancelado = await collectMotivoAndCancelarOrcamento(
+        context,
+        provider,
+        o,
+      );
       if (!cancelado) return;
       if (!context.mounted) return;
       AppSnackbar.show(context, 'Orçamento cancelado!', type: SnackType.info);
@@ -210,8 +245,9 @@ class OrcamentoActions {
 
   static Future<void> imprimir(BuildContext context, Orcamento o) async {
     final filename = PDFService.buildPdfFilename(o);
-    final title =
-        o.status == OrcamentoStatus.concluido ? 'Nota de Serviço' : 'Orçamento';
+    final title = o.status == OrcamentoStatus.concluido
+        ? 'Nota de Serviço'
+        : 'Orçamento';
     await showPdfPreviewDialog(
       context,
       title: title,
@@ -221,7 +257,10 @@ class OrcamentoActions {
   }
 
   static Future<void> excluir(
-      BuildContext context, AppProvider provider, Orcamento o) async {
+    BuildContext context,
+    AppProvider provider,
+    Orcamento o,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -241,22 +280,34 @@ class OrcamentoActions {
     );
     if (!context.mounted) return;
     if (confirmed == true) {
-      await provider.deleteOrcamento(o.id);
-      if (!context.mounted) return;
-      AppSnackbar.show(context, 'Orçamento excluído', type: SnackType.error);
+      try {
+        await provider.deleteOrcamento(o.id);
+        if (!context.mounted) return;
+        AppSnackbar.show(context, 'Orçamento excluído', type: SnackType.error);
+      } catch (e) {
+        if (!context.mounted) return;
+        final message = e is StateError ? e.message : e.toString();
+        AppSnackbar.show(context, message, type: SnackType.error);
+      }
     }
   }
 
   /// Gera PDF e abre o WhatsApp. Lógica preservada da versão original;
   /// o tratamento amigável do PlatformException fica para a Sprint 5.
   static Future<void> pdfWhatsapp(
-      BuildContext context, AppProvider provider, Orcamento o) async {
+    BuildContext context,
+    AppProvider provider,
+    Orcamento o,
+  ) async {
     try {
       final cliente = provider.getClienteById(o.clienteId);
       if (cliente == null || cliente.telefone.trim().isEmpty) {
         if (!context.mounted) return;
-        AppSnackbar.show(context, 'Cliente sem telefone cadastrado.',
-            type: SnackType.info);
+        AppSnackbar.show(
+          context,
+          'Cliente sem telefone cadastrado.',
+          type: SnackType.info,
+        );
         return;
       }
       final bytes = await PDFService.generateOrcamentoPdf(o);
@@ -274,12 +325,18 @@ class OrcamentoActions {
         message: mensagem,
       );
       if (!context.mounted) return;
-      AppSnackbar.show(context, 'PDF gerado! Escolha o app para compartilhar.',
-          type: SnackType.success);
+      AppSnackbar.show(
+        context,
+        'PDF gerado! Escolha o app para compartilhar.',
+        type: SnackType.success,
+      );
     } catch (e) {
       if (!context.mounted) return;
-      AppSnackbar.show(context, 'Erro ao preparar envio: $e',
-          type: SnackType.error);
+      AppSnackbar.show(
+        context,
+        'Erro ao preparar envio: $e',
+        type: SnackType.error,
+      );
     }
   }
 }
