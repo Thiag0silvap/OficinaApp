@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -354,12 +356,23 @@ class ResponsiveLayout extends StatelessWidget {
   }
 
   Future<void> _confirmAndRestoreBackup(BuildContext context) async {
-    final picked = await FilePicker.platform.pickFiles(
-      dialogTitle: 'Selecione o arquivo de backup',
-      type: FileType.custom,
-      allowedExtensions: const ['db'],
-      allowMultiple: false,
-    );
+    FilePickerResult? picked;
+    try {
+      // FileType.custom + allowedExtensions falha no Android com
+      // "Unsupported filter" para extensões sem MIME type mapeado (ex.
+      // .db) — usamos FileType.any e validamos a extensão manualmente.
+      picked = await FilePicker.platform.pickFiles(
+        dialogTitle: 'Selecione o arquivo de backup',
+        type: FileType.any,
+        allowMultiple: false,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao selecionar o arquivo: $e')),
+      );
+      return;
+    }
     if (!context.mounted || picked == null || picked.files.isEmpty) return;
 
     final selectedPath = picked.files.single.path;
@@ -368,6 +381,18 @@ class ResponsiveLayout extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Nao foi possivel acessar o arquivo selecionado.'),
+        ),
+      );
+      return;
+    }
+    // Nao valida pela extensao do nome: provedores como Google Drive nem
+    // sempre preservam ".db" no nome exibido pelo seletor. Em vez disso,
+    // confere o cabecalho binario que todo arquivo SQLite tem.
+    if (!await _looksLikeSqliteFile(selectedPath)) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('O arquivo selecionado nao e um backup valido.'),
         ),
       );
       return;
@@ -464,6 +489,30 @@ class ResponsiveLayout extends StatelessWidget {
       messenger.showSnackBar(
         SnackBar(content: Text('Erro ao restaurar backup: $e')),
       );
+    }
+  }
+
+  static const List<int> _sqliteHeaderMagic = [
+    0x53, 0x51, 0x4c, 0x69, 0x74, 0x65, 0x20, 0x66, // "SQLite f"
+    0x6f, 0x72, 0x6d, 0x61, 0x74, 0x20, 0x33, 0x00, // "ormat 3\0"
+  ];
+
+  Future<bool> _looksLikeSqliteFile(String path) async {
+    try {
+      final file = File(path);
+      final raf = await file.open();
+      try {
+        final header = await raf.read(_sqliteHeaderMagic.length);
+        if (header.length != _sqliteHeaderMagic.length) return false;
+        for (var i = 0; i < header.length; i++) {
+          if (header[i] != _sqliteHeaderMagic[i]) return false;
+        }
+        return true;
+      } finally {
+        await raf.close();
+      }
+    } catch (_) {
+      return false;
     }
   }
 
