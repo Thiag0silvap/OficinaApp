@@ -963,7 +963,29 @@ class AppProvider extends ChangeNotifier {
     if (cliente.telefone.trim().isEmpty) {
       throw StateError('Informe o telefone do cliente.');
     }
+
+    final telefoneDigits = _onlyDigits(cliente.telefone);
+    final cnpjDigits = _onlyDigits(cliente.cnpj ?? '');
+
+    // Compara só contra clientes ativos (o próprio _clientes já é só
+    // ativos) e ignora o registro sendo editado, senão editar um cliente
+    // sem mudar telefone/CNPJ sempre bateria como duplicado dele mesmo.
+    for (final outro in _clientes) {
+      if (outro.id == cliente.id) continue;
+      if (_onlyDigits(outro.telefone) == telefoneDigits) {
+        throw StateError(
+          'Já existe um cliente cadastrado com esse telefone: ${outro.nome}.',
+        );
+      }
+      if (cnpjDigits.isNotEmpty && _onlyDigits(outro.cnpj ?? '') == cnpjDigits) {
+        throw StateError(
+          'Já existe um cliente cadastrado com esse CNPJ: ${outro.nome}.',
+        );
+      }
+    }
   }
+
+  String _onlyDigits(String value) => value.replaceAll(RegExp(r'[^0-9]'), '');
 
   void _validateVeiculo(Veiculo veiculo) {
     if (veiculo.clienteId.trim().isEmpty ||
