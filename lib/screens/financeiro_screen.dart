@@ -12,6 +12,7 @@ import '../core/utils/currency_input_formatter.dart';
 import '../models/orcamento.dart';
 import '../models/transacao.dart';
 import '../providers/app_provider.dart';
+import '../core/components/transacao_detail_dialog.dart';
 
 /// FINANCEIRO (Premium / Desktop-first)
 /// - Cards (Entradas, Saídas, Saldo)
@@ -708,65 +709,78 @@ class _TransacaoTile extends StatelessWidget {
     final money = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
     final dateFmt = DateFormat('dd/MM/yyyy');
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.elevated,
+    return Material(
+      color: AppColors.elevated,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.textTertiary.withValues(alpha: 0.7),
+        onTap: () => showDialog<void>(
+          context: context,
+          builder: (_) => TransacaoDetailDialog(transacao: transacao),
         ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: badgeColor.withValues(alpha: 0.18),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: badgeColor.withValues(alpha: 0.5)),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppColors.textTertiary.withValues(alpha: 0.7),
             ),
-            child: Text(
-              isEntrada ? 'Entrada' : 'Saída',
-              style: AppText.caption.copyWith(
-                color: badgeColor,
-                fontWeight: FontWeight.w800,
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: badgeColor.withValues(alpha: 0.5)),
+                ),
+                child: Text(
+                  isEntrada ? 'Entrada' : 'Saída',
+                  style: AppText.caption.copyWith(
+                    color: badgeColor,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  transacao.descricao,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppText.body.copyWith(fontWeight: FontWeight.w900),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      transacao.descricao,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.body.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${transacao.categoria} • ${dateFmt.format(transacao.data)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.bodySecondary,
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '${transacao.categoria} • ${dateFmt.format(transacao.data)}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppText.bodySecondary,
-                ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                money.format(transacao.valor),
+                style: AppText.money.copyWith(fontSize: 15, color: badgeColor),
+              ),
+              const SizedBox(width: 10),
+              GhostIconButton(
+                icon: Icons.delete_outline,
+                onPressed: onDelete,
+                tooltip: 'Excluir',
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Text(
-            money.format(transacao.valor),
-            style: AppText.money.copyWith(fontSize: 15, color: badgeColor),
-          ),
-          const SizedBox(width: 10),
-          GhostIconButton(
-            icon: Icons.delete_outline,
-            onPressed: onDelete,
-            tooltip: 'Excluir',
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -803,6 +817,7 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
   Widget build(BuildContext context) {
     final dialog = ResponsiveDialog(
       title: 'Nova Transação',
+      stackedActions: true,
       content: SingleChildScrollView(
         child: Form(
           key: _formKey,

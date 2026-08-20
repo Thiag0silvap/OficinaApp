@@ -1178,12 +1178,14 @@ class ResponsiveDialog extends StatelessWidget {
   final String title;
   final Widget content;
   final List<Widget>? actions;
+  final bool stackedActions;
 
   const ResponsiveDialog({
     super.key,
     required this.title,
     required this.content,
     this.actions,
+    this.stackedActions = false,
   });
 
   @override
@@ -1223,19 +1225,28 @@ class ResponsiveDialog extends StatelessWidget {
               content,
               if (actions != null && actions!.isNotEmpty) ...[
                 const SizedBox(height: 24),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 10,
-                  alignment: WrapAlignment.end,
-                  children: actions!
-                      .map(
-                        (a) => ConstrainedBox(
-                          constraints: const BoxConstraints(minWidth: 140),
-                          child: a,
-                        ),
-                      )
-                      .toList(),
-                ),
+                if (stackedActions)
+                  Column(
+                    children: actions!
+                        .map((a) => SizedBox(width: double.infinity, child: a))
+                        .expand((w) => [w, const SizedBox(height: 10)])
+                        .toList()
+                      ..removeLast(), // remove o último SizedBox extra
+                  )
+                else
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 10,
+                    alignment: WrapAlignment.end,
+                    children: actions!
+                        .map(
+                          (a) => ConstrainedBox(
+                            constraints: const BoxConstraints(minWidth: 140),
+                            child: a,
+                          ),
+                        )
+                        .toList(),
+                  ),
               ],
             ],
           ),

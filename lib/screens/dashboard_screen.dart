@@ -70,7 +70,11 @@ class DashboardScreen extends StatelessWidget {
                   ? (constraints.maxWidth / 2) - 8
                   : 290.0;
 
-              final statCards = <Widget>[
+              Widget sizedStatCard(Widget card) {
+                return SizedBox(width: maxCardWidth, child: card);
+              }
+
+              final monthlyCards = <Widget>[
                 _buildStatCard(
                   context,
                   title: 'Entradas do mês',
@@ -112,6 +116,9 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+              ];
+
+              final statCards = <Widget>[
                 _buildStatCard(
                   context,
                   title: 'Ordens ativas',
@@ -131,6 +138,10 @@ class DashboardScreen extends StatelessWidget {
                 ),
               ];
 
+              final monthlyPairWidth = (maxCardWidth * 2) + spacing;
+              final monthlyCardsFitInRow =
+                  monthlyPairWidth <= constraints.maxWidth;
+
               return SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,12 +157,31 @@ class DashboardScreen extends StatelessWidget {
 
                     /// ======= CARDS (largura fixa, altura intrínseca ao
                     /// conteúdo — como no handoff) =======
+                    if (monthlyCardsFitInRow)
+                      IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            sizedStatCard(monthlyCards[0]),
+                            SizedBox(width: spacing),
+                            sizedStatCard(monthlyCards[1]),
+                          ],
+                        ),
+                      )
+                    else
+                      Wrap(
+                        spacing: spacing,
+                        runSpacing: spacing,
+                        children: [
+                          for (final card in monthlyCards) sizedStatCard(card),
+                        ],
+                      ),
+                    SizedBox(height: spacing),
                     Wrap(
                       spacing: spacing,
                       runSpacing: spacing,
                       children: [
-                        for (final card in statCards)
-                          SizedBox(width: maxCardWidth, child: card),
+                        for (final card in statCards) sizedStatCard(card),
                       ],
                     ),
 

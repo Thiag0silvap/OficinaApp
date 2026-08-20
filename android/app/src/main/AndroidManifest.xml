@@ -48,11 +48,6 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
-        <!-- Necessário desde Android 11 (API 30, package visibility) para o
-             url_launcher conseguir detectar/abrir o WhatsApp via
-             whatsapp://send e o fallback https://wa.me/. Sem isso, a
-             checagem de app instalado falha mesmo com o WhatsApp presente,
-             e a tentativa de abrir a intent gera ACTIVITY_NOT_FOUND. -->
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="whatsapp"/>
@@ -60,6 +55,10 @@
         <intent>
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT"/>
+            <data android:mimeType="*/*"/>
         </intent>
     </queries>
 </manifest>

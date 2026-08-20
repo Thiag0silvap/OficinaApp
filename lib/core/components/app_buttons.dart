@@ -89,6 +89,7 @@ class GhostButton extends StatelessWidget {
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 if (icon != null) ...[
                   Icon(icon, size: 17, color: AppColors.textPrimary),
