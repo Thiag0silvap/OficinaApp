@@ -132,21 +132,20 @@ void showDeleteClienteDialog(
               onPressed: isDeleting ? null : () => Navigator.pop(dialogContext),
             ),
             PrimaryButton(
-              label: isDeleting ? '' : 'Ocultar',
-              icon: isDeleting ? null : Icons.visibility_off,
-              onPressed: isDeleting
-                  ? null
-                  : () async {
-                      setState(() => isDeleting = true);
-                      try {
-                        await provider.deleteCliente(cliente.id);
-                        if (dialogContext.mounted) Navigator.pop(dialogContext);
-                      } finally {
-                        if (dialogContext.mounted) {
-                          setState(() => isDeleting = false);
-                        }
-                      }
-                    },
+              label: 'Ocultar',
+              icon: Icons.visibility_off,
+              isLoading: isDeleting,
+              onPressed: () async {
+                setState(() => isDeleting = true);
+                try {
+                  await provider.deleteCliente(cliente.id);
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                } finally {
+                  if (dialogContext.mounted) {
+                    setState(() => isDeleting = false);
+                  }
+                }
+              },
             ),
           ],
         );
@@ -159,6 +158,7 @@ void showVeiculoFormDialog(
   BuildContext context, {
   required Cliente cliente,
   Veiculo? veiculoEditar,
+  void Function(Veiculo veiculo)? onSaved,
 }) {
   final scaffoldContext = context;
   final formKey = GlobalKey<FormState>();
@@ -203,6 +203,7 @@ void showVeiculoFormDialog(
             if (dialogContext.mounted && Navigator.of(dialogContext).canPop()) {
               Navigator.pop(dialogContext);
             }
+            onSaved?.call(veiculo);
             if (scaffoldContext.mounted) {
               ScaffoldMessenger.of(scaffoldContext).showSnackBar(
                 SnackBar(
@@ -230,6 +231,7 @@ void showVeiculoFormDialog(
           title: isEdit
               ? 'Editar Veículo - ${cliente.nome}'
               : 'Novo Veículo - ${cliente.nome}',
+          stackedActions: true,
           content: SingleChildScrollView(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 600),
@@ -240,19 +242,14 @@ void showVeiculoFormDialog(
             ),
           ),
           actions: [
-            OutlinedButton(
+            GhostButton(
+              label: 'Cancelar',
               onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
-              child: const Text('Cancelar'),
             ),
-            ElevatedButton(
-              onPressed: isSaving ? null : submit,
-              child: isSaving
-                  ? const SizedBox(
-                      height: 16,
-                      width: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Salvar'),
+            PrimaryButton(
+              label: 'Salvar',
+              isLoading: isSaving,
+              onPressed: submit,
             ),
           ],
         );

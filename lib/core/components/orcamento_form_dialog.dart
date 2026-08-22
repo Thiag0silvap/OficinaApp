@@ -12,9 +12,9 @@ import '../../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../constants/app_constants.dart';
 import 'app_buttons.dart';
+import 'cliente_actions.dart';
 import 'form_styles.dart';
 import 'responsive_components.dart';
-import 'veiculo_form_fields.dart';
 
 class OrcamentoFormDialog extends StatefulWidget {
   final Cliente? clientePreSelecionado;
@@ -1032,106 +1032,26 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
   }
 
   /// Cadastro rápido de veículo sem sair do formulário de orçamento: abre o
-  /// mesmo [VeiculoFormFields] usado no cadastro de cliente/veículo, dentro
-  /// de um dialog simples. Ao salvar, o veículo novo já entra selecionado.
+  /// Mesmo modal usado no cadastro de veículo a partir da tela de Cliente
+  /// ([showVeiculoFormDialog]) — evita manter duas telas de "adicionar
+  /// veículo" diferentes no app. Ao salvar, o veículo novo já entra
+  /// selecionado.
   ///
   /// Só é chamado com o formulário em modo de criação — o botão que a
   /// aciona fica desabilitado em modo edição (ver `_buildClienteVeiculoSection`),
   /// já que o `setState` abaixo reatribuiria `_selectedVeiculo` mesmo com o
   /// dropdown de veículo travado.
-  Future<void> _abrirCadastroRapidoVeiculo(BuildContext context) async {
+  void _abrirCadastroRapidoVeiculo(BuildContext context) {
     final cliente = _selectedCliente;
     if (cliente == null) return;
 
-    final provider = Provider.of<AppProvider>(context, listen: false);
-    final formKey = GlobalKey<FormState>();
-    final controller = VeiculoFormController();
-    bool isSaving = false;
-
-    await showDialog(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) {
-          Future<void> submit() async {
-            if (isSaving) return;
-            if (!formKey.currentState!.validate()) return;
-            setDialogState(() => isSaving = true);
-
-            final veiculo = controller.buildVeiculo(
-              id: DateTime.now().millisecondsSinceEpoch.toString(),
-              clienteId: cliente.id,
-            );
-
-            try {
-              await provider.addMarcaModeloCustom(
-                marca: controller.marcaFinal,
-                modelo: controller.modeloFinal,
-              );
-              await provider.addVeiculo(veiculo);
-              if (dialogContext.mounted &&
-                  Navigator.of(dialogContext).canPop()) {
-                Navigator.pop(dialogContext);
-              }
-              if (mounted) {
-                setState(() => _selectedVeiculo = veiculo);
-              }
-            } catch (e) {
-              if (dialogContext.mounted) {
-                ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  SnackBar(content: Text('Erro ao cadastrar veículo: $e')),
-                );
-              }
-            } finally {
-              if (dialogContext.mounted) {
-                setDialogState(() => isSaving = false);
-              }
-            }
-          }
-
-          return AlertDialog(
-            backgroundColor: AppColors.elevated,
-            title: Text(
-              'Cadastrar veículo - ${cliente.nome}',
-              style: AppText.title,
-            ),
-            content: SingleChildScrollView(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: Form(
-                  key: formKey,
-                  child: VeiculoFormFields(controller: controller),
-                ),
-              ),
-            ),
-            actions: [
-              GhostButton(
-                label: 'Cancelar',
-                onPressed:
-                    isSaving ? null : () => Navigator.pop(dialogContext),
-              ),
-              isSaving
-                  ? const SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: Center(
-                        child: SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppColors.primary,
-                          ),
-                        ),
-                      ),
-                    )
-                  : PrimaryButton(label: 'Salvar', onPressed: submit),
-            ],
-          );
-        },
-      ),
+    showVeiculoFormDialog(
+      context,
+      cliente: cliente,
+      onSaved: (veiculo) {
+        if (mounted) setState(() => _selectedVeiculo = veiculo);
+      },
     );
-
-    controller.dispose();
   }
 
   Widget _buildAdicionarItemSection(BuildContext context, bool isMobile) {

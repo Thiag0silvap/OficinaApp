@@ -172,9 +172,35 @@ class _VeiculosCard extends StatelessWidget {
             for (final v in veiculos)
               Padding(
                 padding: const EdgeInsets.only(bottom: AppSpacing.xs),
-                child: Text(
-                  '• ${v.descricaoCompleta}',
-                  style: AppText.bodySecondary.copyWith(color: AppColors.textPrimary),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(AppRadius.card),
+                    onTap: () => showVeiculoFormDialog(
+                      context,
+                      cliente: cliente,
+                      veiculoEditar: v,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '• ${v.descricaoCompleta}',
+                              style: AppText.bodySecondary
+                                  .copyWith(color: AppColors.textPrimary),
+                            ),
+                          ),
+                          Icon(
+                            Icons.edit_outlined,
+                            size: 16,
+                            color: AppColors.textSecondary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
         ],

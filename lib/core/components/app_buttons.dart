@@ -11,16 +11,18 @@ class PrimaryButton extends StatelessWidget {
     this.icon,
     this.onPressed,
     this.expanded = false,
+    this.isLoading = false,
   });
 
   final String label;
   final IconData? icon;
   final VoidCallback? onPressed;
   final bool expanded;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
-    final child = Row(
+    final content = Row(
       mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -32,11 +34,29 @@ class PrimaryButton extends StatelessWidget {
       ],
     );
 
+    // Opacity (em vez de remover o conteúdo) mantém o slot ocupando o
+    // mesmo espaço, então o botão não muda de largura ao entrar em loading.
+    final child = Stack(
+      alignment: Alignment.center,
+      children: [
+        Opacity(opacity: isLoading ? 0 : 1, child: content),
+        if (isLoading)
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.onPrimary,
+            ),
+          ),
+      ],
+    );
+
     return Material(
       color: AppColors.primary,
       borderRadius: BorderRadius.circular(AppRadius.button),
       child: InkWell(
-        onTap: onPressed,
+        onTap: isLoading ? null : onPressed,
         borderRadius: BorderRadius.circular(AppRadius.button),
         child: Padding(
           padding: const EdgeInsets.symmetric(
@@ -45,7 +65,7 @@ class PrimaryButton extends StatelessWidget {
           ),
           child: AnimatedOpacity(
             duration: const Duration(milliseconds: 150),
-            opacity: onPressed == null ? 0.4 : 1,
+            opacity: (!isLoading && onPressed == null) ? 0.4 : 1,
             child: child,
           ),
         ),
