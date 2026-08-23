@@ -3,11 +3,9 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:intl/intl.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_logo.dart';
 import '../constants/app_version.dart';
-import '../../models/backup_manifest.dart';
 import '../../providers/app_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/db_service.dart';
@@ -514,50 +512,6 @@ class ResponsiveLayout extends StatelessWidget {
     } catch (_) {
       return false;
     }
-  }
-
-  Future<BackupManifest?> _selectBackupToRestore(
-    BuildContext context,
-    List<BackupManifest> backups,
-  ) async {
-    return showDialog<BackupManifest>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Escolha um backup'),
-        content: SizedBox(
-          width: 560,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 420),
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: backups.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (_, index) {
-                final backup = backups[index];
-                final dateLabel = DateFormat(
-                  'dd/MM/yyyy HH:mm',
-                ).format(backup.createdAt.toLocal());
-                return ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(backup.fileName),
-                  subtitle: Text(
-                    'Usuario: ${backup.userId}  •  Data: $dateLabel  •  ${_formatBytes(backup.fileSizeBytes)}',
-                  ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: () => Navigator.of(ctx).pop(backup),
-                );
-              },
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancelar'),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showHelpDialog(BuildContext context) {
@@ -1117,13 +1071,6 @@ class ResponsiveLayout extends StatelessWidget {
     );
   }
 
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) {
-      return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    }
-    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-  }
 }
 
 class ResponsiveListCard extends StatelessWidget {

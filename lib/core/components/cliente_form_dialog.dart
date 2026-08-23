@@ -8,7 +8,9 @@ import '../../providers/app_provider.dart';
 import '../theme/app_theme.dart';
 import '../utils/cnpj_input_formatter.dart';
 import '../utils/phone_input_formatter.dart';
+import 'app_buttons.dart';
 import 'form_styles.dart';
+import 'info_chip.dart';
 import 'responsive_components.dart';
 import 'veiculo_form_fields.dart';
 
@@ -302,42 +304,16 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
     }
   }
 
-  Widget _buildStepChip({required IconData icon, required String label}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.85)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: AppColors.textSecondary),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: const TextStyle(
-              color: AppColors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildStepperHeader() {
     return Wrap(
       spacing: 10,
       runSpacing: 10,
       children: [
-        _buildStepChip(
+        InfoChip(
           icon: Icons.person_outline,
           label: _currentStep == 0 ? '1. Dados do cliente' : '1. Cliente',
         ),
-        _buildStepChip(
+        InfoChip(
           icon: Icons.directions_car_outlined,
           label: _currentStep == 1 ? '2. Primeiro veículo' : '2. Veículo',
         ),
@@ -434,7 +410,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
             controller: _nomeSeguradoraController,
             focusNode: _nomeSeguradoraFocus,
             autofocus: true,
-            style: const TextStyle(color: AppColors.white),
+            style: AppText.body,
             textInputAction: TextInputAction.next,
             onFieldSubmitted: (_) => _cnpjFocus.requestFocus(),
             decoration: formFieldDecoration(
@@ -453,7 +429,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
           TextFormField(
             controller: _cnpjController,
             focusNode: _cnpjFocus,
-            style: const TextStyle(color: AppColors.white),
+            style: AppText.body,
             textInputAction: TextInputAction.next,
             onFieldSubmitted: (_) => _contatoFocus.requestFocus(),
             decoration: formFieldDecoration(
@@ -470,7 +446,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
           TextFormField(
             controller: _contatoController,
             focusNode: _contatoFocus,
-            style: const TextStyle(color: AppColors.white),
+            style: AppText.body,
             textInputAction: TextInputAction.next,
             onFieldSubmitted: (_) => _nomeFocus.requestFocus(),
             decoration: formFieldDecoration(
@@ -484,7 +460,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
           controller: _nomeController,
           focusNode: _nomeFocus,
           autofocus: _tipoSelecionado != TipoCliente.seguradora,
-          style: const TextStyle(color: AppColors.white),
+          style: AppText.body,
           textInputAction: TextInputAction.next,
           onFieldSubmitted: (_) => _telefoneFocus.requestFocus(),
           decoration: formFieldDecoration(
@@ -498,7 +474,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
         TextFormField(
           controller: _telefoneController,
           focusNode: _telefoneFocus,
-          style: const TextStyle(color: AppColors.white),
+          style: AppText.body,
           textInputAction: TextInputAction.next,
           onFieldSubmitted: (_) => _enderecoFocus.requestFocus(),
           decoration: formFieldDecoration(
@@ -513,7 +489,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
         TextFormField(
           controller: _enderecoController,
           focusNode: _enderecoFocus,
-          style: const TextStyle(color: AppColors.white),
+          style: AppText.body,
           textInputAction: TextInputAction.next,
           onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
           decoration: formFieldDecoration(
@@ -524,7 +500,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
         const SizedBox(height: 16),
         TextFormField(
           controller: _observacoesController,
-          style: const TextStyle(color: AppColors.white),
+          style: AppText.body,
           decoration: formFieldDecoration(
             label: 'Observações',
             prefixIcon: Icons.note,
@@ -540,9 +516,11 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.lightGray.withValues(alpha: 0.08),
+        color: AppColors.textTertiary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.lightGray.withValues(alpha: 0.25)),
+        border: Border.all(
+          color: AppColors.textTertiary.withValues(alpha: 0.25),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -553,22 +531,26 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
               margin: const EdgeInsets.only(bottom: 14),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.10),
+                color: AppColors.pending.withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: AppColors.warning.withValues(alpha: 0.28),
+                  color: AppColors.pending.withValues(alpha: 0.28),
                 ),
               ),
-              child: const Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline, color: AppColors.warning, size: 18),
-                  SizedBox(width: 8),
+                  const Icon(
+                    Icons.info_outline,
+                    color: AppColors.pending,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Adicione pelo menos um veículo para concluir o cadastro do cliente.',
-                      style: TextStyle(
-                        color: AppColors.warning,
+                      style: AppText.bodySecondary.copyWith(
+                        color: AppColors.pending,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -579,13 +561,13 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
           ],
           Row(
             children: [
-              const Icon(Icons.directions_car, color: AppColors.primaryYellow),
+              const Icon(Icons.directions_car, color: AppColors.primary),
               const SizedBox(width: 8),
               const Expanded(
                 child: Text(
                   'Primeiro veículo do cliente',
                   style: TextStyle(
-                    color: AppColors.primaryYellow,
+                    color: AppColors.primary,
                     fontWeight: FontWeight.bold,
                     fontSize: 16,
                   ),
@@ -602,13 +584,9 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
                       color: AppColors.success.withValues(alpha: 0.35),
                     ),
                   ),
-                  child: const Text(
+                  child: Text(
                     'Veículo adicionado',
-                    style: TextStyle(
-                      color: AppColors.success,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
+                    style: AppText.caption.copyWith(color: AppColors.success),
                   ),
                 ),
             ],
@@ -616,7 +594,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
           const SizedBox(height: 8),
           const Text(
             'Para concluir o primeiro cadastro do cliente, é obrigatório adicionar pelo menos um veículo.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            style: AppText.bodySecondary,
           ),
           const SizedBox(height: 16),
           VeiculoFormFields(controller: _veiculoFormController),
@@ -624,28 +602,25 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
           Row(
             children: [
               Expanded(
-                child: ElevatedButton.icon(
+                child: PrimaryButton(
+                  label: _veiculoPreparado == null
+                      ? 'Adicionar primeiro veículo'
+                      : 'Atualizar veículo',
+                  icon: _veiculoPreparado == null ? Icons.add : Icons.save,
+                  expanded: true,
                   onPressed: _isSaving ? null : _prepararPrimeiroVeiculo,
-                  icon: Icon(
-                    _veiculoPreparado == null ? Icons.add : Icons.save,
-                  ),
-                  label: Text(
-                    _veiculoPreparado == null
-                        ? 'Adicionar primeiro veículo'
-                        : 'Atualizar veículo',
-                  ),
                 ),
               ),
               if (_veiculoPreparado != null) ...[
                 const SizedBox(width: 8),
-                OutlinedButton(
+                GhostButton(
+                  label: 'Limpar',
                   onPressed: _isSaving
                       ? null
                       : () {
                           _veiculoFormController.reset();
                           setState(() => _showVehicleStepAlert = false);
                         },
-                  child: const Text('Limpar'),
                 ),
               ],
             ],
@@ -675,7 +650,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
                   const SizedBox(height: 6),
                   Text(
                     _veiculoPreparado!.descricaoCompleta,
-                    style: const TextStyle(color: AppColors.white),
+                    style: AppText.body,
                   ),
                 ],
               ),
@@ -718,10 +693,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
           ),
           title: Text(
             isEdit ? 'Editar Cliente' : 'Novo Cliente',
-            style: const TextStyle(
-              color: AppColors.primaryYellow,
-              fontWeight: FontWeight.bold,
-            ),
+            style: AppText.title.copyWith(color: AppColors.primary),
           ),
           actions: [
             TextButton(
@@ -732,16 +704,12 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
                       width: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppColors.primaryYellow,
+                        color: AppColors.primary,
                       ),
                     )
                   : Text(
                       _isLastStep ? 'Salvar' : 'Próximo',
-                      style: const TextStyle(
-                        color: AppColors.primaryYellow,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                      style: AppText.button.copyWith(color: AppColors.primary),
                     ),
             ),
             const SizedBox(width: 8),
@@ -754,7 +722,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
             children: [
               if (!isEdit)
                 Container(
-                  color: AppColors.secondaryGray,
+                  color: AppColors.elevated,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: _buildStepperHeader(),
@@ -774,46 +742,25 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
                 ),
                 decoration: const BoxDecoration(
                   color: AppColors.surface,
-                  border: Border(top: BorderSide(color: AppColors.border)),
+                  border: Border(top: BorderSide(color: AppColors.line)),
                 ),
                 child: Row(
                   children: [
                     if (!isEdit && _currentStep > 0) ...[
                       Expanded(
-                        child: OutlinedButton(
+                        child: GhostButton(
+                          label: '← Voltar',
                           onPressed: _isSaving ? null : _voltarPasso,
-                          child: const Text('← Voltar'),
                         ),
                       ),
                       const SizedBox(width: 12),
                     ],
                     Expanded(
-                      child: ElevatedButton(
-                        onPressed: _isSaving ? null : _handlePrimaryAction,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryYellow,
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: _isSaving
-                            ? const SizedBox(
-                                height: 16,
-                                width: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.black,
-                                ),
-                              )
-                            : Text(
-                                _isLastStep ? 'Salvar' : 'Próximo →',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
-                              ),
+                      child: PrimaryButton(
+                        label: _isLastStep ? 'Salvar' : 'Próximo →',
+                        expanded: true,
+                        isLoading: _isSaving,
+                        onPressed: _handlePrimaryAction,
                       ),
                     ),
                   ],
@@ -849,24 +796,19 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
         ),
       ),
       actions: [
-        OutlinedButton(
+        GhostButton(
+          label: 'Cancelar',
           onPressed: _isSaving ? null : () => Navigator.pop(context),
-          child: const Text('Cancelar'),
         ),
         if (!isEdit && _currentStep > 0)
-          OutlinedButton(
+          GhostButton(
+            label: 'Voltar',
             onPressed: _isSaving ? null : _voltarPasso,
-            child: const Text('Voltar'),
           ),
-        ElevatedButton(
-          onPressed: _isSaving ? null : _handlePrimaryAction,
-          child: _isSaving
-              ? const SizedBox(
-                  height: 16,
-                  width: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(_isLastStep ? 'Salvar' : 'Próximo'),
+        PrimaryButton(
+          label: _isLastStep ? 'Salvar' : 'Próximo',
+          isLoading: _isSaving,
+          onPressed: _handlePrimaryAction,
         ),
       ],
     );

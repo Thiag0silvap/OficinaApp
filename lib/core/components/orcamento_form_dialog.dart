@@ -515,31 +515,16 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
                       const SizedBox(width: 12),
                     ],
                     Expanded(
-                      child: (_isSaving && _currentStep == 3)
-                          ? const SizedBox(
-                              height: 48,
-                              child: Center(
-                                child: SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              ),
-                            )
-                          : PrimaryButton(
-                              label: _currentStep == 3
-                                  ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
-                                  : 'Próximo →',
-                              expanded: true,
-                              onPressed: _isSaving
-                                  ? null
-                                  : (_currentStep == 3
-                                      ? _salvarOrcamento
-                                      : _avancarPasso),
-                            ),
+                      child: PrimaryButton(
+                        label: _currentStep == 3
+                            ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
+                            : 'Próximo →',
+                        expanded: true,
+                        isLoading: _isSaving && _currentStep == 3,
+                        onPressed: _currentStep == 3
+                            ? _salvarOrcamento
+                            : _avancarPasso,
+                      ),
                     ),
                   ],
                 ),
@@ -589,29 +574,13 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
             label: 'Voltar',
             onPressed: _isSaving ? null : _voltarPasso,
           ),
-        (_isSaving && _currentStep == 3)
-            ? const SizedBox(
-                width: 44,
-                height: 44,
-                child: Center(
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                ),
-              )
-            : PrimaryButton(
-                label: _currentStep == 3
-                    ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
-                    : 'Próximo',
-                onPressed: _isSaving
-                    ? null
-                    : (_currentStep == 3 ? _salvarOrcamento : _avancarPasso),
-              ),
+        PrimaryButton(
+          label: _currentStep == 3
+              ? (isEdit ? 'Salvar' : 'Gerar Orçamento')
+              : 'Próximo',
+          isLoading: _isSaving && _currentStep == 3,
+          onPressed: _currentStep == 3 ? _salvarOrcamento : _avancarPasso,
+        ),
       ],
     );
 

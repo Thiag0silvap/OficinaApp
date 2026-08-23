@@ -14,7 +14,7 @@ InputDecoration formFieldDecoration({
   return InputDecoration(
     labelText: label,
     prefixIcon: (prefixIcon ?? icon) != null
-        ? Icon((prefixIcon ?? icon)!, color: AppColors.primaryYellow)
+        ? Icon((prefixIcon ?? icon)!, color: AppColors.primary)
         : null,
     prefixText: prefixText,
     filled: filled,
@@ -25,7 +25,7 @@ InputDecoration formFieldDecoration({
     ),
     focusedBorder: const OutlineInputBorder(
       borderRadius: BorderRadius.all(Radius.circular(12)),
-      borderSide: BorderSide(color: AppColors.primaryYellow, width: 2),
+      borderSide: BorderSide(color: AppColors.primary, width: 2),
     ),
   );
 }

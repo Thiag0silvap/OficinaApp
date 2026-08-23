@@ -323,6 +323,28 @@ class AppProvider extends ChangeNotifier {
         .fold(0, (sum, t) => sum + t.valor);
   }
 
+  double entradasNoMes(DateTime mes) {
+    return _transacoes
+        .where(
+          (t) =>
+              t.tipo == TipoTransacao.entrada &&
+              t.data.month == mes.month &&
+              t.data.year == mes.year,
+        )
+        .fold(0, (sum, t) => sum + t.valor);
+  }
+
+  double saidasNoMes(DateTime mes) {
+    return _transacoes
+        .where(
+          (t) =>
+              t.tipo == TipoTransacao.saida &&
+              t.data.month == mes.month &&
+              t.data.year == mes.year,
+        )
+        .fold(0, (sum, t) => sum + t.valor);
+  }
+
   Map<String, dynamic> percentageChange(double current, double previous) {
     if (previous == 0) {
       if (current == 0) return {'label': '0%', 'up': true};

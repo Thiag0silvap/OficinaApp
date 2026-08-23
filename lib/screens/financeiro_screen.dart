@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../core/components/app_buttons.dart';
+import '../core/components/app_card.dart';
 import '../core/components/form_styles.dart';
 import '../core/components/responsive_components.dart';
 import '../core/theme/app_theme.dart';
@@ -49,39 +50,36 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
 
         return Scaffold(
           body: ResponsiveContainer(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _Header(
-                    countLabel: '${transacoes.length} transações',
-                    onAdd: () => _openAddDialog(context),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _Header(
+                  countLabel: '${transacoes.length} transações',
+                  onAdd: () => _openAddDialog(context),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                _FiltersRow(
+                  searchCtrl: _searchCtrl,
+                  tipoFiltro: _tipoFiltro,
+                  ordenacao: _ordenacao,
+                  onTipoChanged: (v) => setState(() => _tipoFiltro = v),
+                  onOrdenacaoChanged: (v) => setState(() => _ordenacao = v),
+                  onSearchChanged: (_) => setState(() {}),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                _SaldoCard(
+                  saldo: app.saldo,
+                  entradasMes: app.entradasNoMes(DateTime.now()),
+                  saidasMes: app.saidasNoMes(DateTime.now()),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Expanded(
+                  child: _TransacoesList(
+                    transacoes: transacoes,
+                    onDelete: (t) => _confirmDelete(context, t),
                   ),
-                  const SizedBox(height: 14),
-                  _FiltersRow(
-                    searchCtrl: _searchCtrl,
-                    tipoFiltro: _tipoFiltro,
-                    ordenacao: _ordenacao,
-                    onTipoChanged: (v) => setState(() => _tipoFiltro = v),
-                    onOrdenacaoChanged: (v) => setState(() => _ordenacao = v),
-                    onSearchChanged: (_) => setState(() {}),
-                  ),
-                  const SizedBox(height: 16),
-                  _SummaryRow(
-                    entradas: app.totalEntradas,
-                    saidas: app.totalSaidas,
-                    saldo: app.saldo,
-                  ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: _TransacoesList(
-                      transacoes: transacoes,
-                      onDelete: (t) => _confirmDelete(context, t),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -221,49 +219,43 @@ class _Header extends StatelessWidget {
     final isMobile = ResponsiveUtils.isMobile(context);
 
     if (isMobile) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                'Financeiro',
-                style: AppText.display.copyWith(fontSize: 22),
-              ),
+      return Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Financeiro',
+              style: AppText.display.copyWith(fontSize: 22),
             ),
-            PrimaryButton(label: 'Nova', icon: Icons.add, onPressed: onAdd),
-          ],
-        ),
+          ),
+          PrimaryButton(label: 'Nova', icon: Icons.add, onPressed: onAdd),
+        ],
       );
     }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 22),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Financeiro', style: AppText.display),
-                const SizedBox(height: 4),
-                Text(
-                  'Controle de entradas e saídas com histórico e filtros.',
-                  style: AppText.bodySecondary,
-                ),
-              ],
-            ),
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Financeiro', style: AppText.display),
+              const SizedBox(height: 4),
+              Text(
+                'Controle de entradas e saídas com histórico e filtros.',
+                style: AppText.bodySecondary,
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
-          _CountPill(label: countLabel),
-          const SizedBox(width: 10),
-          PrimaryButton(
-            label: 'Nova Transação',
-            icon: Icons.add,
-            onPressed: onAdd,
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 12),
+        _CountPill(label: countLabel),
+        const SizedBox(width: 10),
+        PrimaryButton(
+          label: 'Nova Transação',
+          icon: Icons.add,
+          onPressed: onAdd,
+        ),
+      ],
     );
   }
 }
@@ -420,160 +412,133 @@ class _FiltersRow extends StatelessWidget {
       ),
     );
 
-    final padding = isMobile
-        ? const EdgeInsets.symmetric(horizontal: 16)
-        : const EdgeInsets.symmetric(horizontal: 22);
-
     if (isMobile) {
-      return Padding(
-        padding: padding,
-        child: Column(
-          children: [
-            searchField,
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(child: tipoDropdown),
-                const SizedBox(width: 10),
-                Expanded(child: ordenacaoDropdown),
-              ],
-            ),
-          ],
-        ),
+      return Column(
+        children: [
+          searchField,
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: tipoDropdown),
+              const SizedBox(width: 10),
+              Expanded(child: ordenacaoDropdown),
+            ],
+          ),
+        ],
       );
     }
 
-    return Padding(
-      padding: padding,
-      child: Row(
-        children: [
-          Expanded(flex: 12, child: searchField),
-          const SizedBox(width: 10),
-          tipoDropdown,
-          const SizedBox(width: 10),
-          ordenacaoDropdown,
-        ],
-      ),
+    return Row(
+      children: [
+        Expanded(flex: 12, child: searchField),
+        const SizedBox(width: 10),
+        tipoDropdown,
+        const SizedBox(width: 10),
+        ordenacaoDropdown,
+      ],
     );
   }
 }
 
-class _SummaryRow extends StatelessWidget {
-  final double entradas;
-  final double saidas;
+/// Card único: Saldo geral (all-time) em destaque + Entradas/Saídas do mês
+/// atual lado a lado. Substitui os 3 cards separados que existiam antes.
+class _SaldoCard extends StatelessWidget {
   final double saldo;
+  final double entradasMes;
+  final double saidasMes;
 
-  const _SummaryRow({
-    required this.entradas,
-    required this.saidas,
+  const _SaldoCard({
     required this.saldo,
+    required this.entradasMes,
+    required this.saidasMes,
   });
 
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveUtils.isMobile(context);
-    final padding = isMobile
-        ? const EdgeInsets.symmetric(horizontal: 16)
-        : const EdgeInsets.symmetric(horizontal: 22);
     final money = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+    final saldoColor = saldo >= 0 ? AppColors.success : AppColors.danger;
 
-    final entradasCard = _SummaryCard(
-      title: 'Entradas',
-      value: entradas,
-      icon: Icons.arrow_downward_rounded,
-      chipColor: AppColors.success,
-    );
-    final saidasCard = _SummaryCard(
-      title: 'Saídas',
-      value: saidas,
-      icon: Icons.arrow_upward_rounded,
-      chipColor: AppColors.danger,
-    );
-
-    // Mobile segue o handoff: sem o card Saldo, só Entradas/Saídas lado a
-    // lado (grid 2 colunas). Desktop/tablet mantêm os 3 cards em linha.
-    if (isMobile) {
-      return Padding(
-        padding: padding,
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(child: entradasCard),
-                const SizedBox(width: 12),
-                Expanded(child: saidasCard),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.elevated,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.textTertiary.withValues(alpha: 0.7),
+    return AppCard(
+      padding: EdgeInsets.all(isMobile ? 14 : 20),
+      borderColor: AppColors.primary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                height: isMobile ? 36 : 44,
+                width: isMobile ? 36 : 44,
+                decoration: BoxDecoration(
+                  color: saldoColor.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: saldoColor.withValues(alpha: 0.5)),
+                ),
+                child: Icon(
+                  Icons.account_balance_wallet_outlined,
+                  color: saldoColor,
+                  size: isMobile ? 18 : 22,
                 ),
               ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.account_balance_wallet_outlined,
-                    size: 18,
-                    color: saldo >= 0 ? AppColors.success : AppColors.danger,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Saldo geral',
-                      style: AppText.bodySecondary.copyWith(fontSize: 12),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Saldo geral', style: AppText.bodySecondary),
+                    const SizedBox(height: 2),
+                    Text(
+                      money.format(saldo),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.money.copyWith(
+                        fontSize: isMobile ? 20 : 26,
+                        color: saldoColor,
+                      ),
                     ),
-                  ),
-                  Text(
-                    money.format(saldo),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppText.money.copyWith(
-                      fontSize: 13,
-                      color: saldo >= 0 ? AppColors.success : AppColors.danger,
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final saldoCard = _SummaryCard(
-      title: 'Saldo',
-      value: saldo,
-      icon: Icons.account_balance_wallet_outlined,
-      chipColor: saldo >= 0 ? AppColors.success : AppColors.danger,
-    );
-
-    return Padding(
-      padding: padding,
-      child: Row(
-        children: [
-          Expanded(child: entradasCard),
-          const SizedBox(width: 12),
-          Expanded(child: saidasCard),
-          const SizedBox(width: 12),
-          Expanded(child: saldoCard),
+            ],
+          ),
+          SizedBox(height: isMobile ? 14 : 18),
+          Container(height: 1, color: AppColors.line),
+          SizedBox(height: isMobile ? 14 : 18),
+          Row(
+            children: [
+              Expanded(
+                child: _MiniStat(
+                  title: 'Entradas do mês',
+                  value: entradasMes,
+                  icon: Icons.arrow_downward_rounded,
+                  chipColor: AppColors.success,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MiniStat(
+                  title: 'Saídas do mês',
+                  value: saidasMes,
+                  icon: Icons.arrow_upward_rounded,
+                  chipColor: AppColors.danger,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-class _SummaryCard extends StatelessWidget {
+class _MiniStat extends StatelessWidget {
   final String title;
   final double value;
   final IconData icon;
   final Color chipColor;
 
-  const _SummaryCard({
+  const _MiniStat({
     required this.title,
     required this.value,
     required this.icon,
@@ -583,76 +548,46 @@ class _SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = ResponsiveUtils.isMobile(context);
-    final br = BorderRadius.circular(16);
     final money = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
 
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 12 : 16),
-      decoration: BoxDecoration(
-        color: AppColors.elevated,
-        borderRadius: br,
-        border: Border.all(
-          color: AppColors.textTertiary.withValues(alpha: 0.7),
+    return Row(
+      children: [
+        Container(
+          height: isMobile ? 28 : 32,
+          width: isMobile ? 28 : 32,
+          decoration: BoxDecoration(
+            color: chipColor.withValues(alpha: 0.18),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: chipColor.withValues(alpha: 0.5)),
+          ),
+          child: Icon(icon, color: chipColor, size: isMobile ? 14 : 16),
         ),
-      ),
-      child: isMobile
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  height: 32,
-                  width: 32,
-                  decoration: BoxDecoration(
-                    color: chipColor.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: chipColor.withValues(alpha: 0.5)),
-                  ),
-                  child: Icon(icon, color: chipColor, size: 16),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.bodySecondary.copyWith(
+                  fontSize: isMobile ? 11 : 12,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  title,
-                  style: AppText.bodySecondary.copyWith(fontSize: 11),
+              ),
+              Text(
+                money.format(value),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppText.money.copyWith(
+                  fontSize: isMobile ? 13 : 15,
+                  color: chipColor,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  money.format(value),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppText.money.copyWith(fontSize: 13, color: chipColor),
-                ),
-              ],
-            )
-          : Row(
-              children: [
-                Container(
-                  height: 44,
-                  width: 44,
-                  decoration: BoxDecoration(
-                    color: chipColor.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: chipColor.withValues(alpha: 0.5)),
-                  ),
-                  child: Icon(icon, color: chipColor),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: AppText.bodySecondary),
-                      const SizedBox(height: 6),
-                      Text(
-                        money.format(value),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppText.money.copyWith(fontSize: 20),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -684,14 +619,81 @@ class _TransacoesList extends StatelessWidget {
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(22, 0, 22, 22),
-      itemCount: transacoes.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+    final grupos = _agruparPorDia(transacoes);
+
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xl),
+      itemCount: grupos.length,
       itemBuilder: (context, i) {
-        final t = transacoes[i];
-        return _TransacaoTile(transacao: t, onDelete: () => onDelete(t));
+        final grupo = grupos[i];
+        return Padding(
+          padding: EdgeInsets.only(top: i == 0 ? 0 : 18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _GroupHeader(dia: grupo.dia, count: grupo.itens.length),
+              const SizedBox(height: 10),
+              for (final t in grupo.itens) ...[
+                _TransacaoTile(transacao: t, onDelete: () => onDelete(t)),
+                if (t != grupo.itens.last) const SizedBox(height: 10),
+              ],
+            ],
+          ),
+        );
       },
+    );
+  }
+}
+
+class _TransacaoGroup {
+  final DateTime dia;
+  final List<Transacao> itens;
+  const _TransacaoGroup(this.dia, this.itens);
+}
+
+/// Agrupa por dia do calendário sobre a lista já filtrada/ordenada. Os
+/// GRUPOS são sempre ordenados por dia decrescente (mais recente primeiro)
+/// — independente da Ordenação (Recentes/Maior valor/Menor valor)
+/// selecionada — para os cabeçalhos "Hoje"/"Ontem" nunca aparecerem
+/// fragmentados/repetidos quando o filtro ordena por valor em vez de
+/// data. Dentro de cada grupo, a ordem dos itens preserva exatamente a
+/// ordem que _filtrarOrdenar já produziu.
+List<_TransacaoGroup> _agruparPorDia(List<Transacao> transacoes) {
+  final porDia = <DateTime, List<Transacao>>{};
+  for (final t in transacoes) {
+    final dia = DateTime(t.data.year, t.data.month, t.data.day);
+    porDia.putIfAbsent(dia, () => []).add(t);
+  }
+  final dias = porDia.keys.toList()..sort((a, b) => b.compareTo(a));
+  return [for (final d in dias) _TransacaoGroup(d, porDia[d]!)];
+}
+
+String _headerLabel(DateTime dia) {
+  final now = DateTime.now();
+  final hoje = DateTime(now.year, now.month, now.day);
+  final ontem = hoje.subtract(const Duration(days: 1));
+  if (dia == hoje) return 'Hoje';
+  if (dia == ontem) return 'Ontem';
+  return DateFormat('dd/MM/yyyy').format(dia);
+}
+
+class _GroupHeader extends StatelessWidget {
+  final DateTime dia;
+  final int count;
+
+  const _GroupHeader({required this.dia, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Text(_headerLabel(dia), style: AppText.title.copyWith(fontSize: 15)),
+        const SizedBox(width: 8),
+        Text(
+          '$count ${count == 1 ? 'transação' : 'transações'}',
+          style: AppText.bodySecondary,
+        ),
+      ],
     );
   }
 }
@@ -707,26 +709,19 @@ class _TransacaoTile extends StatelessWidget {
     final isEntrada = transacao.tipo == TipoTransacao.entrada;
     final badgeColor = isEntrada ? AppColors.success : AppColors.danger;
     final money = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
-    final dateFmt = DateFormat('dd/MM/yyyy');
+    final horaFmt = DateFormat('HH:mm');
 
-    return Material(
-      color: AppColors.elevated,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => showDialog<void>(
-          context: context,
-          builder: (_) => TransacaoDetailDialog(transacao: transacao),
-        ),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: AppColors.textTertiary.withValues(alpha: 0.7),
-            ),
-          ),
-          child: Row(
+    return AppCard(
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (_) => TransacaoDetailDialog(transacao: transacao),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(
@@ -748,39 +743,49 @@ class _TransacaoTile extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      transacao.descricao,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppText.body.copyWith(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${transacao.categoria} • ${dateFmt.format(transacao.data)}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppText.bodySecondary,
-                    ),
-                  ],
+                child: Text(
+                  transacao.descricao,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.body.copyWith(fontWeight: FontWeight.w900),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                money.format(transacao.valor),
-                style: AppText.money.copyWith(fontSize: 15, color: badgeColor),
-              ),
-              const SizedBox(width: 10),
-              GhostIconButton(
-                icon: Icons.delete_outline,
-                onPressed: onDelete,
-                tooltip: 'Excluir',
               ),
             ],
           ),
-        ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${transacao.categoria} • ${horaFmt.format(transacao.data)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppText.bodySecondary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    money.format(transacao.valor),
+                    style: AppText.money.copyWith(
+                      fontSize: 15,
+                      color: badgeColor,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  GhostIconButton(
+                    icon: Icons.delete_outline,
+                    onPressed: onDelete,
+                    tooltip: 'Excluir',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

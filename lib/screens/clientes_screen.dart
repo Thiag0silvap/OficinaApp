@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/theme/app_theme.dart';
+import '../core/components/app_buttons.dart';
 import '../core/components/responsive_components.dart';
 import '../core/components/common_widgets.dart';
 import '../core/components/orcamento_form_dialog.dart';
@@ -10,6 +11,7 @@ import '../models/cliente.dart';
 import '../core/utils/formatters.dart';
 import '../core/components/cliente_actions.dart';
 import '../core/components/cliente_detail_dialog.dart';
+import '../core/components/info_chip.dart';
 
 class ClientesScreen extends StatefulWidget {
   const ClientesScreen({super.key});
@@ -19,39 +21,6 @@ class ClientesScreen extends StatefulWidget {
 }
 
 enum _SortClientes { nomeAsc, recentes }
-
-class _ClienteInfoChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _ClienteInfoChip({
-    required this.icon,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.85)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: AppColors.textSecondary),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: AppText.caption.copyWith(color: AppColors.textPrimary),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _ClientesScreenState extends State<ClientesScreen> {
   final TextEditingController _searchCtrl = TextEditingController();
@@ -156,7 +125,6 @@ class _ClientesScreenState extends State<ClientesScreen> {
   }) {
     final isDesktop = ResponsiveUtils.isDesktop(context);
     final isTablet = ResponsiveUtils.isTablet(context);
-    final theme = Theme.of(context);
 
     const double kToolbarHeight = 48;
 
@@ -188,15 +156,13 @@ class _ClientesScreenState extends State<ClientesScreen> {
         alignment: Alignment.center,
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.25)),
+          border: Border.all(color: AppColors.line.withValues(alpha: 0.25)),
         ),
         child: Text(
           showing == total ? '$total clientes' : '$showing de $total',
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+          style: AppText.body.copyWith(fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -209,22 +175,22 @@ class _ClientesScreenState extends State<ClientesScreen> {
           onChanged: (v) => setState(() => _tipoFiltro = v),
           borderRadius: BorderRadius.circular(12),
           items: const [
-            DropdownMenuItem<TipoCliente?>(value: null, child: Text('Todos')),
+            DropdownMenuItem<TipoCliente?>(value: null, child: Text('Todos', maxLines: 1, overflow: TextOverflow.ellipsis)),
             DropdownMenuItem<TipoCliente?>(
               value: TipoCliente.particular,
-              child: Text('Particular'),
+              child: Text('Particular', maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
             DropdownMenuItem<TipoCliente?>(
               value: TipoCliente.seguradora,
-              child: Text('Seguradora'),
+              child: Text('Seguradora', maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
             DropdownMenuItem<TipoCliente?>(
               value: TipoCliente.frota,
-              child: Text('Frota'),
+              child: Text('Frota', maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
             DropdownMenuItem<TipoCliente?>(
               value: TipoCliente.oficinaParceira,
-              child: Text('Oficina parceira'),
+              child: Text('Oficina parceira', maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
           ],
         ),
@@ -236,10 +202,10 @@ class _ClientesScreenState extends State<ClientesScreen> {
           onChanged: (v) => setState(() => _sort = v ?? _SortClientes.nomeAsc),
           borderRadius: BorderRadius.circular(12),
           items: const [
-            DropdownMenuItem(value: _SortClientes.nomeAsc, child: Text('A–Z')),
+            DropdownMenuItem(value: _SortClientes.nomeAsc, child: Text('A–Z', maxLines: 1, overflow: TextOverflow.ellipsis)),
             DropdownMenuItem(
               value: _SortClientes.recentes,
-              child: Text('Recentes'),
+              child: Text('Recentes', maxLines: 1, overflow: TextOverflow.ellipsis),
             ),
           ],
         ),
@@ -288,23 +254,23 @@ class _ClientesScreenState extends State<ClientesScreen> {
                     items: const [
                       DropdownMenuItem<TipoCliente?>(
                         value: null,
-                        child: Text('Todos'),
+                        child: Text('Todos', maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       DropdownMenuItem<TipoCliente?>(
                         value: TipoCliente.particular,
-                        child: Text('Particular'),
+                        child: Text('Particular', maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       DropdownMenuItem<TipoCliente?>(
                         value: TipoCliente.seguradora,
-                        child: Text('Seguradora'),
+                        child: Text('Seguradora', maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       DropdownMenuItem<TipoCliente?>(
                         value: TipoCliente.frota,
-                        child: Text('Frota'),
+                        child: Text('Frota', maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       DropdownMenuItem<TipoCliente?>(
                         value: TipoCliente.oficinaParceira,
-                        child: Text('Oficina parceira'),
+                        child: Text('Oficina parceira', maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                     ],
                   ),
@@ -327,11 +293,11 @@ class _ClientesScreenState extends State<ClientesScreen> {
                     items: const [
                       DropdownMenuItem(
                         value: _SortClientes.nomeAsc,
-                        child: Text('A–Z'),
+                        child: Text('A–Z', maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                       DropdownMenuItem(
                         value: _SortClientes.recentes,
-                        child: Text('Recentes'),
+                        child: Text('Recentes', maxLines: 1, overflow: TextOverflow.ellipsis),
                       ),
                     ],
                   ),
@@ -353,22 +319,21 @@ class _ClientesScreenState extends State<ClientesScreen> {
     required Widget child,
     double height = 48,
   }) {
-    final theme = Theme.of(context);
     return SizedBox(
       height: height,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surface,
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: theme.dividerColor.withValues(alpha: 0.25)),
+          border: Border.all(color: AppColors.line.withValues(alpha: 0.25)),
         ),
         child: Row(
           children: [
             Icon(
               icon,
               size: 18,
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
+              color: AppColors.textPrimary.withValues(alpha: 0.85),
             ),
             const SizedBox(width: 8),
             Expanded(child: child),
@@ -484,7 +449,7 @@ class _ClientesScreenState extends State<ClientesScreen> {
         child: Text(
           cliente.nome.isNotEmpty ? cliente.nome[0].toUpperCase() : '?',
           style: TextStyle(
-            color: AppColors.primaryDark,
+            color: AppColors.onPrimary,
             fontWeight: FontWeight.bold,
             fontSize: isMobile ? 14 : 18,
           ),
@@ -497,44 +462,44 @@ class _ClientesScreenState extends State<ClientesScreen> {
       ),
       actions: isMobile
           ? [
-              _ClienteInfoChip(
+              InfoChip(
                 icon: Icons.directions_car_outlined,
                 label:
                     '${veiculos.length} veículo${veiculos.length == 1 ? '' : 's'}',
               ),
-              _ClienteInfoChip(
+              InfoChip(
                 icon: Icons.description_outlined,
                 label:
                     '${orcamentos.length} orçamento${orcamentos.length == 1 ? '' : 's'}',
               ),
               if (ultimoOrcamento != null)
-                _ClienteInfoChip(
+                InfoChip(
                   icon: Icons.schedule,
                   label:
                       'Último ${Formatters.dateShort(ultimoOrcamento.dataCriacao)}',
                 ),
             ]
           : [
-              _ClienteInfoChip(
+              InfoChip(
                 icon: Icons.directions_car_outlined,
                 label:
                     '${veiculos.length} veiculo${veiculos.length == 1 ? '' : 's'}',
               ),
-              _ClienteInfoChip(
+              InfoChip(
                 icon: Icons.description_outlined,
                 label:
                     '${orcamentos.length} orcamento${orcamentos.length == 1 ? '' : 's'}',
               ),
               if (ultimoOrcamento != null)
-                _ClienteInfoChip(
+                InfoChip(
                   icon: Icons.schedule,
                   label:
                       'Ultimo em ${Formatters.dateShort(ultimoOrcamento.dataCriacao)}',
                 ),
-              FilledButton.tonalIcon(
+              PrimaryButton(
+                label: 'Orcamento',
+                icon: Icons.add_circle_outline,
                 onPressed: () => _showCreateOrcamentoDialog(context, cliente),
-                icon: const Icon(Icons.add_circle_outline, size: 18),
-                label: const Text('Orcamento'),
               ),
             ],
     );
@@ -543,13 +508,13 @@ class _ClientesScreenState extends State<ClientesScreen> {
   Color _getTipoClienteColor(TipoCliente tipo) {
     switch (tipo) {
       case TipoCliente.particular:
-        return AppColors.primaryYellow;
+        return AppColors.primary;
       case TipoCliente.seguradora:
         return AppColors.info;
       case TipoCliente.oficinaParceira:
         return AppColors.success;
       case TipoCliente.frota:
-        return AppColors.warning;
+        return AppColors.pending;
     }
   }
 
