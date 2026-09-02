@@ -14,6 +14,7 @@ import '../models/orcamento.dart';
 import '../models/transacao.dart';
 import '../providers/app_provider.dart';
 import '../core/components/transacao_detail_dialog.dart';
+import 'relatorio_financeiro_screen.dart';
 
 /// FINANCEIRO (Premium / Desktop-first)
 /// - Cards (Entradas, Saídas, Saldo)
@@ -35,6 +36,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
   final _searchCtrl = TextEditingController();
   _TipoFiltro _tipoFiltro = _TipoFiltro.todos;
   _Ordenacao _ordenacao = _Ordenacao.recentes;
+  DateTime? _diaFiltro;
 
   @override
   void dispose() {
@@ -47,6 +49,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
     return Consumer<AppProvider>(
       builder: (context, app, _) {
         final transacoes = _filtrarOrdenar(app.transacoes);
+        final mesParaStats = _diaFiltro ?? DateTime.now();
 
         return Scaffold(
           body: ResponsiveContainer(
@@ -56,21 +59,30 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
                 _Header(
                   countLabel: '${transacoes.length} transações',
                   onAdd: () => _openAddDialog(context),
+                  onRelatorio: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const RelatorioFinanceiroScreen(),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 _FiltersRow(
                   searchCtrl: _searchCtrl,
                   tipoFiltro: _tipoFiltro,
                   ordenacao: _ordenacao,
+                  diaFiltro: _diaFiltro,
                   onTipoChanged: (v) => setState(() => _tipoFiltro = v),
                   onOrdenacaoChanged: (v) => setState(() => _ordenacao = v),
+                  onDiaChanged: (v) => setState(() => _diaFiltro = v),
                   onSearchChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 _SaldoCard(
                   saldo: app.saldo,
-                  entradasMes: app.entradasNoMes(DateTime.now()),
-                  saidasMes: app.saidasNoMes(DateTime.now()),
+                  entradasMes: app.entradasNoMes(mesParaStats),
+                  saidasMes: app.saidasNoMes(mesParaStats),
+                  mesLabel: _formatMes(mesParaStats),
                 ),
                 const SizedBox(height: AppSpacing.lg),
                 Expanded(
@@ -95,6 +107,15 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
       out = out.where((t) => t.tipo == TipoTransacao.entrada);
     } else if (_tipoFiltro == _TipoFiltro.saidas) {
       out = out.where((t) => t.tipo == TipoTransacao.saida);
+    }
+
+    if (_diaFiltro != null) {
+      out = out.where(
+        (t) =>
+            t.data.year == _diaFiltro!.year &&
+            t.data.month == _diaFiltro!.month &&
+            t.data.day == _diaFiltro!.day,
+      );
     }
 
     if (q.isNotEmpty) {
@@ -211,8 +232,13 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
 class _Header extends StatelessWidget {
   final String countLabel;
   final VoidCallback onAdd;
+  final VoidCallback onRelatorio;
 
-  const _Header({required this.countLabel, required this.onAdd});
+  const _Header({
+    required this.countLabel,
+    required this.onAdd,
+    required this.onRelatorio,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -227,6 +253,12 @@ class _Header extends StatelessWidget {
               style: AppText.display.copyWith(fontSize: 22),
             ),
           ),
+          GhostIconButton(
+            icon: Icons.bar_chart_rounded,
+            tooltip: 'Relatório Financeiro',
+            onPressed: onRelatorio,
+          ),
+          const SizedBox(width: 10),
           PrimaryButton(label: 'Nova', icon: Icons.add, onPressed: onAdd),
         ],
       );
@@ -249,6 +281,12 @@ class _Header extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         _CountPill(label: countLabel),
+        const SizedBox(width: 10),
+        GhostIconButton(
+          icon: Icons.bar_chart_rounded,
+          tooltip: 'Relatório Financeiro',
+          onPressed: onRelatorio,
+        ),
         const SizedBox(width: 10),
         PrimaryButton(
           label: 'Nova Transação',
@@ -289,16 +327,20 @@ class _FiltersRow extends StatelessWidget {
   final TextEditingController searchCtrl;
   final _TipoFiltro tipoFiltro;
   final _Ordenacao ordenacao;
+  final DateTime? diaFiltro;
   final ValueChanged<_TipoFiltro> onTipoChanged;
   final ValueChanged<_Ordenacao> onOrdenacaoChanged;
+  final ValueChanged<DateTime?> onDiaChanged;
   final ValueChanged<String> onSearchChanged;
 
   const _FiltersRow({
     required this.searchCtrl,
     required this.tipoFiltro,
     required this.ordenacao,
+    required this.diaFiltro,
     required this.onTipoChanged,
     required this.onOrdenacaoChanged,
+    required this.onDiaChanged,
     required this.onSearchChanged,
   });
 
@@ -412,6 +454,88 @@ class _FiltersRow extends StatelessWidget {
       ),
     );
 
+    Future<void> abrirDatePicker() async {
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: diaFiltro ?? DateTime.now(),
+        firstDate: DateTime(2020),
+        lastDate: DateTime(2100),
+        builder: (ctx, child) {
+          return Theme(
+            data: Theme.of(ctx).copyWith(
+              colorScheme: Theme.of(ctx).colorScheme.copyWith(
+                primary: AppColors.primary,
+                surface: AppColors.elevated,
+              ),
+              dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
+                backgroundColor: AppColors.elevated,
+              ),
+            ),
+            child: child!,
+          );
+        },
+      );
+      if (picked != null) onDiaChanged(picked);
+    }
+
+    // Compacto: só o ícone quando não há filtro (mesmo estilo de
+    // GhostIconButton, usado em outros botões de ação da tela), e um pill
+    // pequeno (ícone + data + X de limpar) quando há — nunca largura total,
+    // diferente do pill de Tipo/Ordenação.
+    final diaPill = diaFiltro == null
+        ? GhostIconButton(
+            icon: Icons.calendar_today_outlined,
+            tooltip: 'Filtrar por data',
+            onPressed: abrirDatePicker,
+          )
+        : Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.button),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(AppRadius.button),
+              onTap: abrirDatePicker,
+              child: Container(
+                height: h,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadius.button),
+                  border: Border.all(color: AppColors.line),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.calendar_today_outlined,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      DateFormat('dd/MM/yyyy').format(diaFiltro!),
+                      style: AppText.body,
+                    ),
+                    const SizedBox(width: 6),
+                    Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(999),
+                        onTap: () => onDiaChanged(null),
+                        child: const Padding(
+                          padding: EdgeInsets.all(2),
+                          child: Icon(
+                            Icons.close,
+                            size: 16,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+
     if (isMobile) {
       return Column(
         children: [
@@ -424,6 +548,8 @@ class _FiltersRow extends StatelessWidget {
               Expanded(child: ordenacaoDropdown),
             ],
           ),
+          const SizedBox(height: 10),
+          Align(alignment: Alignment.centerLeft, child: diaPill),
         ],
       );
     }
@@ -435,22 +561,27 @@ class _FiltersRow extends StatelessWidget {
         tipoDropdown,
         const SizedBox(width: 10),
         ordenacaoDropdown,
+        const SizedBox(width: 10),
+        diaPill,
       ],
     );
   }
 }
 
 /// Card único: Saldo geral (all-time) em destaque + Entradas/Saídas do mês
-/// atual lado a lado. Substitui os 3 cards separados que existiam antes.
+/// filtrado (padrão: mês atual) lado a lado. Substitui os 3 cards
+/// separados que existiam antes.
 class _SaldoCard extends StatelessWidget {
   final double saldo;
   final double entradasMes;
   final double saidasMes;
+  final String mesLabel;
 
   const _SaldoCard({
     required this.saldo,
     required this.entradasMes,
     required this.saidasMes,
+    required this.mesLabel,
   });
 
   @override
@@ -509,7 +640,7 @@ class _SaldoCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _MiniStat(
-                  title: 'Entradas do mês',
+                  title: 'Entradas de $mesLabel',
                   value: entradasMes,
                   icon: Icons.arrow_downward_rounded,
                   chipColor: AppColors.success,
@@ -518,7 +649,7 @@ class _SaldoCard extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: _MiniStat(
-                  title: 'Saídas do mês',
+                  title: 'Saídas de $mesLabel',
                   value: saidasMes,
                   icon: Icons.arrow_upward_rounded,
                   chipColor: AppColors.danger,
@@ -668,6 +799,13 @@ List<_TransacaoGroup> _agruparPorDia(List<Transacao> transacoes) {
   return [for (final d in dias) _TransacaoGroup(d, porDia[d]!)];
 }
 
+/// Formato numérico "MM/yyyy" — usado no rótulo do _SaldoCard (mês da
+/// data filtrada, ou mês atual sem filtro). Evita depender de
+/// DateFormat('MMMM', ...) com nome de mês por extenso, já que
+/// initializeDateFormatting() não é chamado em nenhum lugar do app.
+String _formatMes(DateTime mes) =>
+    '${mes.month.toString().padLeft(2, '0')}/${mes.year}';
+
 String _headerLabel(DateTime dia) {
   final now = DateTime.now();
   final hoje = DateTime(now.year, now.month, now.day);
@@ -809,6 +947,7 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
   final _valorCtrl = TextEditingController();
   final _catCtrl = TextEditingController();
   DateTime _data = DateTime.now();
+  bool _isSaving = false;
 
   @override
   void dispose() {
@@ -820,6 +959,72 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = ResponsiveUtils.isMobile(context);
+
+    if (isMobile) {
+      return Scaffold(
+        backgroundColor: AppColors.surface,
+        appBar: AppBar(
+          backgroundColor: AppColors.surface,
+          leading: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            'Nova Transação',
+            style: AppText.title.copyWith(color: AppColors.primary),
+          ),
+        ),
+        body: Form(
+          key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          child: Column(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: _buildFields(context),
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  12,
+                  16,
+                  12 + MediaQuery.of(context).padding.bottom,
+                ),
+                decoration: const BoxDecoration(
+                  color: AppColors.surface,
+                  border: Border(top: BorderSide(color: AppColors.line)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GhostButton(
+                        label: 'Cancelar',
+                        onPressed: _isSaving
+                            ? null
+                            : () => Navigator.pop(context),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: PrimaryButton(
+                        label: 'Salvar',
+                        expanded: true,
+                        isLoading: _isSaving,
+                        onPressed: _salvar,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final dialog = ResponsiveDialog(
       title: 'Nova Transação',
       stackedActions: true,
@@ -827,131 +1032,140 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
         child: Form(
           key: _formKey,
           autovalidateMode: AutovalidateMode.onUserInteraction,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _FieldPair(
-                first: DropdownButtonFormField<TipoTransacao>(
-                  initialValue: _tipo,
-                  isExpanded: true,
-                  dropdownColor: AppColors.elevated,
-                  decoration: formFieldDecoration(label: 'Tipo'),
-                  items: const [
-                    DropdownMenuItem(
-                      value: TipoTransacao.entrada,
-                      child: Text('Entrada'),
-                    ),
-                    DropdownMenuItem(
-                      value: TipoTransacao.saida,
-                      child: Text('Saída'),
-                    ),
-                  ],
-                  onChanged: (v) =>
-                      setState(() => _tipo = v ?? TipoTransacao.entrada),
-                ),
-                second: TextFormField(
-                  readOnly: true,
-                  decoration: formFieldDecoration(
-                    label: 'Data',
-                    prefixIcon: Icons.calendar_today_outlined,
-                  ),
-                  controller: TextEditingController(
-                    text: DateFormat('dd/MM/yyyy').format(_data),
-                  ),
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _data,
-                      firstDate: DateTime(2020),
-                      lastDate: DateTime(2100),
-                      builder: (ctx, child) {
-                        return Theme(
-                          data: Theme.of(ctx).copyWith(
-                            colorScheme: Theme.of(ctx).colorScheme.copyWith(
-                              primary: AppColors.primary,
-                              surface: AppColors.elevated,
-                            ),
-                            dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
-                              backgroundColor: AppColors.elevated,
-                            ),
-                          ),
-                          child: child!,
-                        );
-                      },
-                    );
-                    if (picked != null) setState(() => _data = picked);
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _descCtrl,
-                inputFormatters: [
-                  LengthLimitingTextInputFormatter(_maxDescLen),
-                ],
-                decoration: formFieldDecoration(
-                  label: 'Descrição',
-                  prefixIcon: Icons.description_outlined,
-                ),
-                validator: (value) {
-                  final v = value?.trim() ?? '';
-                  if (v.isEmpty) return 'Descrição é obrigatória';
-                  if (v.length > _maxDescLen) return 'Descrição muito longa';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 12),
-              _FieldPair(
-                first: TextFormField(
-                  controller: _valorCtrl,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [CurrencyTextInputFormatter()],
-                  decoration: formFieldDecoration(
-                    label: 'Valor',
-                    prefixText: 'R\$ ',
-                    prefixIcon: Icons.payments_outlined,
-                  ),
-                  validator: (value) {
-                    final raw = (value ?? '')
-                        .replaceAll('.', '')
-                        .replaceAll(',', '.')
-                        .trim();
-                    final parsed = double.tryParse(raw) ?? 0.0;
-                    if (parsed <= 0) return 'Valor inválido';
-                    if (parsed > _maxCurrencyValue) return 'Valor muito alto';
-                    return null;
-                  },
-                ),
-                second: TextFormField(
-                  controller: _catCtrl,
-                  inputFormatters: [
-                    LengthLimitingTextInputFormatter(_maxCatLen),
-                  ],
-                  decoration: formFieldDecoration(
-                    label: 'Categoria',
-                    prefixIcon: Icons.sell_outlined,
-                  ),
-                  validator: (value) {
-                    final v = value?.trim() ?? '';
-                    if (v.length > _maxCatLen) return 'Categoria muito longa';
-                    return null;
-                  },
-                ),
-              ),
-            ],
-          ),
+          child: _buildFields(context),
         ),
       ),
       actions: [
-        GhostButton(label: 'Cancelar', onPressed: () => Navigator.pop(context)),
-        PrimaryButton(label: 'Salvar', onPressed: _salvar),
+        GhostButton(
+          label: 'Cancelar',
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
+        ),
+        PrimaryButton(
+          label: 'Salvar',
+          isLoading: _isSaving,
+          onPressed: _salvar,
+        ),
       ],
     );
 
     return Focus(autofocus: false, child: dialog);
   }
 
+  Widget _buildFields(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _FieldPair(
+          first: DropdownButtonFormField<TipoTransacao>(
+            initialValue: _tipo,
+            isExpanded: true,
+            dropdownColor: AppColors.elevated,
+            decoration: formFieldDecoration(label: 'Tipo'),
+            items: const [
+              DropdownMenuItem(
+                value: TipoTransacao.entrada,
+                child: Text('Entrada'),
+              ),
+              DropdownMenuItem(
+                value: TipoTransacao.saida,
+                child: Text('Saída'),
+              ),
+            ],
+            onChanged: (v) =>
+                setState(() => _tipo = v ?? TipoTransacao.entrada),
+          ),
+          second: TextFormField(
+            readOnly: true,
+            decoration: formFieldDecoration(
+              label: 'Data',
+              prefixIcon: Icons.calendar_today_outlined,
+            ),
+            controller: TextEditingController(
+              text: DateFormat('dd/MM/yyyy').format(_data),
+            ),
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _data,
+                firstDate: DateTime(2020),
+                lastDate: DateTime(2100),
+                builder: (ctx, child) {
+                  return Theme(
+                    data: Theme.of(ctx).copyWith(
+                      colorScheme: Theme.of(ctx).colorScheme.copyWith(
+                        primary: AppColors.primary,
+                        surface: AppColors.elevated,
+                      ),
+                      dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
+                        backgroundColor: AppColors.elevated,
+                      ),
+                    ),
+                    child: child!,
+                  );
+                },
+              );
+              if (picked != null) setState(() => _data = picked);
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          controller: _descCtrl,
+          inputFormatters: [LengthLimitingTextInputFormatter(_maxDescLen)],
+          decoration: formFieldDecoration(
+            label: 'Descrição',
+            prefixIcon: Icons.description_outlined,
+          ),
+          validator: (value) {
+            final v = value?.trim() ?? '';
+            if (v.isEmpty) return 'Descrição é obrigatória';
+            if (v.length > _maxDescLen) return 'Descrição muito longa';
+            return null;
+          },
+        ),
+        const SizedBox(height: 12),
+        _FieldPair(
+          first: TextFormField(
+            controller: _valorCtrl,
+            keyboardType: TextInputType.number,
+            inputFormatters: [CurrencyTextInputFormatter()],
+            decoration: formFieldDecoration(
+              label: 'Valor',
+              prefixText: 'R\$ ',
+              prefixIcon: Icons.payments_outlined,
+            ),
+            validator: (value) {
+              final raw = (value ?? '')
+                  .replaceAll('.', '')
+                  .replaceAll(',', '.')
+                  .trim();
+              final parsed = double.tryParse(raw) ?? 0.0;
+              if (parsed <= 0) return 'Valor inválido';
+              if (parsed > _maxCurrencyValue) return 'Valor muito alto';
+              return null;
+            },
+          ),
+          second: TextFormField(
+            controller: _catCtrl,
+            inputFormatters: [LengthLimitingTextInputFormatter(_maxCatLen)],
+            decoration: formFieldDecoration(
+              label: 'Categoria',
+              prefixIcon: Icons.sell_outlined,
+            ),
+            validator: (value) {
+              final v = value?.trim() ?? '';
+              if (v.length > _maxCatLen) return 'Categoria muito longa';
+              return null;
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   Future<void> _salvar() async {
+    if (_isSaving) return;
+
     final desc = _descCtrl.text.trim();
     final cat = _catCtrl.text.trim();
 
@@ -970,6 +1184,8 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
       data: _data,
     );
 
+    setState(() => _isSaving = true);
+
     try {
       await context.read<AppProvider>().addTransacao(t);
       if (!mounted) return;
@@ -978,6 +1194,8 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
     } catch (e) {
       if (!mounted) return;
       AppFeedback.showError(context, 'Erro ao salvar transação: $e');
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 }

@@ -46,6 +46,27 @@ class DBService {
   Future<List<Map<String, String?>>> getMarcasModelosCustom() async =>
       _unsupported();
 
+  Future<void> insertPecaCustom(String peca) async => _unsupported();
+  Future<List<String>> getPecasCustom() async => _unsupported();
+
+  Future<void> insertServicoCustom(String servico) async => _unsupported();
+  Future<List<String>> getServicosCustom() async => _unsupported();
+
+  Future<void> replaceFipeMarcasCache(List<Map<String, String>> marcas) async =>
+      _unsupported();
+  Future<List<Map<String, String?>>> getFipeMarcasCache() async =>
+      _unsupported();
+
+  Future<void> replaceFipeModelosCache(
+    String marcaCodigo,
+    List<Map<String, String>> modelos,
+  ) async =>
+      _unsupported();
+  Future<List<Map<String, String?>>> getFipeModelosCache(
+    String marcaCodigo,
+  ) async =>
+      _unsupported();
+
   Future<void> insertTransacao(Transacao t) async => _unsupported();
   Future<void> deleteTransacao(String id) async => _unsupported();
   Future<List<Transacao>> getTransacoes() async => _unsupported();

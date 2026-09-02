@@ -10,6 +10,8 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
 
   # UI & State
   cupertino_icons: ^1.0.8
@@ -39,7 +41,7 @@ dependencies:
   fl_chart: ^0.68.0
 
   # Utilitários
-  intl: ^0.18.0
+  intl: ^0.20.2
   crypto: ^3.0.2
   uuid: ^3.0.7
   url_launcher: ^6.3.0

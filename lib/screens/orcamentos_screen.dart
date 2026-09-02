@@ -324,15 +324,21 @@ class _OrcamentoMobileCard extends StatelessWidget {
                 GhostButton(
                   label: 'PDF',
                   icon: Icons.picture_as_pdf_outlined,
-                  onPressed: () =>
-                      OrcamentoActions.pdfWhatsapp(context, provider, orcamento),
+                  onPressed: () => OrcamentoActions.compartilharPdf(
+                    context,
+                    provider,
+                    orcamento,
+                  ),
                 ),
               ] else ...[
                 GhostButton(
                   label: 'PDF',
                   icon: Icons.picture_as_pdf_outlined,
-                  onPressed: () =>
-                      OrcamentoActions.pdfWhatsapp(context, provider, orcamento),
+                  onPressed: () => OrcamentoActions.compartilharPdf(
+                    context,
+                    provider,
+                    orcamento,
+                  ),
                 ),
                 const Spacer(),
               ],
@@ -668,7 +674,7 @@ class _OrcamentoPremiumCard extends StatelessWidget {
             label: 'PDF',
             icon: Icons.picture_as_pdf_outlined,
             onPressed: () =>
-                OrcamentoActions.pdfWhatsapp(context, provider, orcamento),
+                OrcamentoActions.compartilharPdf(context, provider, orcamento),
           ),
           const SizedBox(width: AppSpacing.sm),
           buildOrcamentoMenu(context, provider, orcamento, onEdit: onEdit),

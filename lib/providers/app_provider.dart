@@ -10,8 +10,11 @@ import '../models/orcamento.dart';
 import '../models/transacao.dart';
 import '../services/app_logger.dart';
 import '../services/db_service.dart';
+import '../services/fipe_service.dart';
 import '../models/nota.dart';
+import '../models/relatorio_financeiro.dart';
 import '../models/user.dart';
+import '../core/utils/text_normalize.dart';
 
 class AppProvider extends ChangeNotifier {
   bool _isLoading = false;
@@ -27,6 +30,17 @@ class AppProvider extends ChangeNotifier {
 
   final List<String> _customMarcas = [];
   final Map<String, List<String>> _customModelosPorMarca = {};
+  final List<String> _customPecas = [];
+  final List<String> _customServicos = [];
+
+  // Catálogo FIPE (marca/modelo), cacheado localmente — ver
+  // "CATÁLOGO FIPE MARCA/MODELO" mais abaixo.
+  static const _fipeCacheTtl = Duration(days: 30);
+  List<FipeMarca> _fipeMarcas = [];
+  DateTime? _fipeMarcasAtualizadoEm;
+  bool _fipeMarcasSincronizando = false;
+  final Map<String, List<String>> _fipeModelosPorMarcaCodigo = {};
+  final Set<String> _fipeModelosCarregando = {};
 
   final List<Cliente> _clientes = [];
   final List<Veiculo> _veiculos = [];
@@ -81,6 +95,12 @@ class AppProvider extends ChangeNotifier {
     _transacoes.clear();
     _customMarcas.clear();
     _customModelosPorMarca.clear();
+    _customPecas.clear();
+    _customServicos.clear();
+    _fipeMarcas = [];
+    _fipeMarcasAtualizadoEm = null;
+    _fipeModelosPorMarcaCodigo.clear();
+    _fipeModelosCarregando.clear();
     notifyListeners();
 
     unawaited(_reloadForActiveUser());
@@ -88,21 +108,52 @@ class AppProvider extends ChangeNotifier {
 
   // ===================== CATÁLOGO VEÍCULOS =====================
 
+  // Fonte de marcas: catálogo FIPE em cache, se já sincronizado alguma vez
+  // nesta conta; senão a lista fixa (AppConstants.marcas) como último
+  // recurso — nunca os dois misturados, pra não ter marca duplicada com
+  // grafia diferente entre as duas fontes.
   List<String> get marcasDisponiveis {
-    final merged = <String>{...AppConstants.marcas, ..._customMarcas};
+    final baseNomes = _fipeMarcas.isNotEmpty
+        ? _fipeMarcas.map((m) => m.nome)
+        : AppConstants.marcas;
+    final merged = <String>{...baseNomes, ..._customMarcas};
     final list = merged.toList();
     list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return list;
   }
 
+  // Mesmo raciocínio de marcasDisponiveis, mas por marca: se a marca veio da
+  // FIPE, busca modelos no cache FIPE daquela marca (por código) e dispara
+  // sincronização em background se estiver vazio/desatualizado — sem travar
+  // a UI, retorna o que já tiver na hora (cache, ou o fallback fixo da
+  // marca, se existir). Se a marca não é uma marca FIPE conhecida (ex: veio
+  // só da lista fixa antiga ou é uma marca custom sem equivalente FIPE),
+  // usa o fallback fixo direto.
   List<String> modelosDisponiveis(String? marca) {
     if (marca == null || marca.trim().isEmpty) return const [];
-    final base = AppConstants.modelosPorMarca[marca] ?? const <String>[];
+
+    final fipeMarca = _fipeMarcaPorNome(marca);
+    List<String> base;
+    if (fipeMarca != null) {
+      final cache = _fipeModelosPorMarcaCodigo[fipeMarca.codigo];
+      base = cache ?? (AppConstants.modelosPorMarca[marca] ?? const <String>[]);
+      unawaited(_ensureFipeModelosCarregados(fipeMarca));
+    } else {
+      base = AppConstants.modelosPorMarca[marca] ?? const <String>[];
+    }
+
     final custom = _customModelosPorMarca[marca] ?? const <String>[];
     final merged = <String>{...base, ...custom};
     final list = merged.toList();
     list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return list;
+  }
+
+  FipeMarca? _fipeMarcaPorNome(String marca) {
+    for (final m in _fipeMarcas) {
+      if (m.nome.toLowerCase() == marca.toLowerCase()) return m;
+    }
+    return null;
   }
 
   Future<void> addMarcaModeloCustom({
@@ -153,6 +204,69 @@ class AppProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ===================== CATÁLOGO PEÇAS/SERVIÇOS =====================
+
+  List<String> get pecasDisponiveis {
+    final merged = <String>{...AppConstants.pecas, ..._customPecas};
+    final list = merged.toList();
+    list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return list;
+  }
+
+  // 'Outro' é o catch-all do dropdown de Serviço e precisa continuar sendo o
+  // último item (é assim que o AppConstants.servicos já está organizado) —
+  // por isso ele é excluído do merge/sort e reanexado manualmente no fim.
+  List<String> get servicosDisponiveis {
+    const outro = 'Outro';
+    final base = AppConstants.servicos.where((s) => s != outro);
+    final custom = _customServicos.where((s) => s != outro);
+    final merged = <String>{...base, ...custom};
+    final list = merged.toList();
+    list.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    list.add(outro);
+    return list;
+  }
+
+  Future<void> addPecaCustom(String peca) async {
+    final fixed = _sentenceCase(peca);
+    if (fixed.isEmpty) return;
+
+    await _ensureUserDbSelected();
+
+    final hasBase = AppConstants.pecas.any(
+      (p) => p.toLowerCase() == fixed.toLowerCase(),
+    );
+    final hasCustom = _customPecas.any(
+      (p) => p.toLowerCase() == fixed.toLowerCase(),
+    );
+    if (!hasBase && !hasCustom) {
+      _customPecas.add(fixed);
+      await _db.insertPecaCustom(fixed);
+    }
+
+    notifyListeners();
+  }
+
+  Future<void> addServicoCustom(String servico) async {
+    final fixed = _sentenceCase(servico);
+    if (fixed.isEmpty) return;
+
+    await _ensureUserDbSelected();
+
+    final hasBase = AppConstants.servicos.any(
+      (s) => s.toLowerCase() == fixed.toLowerCase(),
+    );
+    final hasCustom = _customServicos.any(
+      (s) => s.toLowerCase() == fixed.toLowerCase(),
+    );
+    if (!hasBase && !hasCustom) {
+      _customServicos.add(fixed);
+      await _db.insertServicoCustom(fixed);
+    }
+
+    notifyListeners();
+  }
+
   String _prettyName(String input) {
     final trimmed = input.trim();
     if (trimmed.isEmpty) return '';
@@ -160,6 +274,138 @@ class AppProvider extends ChangeNotifier {
         .split(RegExp(r'\s+'))
         .map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
         .join(' ');
+  }
+
+  // Peças e serviços seguem o padrão de frase (só a primeira letra
+  // maiúscula) já usado em AppConstants.pecas/AppConstants.servicos —
+  // diferente de _prettyName (Title Case por palavra), que é o padrão certo
+  // pra marca/modelo de veículo.
+  String _sentenceCase(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return '';
+    final lower = trimmed.toLowerCase();
+    return '${lower[0].toUpperCase()}${lower.substring(1)}';
+  }
+
+  // ===================== CATÁLOGO FIPE MARCA/MODELO =====================
+  //
+  // marcasDisponiveis/modelosDisponiveis (acima) leem só o estado em
+  // memória (_fipeMarcas / _fipeModelosPorMarcaCodigo) — carregado do cache
+  // SQLite em _carregarCatalogoFipeDoCache (chamado em _reloadForActiveUser,
+  // igual ao catálogo de marca/modelo custom). A sincronização com a API
+  // roda sempre em background (nunca bloqueia a UI): dispara quando o cache
+  // está vazio ou mais velho que _fipeCacheTtl, atualiza o SQLite e o estado
+  // em memória, e chama notifyListeners() quando termina — se a API falhar
+  // e já havia cache, o cache velho continua sendo usado; se falhar e nunca
+  // houve cache, marcasDisponiveis/modelosDisponiveis caem pro fallback fixo
+  // (AppConstants.marcas/modelosPorMarca) automaticamente, sem tratamento
+  // especial aqui.
+
+  Future<void> _carregarCatalogoFipeDoCache() async {
+    final marcasCache = await _db.getFipeMarcasCache();
+
+    _fipeMarcas = marcasCache
+        .map(
+          (row) => FipeMarca(
+            codigo: row['codigo'] ?? '',
+            nome: row['nome'] ?? '',
+          ),
+        )
+        .where((m) => m.codigo.isNotEmpty && m.nome.isNotEmpty)
+        .toList();
+
+    _fipeMarcasAtualizadoEm = marcasCache.isNotEmpty
+        ? DateTime.tryParse(marcasCache.first['atualizadoEm'] ?? '')
+        : null;
+
+    _fipeModelosPorMarcaCodigo.clear();
+  }
+
+  bool _fipeDesatualizado(DateTime? atualizadoEm) {
+    return atualizadoEm == null ||
+        DateTime.now().difference(atualizadoEm) > _fipeCacheTtl;
+  }
+
+  void _sincronizarFipeMarcasSeNecessario() {
+    if (_fipeMarcasSincronizando) return;
+    if (!_fipeDesatualizado(_fipeMarcasAtualizadoEm)) return;
+
+    _fipeMarcasSincronizando = true;
+    unawaited(_sincronizarFipeMarcas());
+  }
+
+  Future<void> _sincronizarFipeMarcas() async {
+    final userIdAtStart = _activeUserId;
+    try {
+      final marcasApi = await FipeService.getMarcas();
+      if (marcasApi == null || marcasApi.isEmpty) return;
+      if (_activeUserId != userIdAtStart) return;
+
+      await _db.replaceFipeMarcasCache(
+        marcasApi.map((m) => {'codigo': m.codigo, 'nome': m.nome}).toList(),
+      );
+
+      if (_activeUserId != userIdAtStart) return;
+      _fipeMarcas = marcasApi;
+      _fipeMarcasAtualizadoEm = DateTime.now();
+      _fipeModelosPorMarcaCodigo.clear();
+      notifyListeners();
+    } catch (e) {
+      unawaited(
+        AppLogger.instance.warning('Falha ao sincronizar marcas FIPE: $e'),
+      );
+    } finally {
+      _fipeMarcasSincronizando = false;
+    }
+  }
+
+  Future<void> _ensureFipeModelosCarregados(FipeMarca marca) async {
+    if (_fipeModelosPorMarcaCodigo.containsKey(marca.codigo) &&
+        !_fipeDesatualizado(_fipeMarcasAtualizadoEm)) {
+      return;
+    }
+    if (_fipeModelosCarregando.contains(marca.codigo)) return;
+    _fipeModelosCarregando.add(marca.codigo);
+
+    final userIdAtStart = _activeUserId;
+    try {
+      final cache = await _db.getFipeModelosCache(marca.codigo);
+      if (_activeUserId != userIdAtStart) return;
+
+      DateTime? atualizadoEm;
+      if (cache.isNotEmpty) {
+        atualizadoEm = DateTime.tryParse(cache.first['atualizadoEm'] ?? '');
+        _fipeModelosPorMarcaCodigo[marca.codigo] = cache
+            .map((row) => row['nome'] ?? '')
+            .where((n) => n.isNotEmpty)
+            .toList();
+        notifyListeners();
+      }
+
+      if (!_fipeDesatualizado(atualizadoEm)) return;
+
+      final modelosApi = await FipeService.getModelos(marca.codigo);
+      if (modelosApi == null || modelosApi.isEmpty) return;
+      if (_activeUserId != userIdAtStart) return;
+
+      await _db.replaceFipeModelosCache(
+        marca.codigo,
+        modelosApi.map((m) => {'codigo': m.codigo, 'nome': m.nome}).toList(),
+      );
+
+      if (_activeUserId != userIdAtStart) return;
+      _fipeModelosPorMarcaCodigo[marca.codigo] =
+          modelosApi.map((m) => m.nome).toList();
+      notifyListeners();
+    } catch (e) {
+      unawaited(
+        AppLogger.instance.warning(
+          'Falha ao sincronizar modelos FIPE (${marca.codigo}): $e',
+        ),
+      );
+    } finally {
+      _fipeModelosCarregando.remove(marca.codigo);
+    }
   }
 
   /// Busca o catálogo de marcas/modelos digitados manualmente a partir do
@@ -343,6 +589,83 @@ class AppProvider extends ChangeNotifier {
               t.data.year == mes.year,
         )
         .fold(0, (sum, t) => sum + t.valor);
+  }
+
+  /// Meses (dia 1) entre [inicio] e [fim], inclusive, um por posição.
+  List<DateTime> _mesesEntre(DateTime inicio, DateTime fim) {
+    final ini = DateTime(inicio.year, inicio.month, 1);
+    final end = DateTime(fim.year, fim.month, 1);
+    final meses = <DateTime>[];
+    var cursor = ini;
+    while (!cursor.isAfter(end)) {
+      meses.add(cursor);
+      cursor = DateTime(cursor.year, cursor.month + 1, 1);
+    }
+    return meses;
+  }
+
+  /// Um registro por mês no intervalo [inicio, fim] (dia ignorado, só
+  /// mês/ano importam), com entradas/saídas exatas daquele mês.
+  List<ResumoMensal> resumoPorPeriodo(DateTime inicio, DateTime fim) {
+    return _mesesEntre(inicio, fim)
+        .map(
+          (m) => ResumoMensal(
+            mes: m,
+            entradas: entradasNoMes(m),
+            saidas: saidasNoMes(m),
+          ),
+        )
+        .toList();
+  }
+
+  /// Totais de entradas/saídas por categoria dentro do intervalo [inicio,
+  /// fim], agrupando categorias que só diferem em acento/maiúscula. O
+  /// rótulo de exibição é a grafia mais frequente entre as variações — a
+  /// grafia salva em cada transação nunca é alterada, só a exibição
+  /// agregada. Ordenado por total (entradas + saídas) decrescente.
+  List<ResumoCategoria> resumoPorCategoria(DateTime inicio, DateTime fim) {
+    final mesesValidos = _mesesEntre(
+      inicio,
+      fim,
+    ).map((m) => '${m.year}-${m.month}').toSet();
+
+    final entradasPorChave = <String, double>{};
+    final saidasPorChave = <String, double>{};
+    final grafiasPorChave = <String, Map<String, int>>{};
+
+    for (final t in _transacoes) {
+      final chaveMes = '${t.data.year}-${t.data.month}';
+      if (!mesesValidos.contains(chaveMes)) continue;
+
+      final categoria = t.categoria.trim();
+      if (categoria.isEmpty) continue;
+      final chave = normalizeText(categoria);
+
+      if (t.tipo == TipoTransacao.entrada) {
+        entradasPorChave[chave] = (entradasPorChave[chave] ?? 0) + t.valor;
+      } else {
+        saidasPorChave[chave] = (saidasPorChave[chave] ?? 0) + t.valor;
+      }
+
+      final grafias = grafiasPorChave.putIfAbsent(chave, () => {});
+      grafias[categoria] = (grafias[categoria] ?? 0) + 1;
+    }
+
+    final chaves = <String>{...entradasPorChave.keys, ...saidasPorChave.keys};
+    final resultado = chaves.map((chave) {
+      final grafias = grafiasPorChave[chave]!;
+      final rotulo = grafias.entries
+          .reduce((a, b) => b.value > a.value ? b : a)
+          .key;
+      return ResumoCategoria(
+        categoria: rotulo,
+        entradas: entradasPorChave[chave] ?? 0,
+        saidas: saidasPorChave[chave] ?? 0,
+      );
+    }).toList();
+
+    resultado.sort((a, b) => b.total.compareTo(a.total));
+    return resultado;
   }
 
   Map<String, dynamic> percentageChange(double current, double previous) {
@@ -943,6 +1266,8 @@ class AppProvider extends ChangeNotifier {
       final orcamentosDB = await _db.getOrcamentos();
       final transacoesDB = await _db.getTransacoes();
       final catalogo = await _fetchVehicleCatalogFromDb();
+      final pecasCustomDB = await _db.getPecasCustom();
+      final servicosCustomDB = await _db.getServicosCustom();
 
       if (_activeUserId != userIdAtStart) return;
 
@@ -964,6 +1289,16 @@ class AppProvider extends ChangeNotifier {
       _customModelosPorMarca
         ..clear()
         ..addAll(catalogo.modelosPorMarca);
+      _customPecas
+        ..clear()
+        ..addAll(pecasCustomDB);
+      _customServicos
+        ..clear()
+        ..addAll(servicosCustomDB);
+
+      await _carregarCatalogoFipeDoCache();
+      if (_activeUserId != userIdAtStart) return;
+      _sincronizarFipeMarcasSeNecessario();
     } catch (e) {
       _recordError('Erro ao recarregar dados do AppProvider: $e');
     } finally {

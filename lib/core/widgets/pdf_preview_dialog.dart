@@ -54,7 +54,7 @@ Future<void> showPdfPreviewDialog(
                   canChangePageFormat: false,
                   canChangeOrientation: false,
                   allowPrinting: true,
-                  allowSharing: true,
+                  allowSharing: false,
                   build: buildPdf,
                 ),
               ),

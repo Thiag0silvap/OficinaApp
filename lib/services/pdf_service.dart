@@ -5,6 +5,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 
 import '../models/orcamento.dart';
+import '../models/relatorio_financeiro.dart';
 import '../services/db_service.dart';
 
 class PDFService {
@@ -314,6 +315,255 @@ class PDFService {
     );
 
     return pdf.save();
+  }
+
+  static String buildRelatorioFinanceiroFilename(PeriodoRelatorio periodo) {
+    final now = DateTime.now();
+    final data = DateFormat('yyyyMMdd').format(now);
+    return 'relatorio_financeiro_$data.pdf';
+  }
+
+  static Future<Uint8List> generateRelatorioFinanceiroPdf({
+    required PeriodoRelatorio periodo,
+    required List<ResumoMensal> resumoPorMes,
+    required List<ResumoCategoria> resumoPorCategoria,
+  }) async {
+    final regularFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/WorkSans-Regular.ttf'),
+    );
+    final boldFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/WorkSans-Bold.ttf'),
+    );
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(
+        base: regularFont,
+        bold: boldFont,
+      ),
+    );
+    final moneyFormat = NumberFormat.currency(
+      locale: 'pt_BR',
+      symbol: 'R\$ ',
+    );
+    final monthFormat = DateFormat('MMMM/yyyy', 'pt_BR');
+
+    final empresa = await DBService.instance.getEmpresa();
+
+    pw.MemoryImage? logoImage;
+    try {
+      final data = await rootBundle.load('assets/images/logo.png');
+      logoImage = pw.MemoryImage(data.buffer.asUint8List());
+    } catch (_) {
+      logoImage = null;
+    }
+
+    final totalEntradas = resumoPorMes.fold<double>(
+      0,
+      (sum, r) => sum + r.entradas,
+    );
+    final totalSaidas = resumoPorMes.fold<double>(
+      0,
+      (sum, r) => sum + r.saidas,
+    );
+    final saldoTotal = totalEntradas - totalSaidas;
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(24),
+        build: (context) => [
+          pw.Container(
+            padding: const pw.EdgeInsets.only(bottom: 12),
+            child: pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                if (logoImage != null)
+                  pw.Container(
+                    width: 120,
+                    child: pw.Image(logoImage),
+                  ),
+                pw.SizedBox(width: 12),
+                pw.Expanded(
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    children: [
+                      if (empresa != null) ...[
+                        pw.Text(
+                          empresa.nome,
+                          textAlign: pw.TextAlign.right,
+                          style: pw.TextStyle(
+                            fontSize: 16,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                        pw.SizedBox(height: 10),
+                      ],
+                      pw.Text(
+                        'Relatório Financeiro',
+                        style: pw.TextStyle(
+                          fontSize: 22,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 6),
+                      pw.Text('Período: ${periodo.label}'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          pw.Divider(),
+          pw.SizedBox(height: 8),
+
+          pw.Container(
+            width: double.infinity,
+            padding: const pw.EdgeInsets.all(10),
+            decoration: pw.BoxDecoration(
+              color: PdfColors.grey100,
+              borderRadius: pw.BorderRadius.circular(8),
+              border: pw.Border.all(color: PdfColors.grey300),
+            ),
+            child: pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Text('Total de entradas: ${moneyFormat.format(totalEntradas)}'),
+                pw.Text('Total de saídas: ${moneyFormat.format(totalSaidas)}'),
+                pw.Text(
+                  'Saldo: ${moneyFormat.format(saldoTotal)}',
+                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                ),
+              ],
+            ),
+          ),
+
+          pw.SizedBox(height: 18),
+
+          pw.Text(
+            'Por Mês',
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 6),
+
+          pw.Table(
+            border: pw.TableBorder.symmetric(
+              inside: pw.BorderSide(width: 0.5, color: PdfColors.grey300),
+            ),
+            defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+            columnWidths: {
+              0: const pw.FlexColumnWidth(3.0),
+              1: const pw.FlexColumnWidth(2.5),
+              2: const pw.FlexColumnWidth(2.5),
+              3: const pw.FlexColumnWidth(2.5),
+            },
+            children: [
+              pw.TableRow(
+                children: [
+                  _tableHeaderCell('Mês'),
+                  _tableHeaderCell('Entradas', alignRight: true),
+                  _tableHeaderCell('Saídas', alignRight: true),
+                  _tableHeaderCell('Saldo', alignRight: true),
+                ],
+              ),
+              ...resumoPorMes.map(
+                (r) => pw.TableRow(
+                  children: [
+                    _tableBodyCell(_capitalize(monthFormat.format(r.mes))),
+                    _tableBodyCell(
+                      moneyFormat.format(r.entradas),
+                      alignRight: true,
+                    ),
+                    _tableBodyCell(
+                      moneyFormat.format(r.saidas),
+                      alignRight: true,
+                    ),
+                    _tableBodyCell(
+                      moneyFormat.format(r.saldo),
+                      alignRight: true,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          pw.SizedBox(height: 18),
+
+          pw.Text(
+            'Por Categoria',
+            style: pw.TextStyle(
+              fontSize: 14,
+              fontWeight: pw.FontWeight.bold,
+            ),
+          ),
+          pw.SizedBox(height: 6),
+
+          pw.Table(
+            border: pw.TableBorder.symmetric(
+              inside: pw.BorderSide(width: 0.5, color: PdfColors.grey300),
+            ),
+            defaultVerticalAlignment: pw.TableCellVerticalAlignment.middle,
+            columnWidths: {
+              0: const pw.FlexColumnWidth(3.0),
+              1: const pw.FlexColumnWidth(2.5),
+              2: const pw.FlexColumnWidth(2.5),
+              3: const pw.FlexColumnWidth(2.5),
+            },
+            children: [
+              pw.TableRow(
+                children: [
+                  _tableHeaderCell('Categoria'),
+                  _tableHeaderCell('Entradas', alignRight: true),
+                  _tableHeaderCell('Saídas', alignRight: true),
+                  _tableHeaderCell('Total', alignRight: true),
+                ],
+              ),
+              ...resumoPorCategoria.map(
+                (r) => pw.TableRow(
+                  children: [
+                    _tableBodyCell(r.categoria),
+                    _tableBodyCell(
+                      moneyFormat.format(r.entradas),
+                      alignRight: true,
+                    ),
+                    _tableBodyCell(
+                      moneyFormat.format(r.saidas),
+                      alignRight: true,
+                    ),
+                    _tableBodyCell(
+                      moneyFormat.format(r.total),
+                      alignRight: true,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          pw.SizedBox(height: 24),
+          pw.Divider(),
+          pw.SizedBox(height: 6),
+          pw.Text(
+            'Documento gerado pelo sistema',
+            style: pw.TextStyle(
+              fontSize: 10,
+              color: PdfColors.grey700,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return pdf.save();
+  }
+
+  static String _capitalize(String s) {
+    if (s.isEmpty) return s;
+    return s[0].toUpperCase() + s.substring(1);
   }
 
   static pw.Widget _tableHeaderCell(

@@ -157,6 +157,38 @@ modelo TEXT
 )
 ''');
 
+    await db.execute('''
+CREATE TABLE pecas_custom(
+id TEXT PRIMARY KEY,
+peca TEXT
+)
+''');
+
+    await db.execute('''
+CREATE TABLE servicos_custom(
+id TEXT PRIMARY KEY,
+servico TEXT
+)
+''');
+
+    await db.execute('''
+CREATE TABLE fipe_marcas_cache(
+codigo TEXT PRIMARY KEY,
+nome TEXT,
+atualizadoEm TEXT
+)
+''');
+
+    await db.execute('''
+CREATE TABLE fipe_modelos_cache(
+id TEXT PRIMARY KEY,
+marcaCodigo TEXT,
+codigo TEXT,
+nome TEXT,
+atualizadoEm TEXT
+)
+''');
+
     await _createIndexes(db);
   }
 
@@ -287,6 +319,50 @@ CREATE TABLE marcas_modelos_custom(
 id TEXT PRIMARY KEY,
 marca TEXT,
 modelo TEXT
+)
+''',
+    );
+    await _ensureTableExists(
+      db,
+      'pecas_custom',
+      '''
+CREATE TABLE pecas_custom(
+id TEXT PRIMARY KEY,
+peca TEXT
+)
+''',
+    );
+    await _ensureTableExists(
+      db,
+      'servicos_custom',
+      '''
+CREATE TABLE servicos_custom(
+id TEXT PRIMARY KEY,
+servico TEXT
+)
+''',
+    );
+    await _ensureTableExists(
+      db,
+      'fipe_marcas_cache',
+      '''
+CREATE TABLE fipe_marcas_cache(
+codigo TEXT PRIMARY KEY,
+nome TEXT,
+atualizadoEm TEXT
+)
+''',
+    );
+    await _ensureTableExists(
+      db,
+      'fipe_modelos_cache',
+      '''
+CREATE TABLE fipe_modelos_cache(
+id TEXT PRIMARY KEY,
+marcaCodigo TEXT,
+codigo TEXT,
+nome TEXT,
+atualizadoEm TEXT
 )
 ''',
     );
@@ -651,6 +727,146 @@ WHERE orcamentoId IS NOT NULL
           (row) => {
             'marca': row['marca'] as String?,
             'modelo': row['modelo'] as String?,
+          },
+        )
+        .toList();
+  }
+
+  // ================= CATÁLOGO PEÇAS/SERVIÇOS (por conta) =================
+
+  Future<void> insertPecaCustom(String peca) async {
+    final db = await database;
+    final normalizedPeca = peca.trim();
+    final id = normalizedPeca.toLowerCase();
+
+    await db.insert(
+      "pecas_custom",
+      {
+        'id': id,
+        'peca': normalizedPeca,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<String>> getPecasCustom() async {
+    final db = await database;
+    final result = await db.query("pecas_custom");
+
+    return result
+        .map((row) => row['peca'] as String? ?? '')
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  Future<void> insertServicoCustom(String servico) async {
+    final db = await database;
+    final normalizedServico = servico.trim();
+    final id = normalizedServico.toLowerCase();
+
+    await db.insert(
+      "servicos_custom",
+      {
+        'id': id,
+        'servico': normalizedServico,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<List<String>> getServicosCustom() async {
+    final db = await database;
+    final result = await db.query("servicos_custom");
+
+    return result
+        .map((row) => row['servico'] as String? ?? '')
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  // ================= CACHE FIPE (marca/modelo) =================
+
+  Future<void> replaceFipeMarcasCache(List<Map<String, String>> marcas) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+
+    await db.transaction((txn) async {
+      await txn.delete("fipe_marcas_cache");
+      for (final marca in marcas) {
+        await txn.insert(
+          "fipe_marcas_cache",
+          {
+            'codigo': marca['codigo'],
+            'nome': marca['nome'],
+            'atualizadoEm': now,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<List<Map<String, String?>>> getFipeMarcasCache() async {
+    final db = await database;
+    final result = await db.query("fipe_marcas_cache");
+
+    return result
+        .map(
+          (row) => {
+            'codigo': row['codigo'] as String?,
+            'nome': row['nome'] as String?,
+            'atualizadoEm': row['atualizadoEm'] as String?,
+          },
+        )
+        .toList();
+  }
+
+  Future<void> replaceFipeModelosCache(
+    String marcaCodigo,
+    List<Map<String, String>> modelos,
+  ) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+
+    await db.transaction((txn) async {
+      await txn.delete(
+        "fipe_modelos_cache",
+        where: "marcaCodigo = ?",
+        whereArgs: [marcaCodigo],
+      );
+      for (final modelo in modelos) {
+        final id = '$marcaCodigo|${modelo['codigo']}';
+        await txn.insert(
+          "fipe_modelos_cache",
+          {
+            'id': id,
+            'marcaCodigo': marcaCodigo,
+            'codigo': modelo['codigo'],
+            'nome': modelo['nome'],
+            'atualizadoEm': now,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+    });
+  }
+
+  Future<List<Map<String, String?>>> getFipeModelosCache(
+    String marcaCodigo,
+  ) async {
+    final db = await database;
+    final result = await db.query(
+      "fipe_modelos_cache",
+      where: "marcaCodigo = ?",
+      whereArgs: [marcaCodigo],
+    );
+
+    return result
+        .map(
+          (row) => {
+            'codigo': row['codigo'] as String?,
+            'nome': row['nome'] as String?,
+            'atualizadoEm': row['atualizadoEm'] as String?,
           },
         )
         .toList();

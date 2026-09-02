@@ -292,6 +292,44 @@ class OrcamentoActions {
     }
   }
 
+  /// Gera o PDF do orçamento, salva na pasta do usuário e aciona o
+  /// compartilhamento do arquivo (Android/iOS: share sheet do SO).
+  /// Parte comum entre [compartilharPdf] e [pdfWhatsapp].
+  static Future<void> _gerarSalvarCompartilharPdf(Orcamento o) async {
+    final bytes = await PDFService.generateOrcamentoPdf(o);
+    final filename = PDFService.buildPdfFilename(o);
+    final savedPath = await PdfFileService.savePdfToUserFolder(
+      bytes: bytes,
+      filename: filename,
+    );
+    await PdfFileService.openFileFolder(savedPath);
+  }
+
+  /// Gera o PDF e compartilha via share sheet do SO — sem abrir o
+  /// WhatsApp automaticamente. Usado pelo botão "PDF" da lista.
+  static Future<void> compartilharPdf(
+    BuildContext context,
+    AppProvider provider,
+    Orcamento o,
+  ) async {
+    try {
+      await _gerarSalvarCompartilharPdf(o);
+      if (!context.mounted) return;
+      AppSnackbar.show(
+        context,
+        'PDF gerado! Escolha o app para compartilhar.',
+        type: SnackType.success,
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      AppSnackbar.show(
+        context,
+        'Erro ao preparar envio: $e',
+        type: SnackType.error,
+      );
+    }
+  }
+
   /// Gera PDF e abre o WhatsApp. Lógica preservada da versão original;
   /// o tratamento amigável do PlatformException fica para a Sprint 5.
   static Future<void> pdfWhatsapp(
@@ -310,16 +348,10 @@ class OrcamentoActions {
         );
         return;
       }
-      final bytes = await PDFService.generateOrcamentoPdf(o);
-      final filename = PDFService.buildPdfFilename(o);
-      final savedPath = await PdfFileService.savePdfToUserFolder(
-        bytes: bytes,
-        filename: filename,
-      );
+      await _gerarSalvarCompartilharPdf(o);
       final mensagem =
           'Olá ${o.clienteNome}, segue seu orçamento referente ao veículo '
           '${o.veiculoDescricao}.';
-      await PdfFileService.openFileFolder(savedPath);
       await WhatsAppService.openChat(
         phone: cliente.telefone,
         message: mensagem,

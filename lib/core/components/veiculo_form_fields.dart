@@ -1,26 +1,24 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../models/veiculo.dart';
 import '../../providers/app_provider.dart';
+import 'app_autocomplete_field.dart';
 import 'form_styles.dart';
 
 /// Controller/estado dos campos de veículo (marca, modelo, cor, placa, ano,
-/// observações), incluindo a lógica de "Outra... (digitar)" para marca e
-/// modelo. Pode ser criado vazio (novo veículo) ou a partir de um veículo
-/// existente (edição), via [VeiculoFormController.fromVeiculo].
+/// observações). Pode ser criado vazio (novo veículo) ou a partir de um
+/// veículo existente (edição), via [VeiculoFormController.fromVeiculo].
 ///
 /// Compartilhado entre o assistente de cadastro de cliente, o cadastro de
 /// veículo avulso, a edição de veículo e o atalho de cadastro de veículo
 /// dentro do orçamento — fonte única da lógica de marca/modelo custom.
 class VeiculoFormController extends ChangeNotifier {
-  static const otherOptionValue = '__other__';
-
   String? selectedMarca;
   String? selectedModelo;
 
-  final marcaCustomController = TextEditingController();
-  final modeloCustomController = TextEditingController();
   final corController = TextEditingController();
   final placaController = TextEditingController();
   final anoController = TextEditingController();
@@ -32,9 +30,11 @@ class VeiculoFormController extends ChangeNotifier {
 
   VeiculoFormController();
 
-  /// Inicializa o controller a partir de um veículo existente, detectando
-  /// (contra o catálogo atual da conta) se marca/modelo são valores fixos
-  /// ou customizados, para pré-selecionar o dropdown corretamente.
+  /// Inicializa o controller a partir de um veículo existente, tentando
+  /// casar marca/modelo (sem diferenciar maiúscula/acento) contra o
+  /// catálogo atual da conta pra manter a grafia "oficial" já usada em
+  /// outros veículos — mas aceita o valor bruto salvo mesmo se não achar
+  /// correspondência (marca/modelo digitado livremente continua válido).
   factory VeiculoFormController.fromVeiculo(
     Veiculo veiculo,
     AppProvider provider,
@@ -45,25 +45,13 @@ class VeiculoFormController extends ChangeNotifier {
       provider.marcasDisponiveis,
       veiculo.marca,
     );
-    if (marcaMatch != null) {
-      controller.selectedMarca = marcaMatch;
-    } else if (veiculo.marca.trim().isNotEmpty) {
-      controller.selectedMarca = otherOptionValue;
-      controller.marcaCustomController.text = veiculo.marca;
-    }
+    controller.selectedMarca = marcaMatch ??
+        (veiculo.marca.trim().isEmpty ? null : veiculo.marca.trim());
 
-    final modelosBase = controller.selectedMarca == otherOptionValue
-        ? const <String>[]
-        : provider.modelosDisponiveis(controller.selectedMarca);
+    final modelosBase = provider.modelosDisponiveis(controller.selectedMarca);
     final modeloMatch = _findCaseInsensitive(modelosBase, veiculo.modelo);
-    if (controller.selectedMarca == otherOptionValue) {
-      controller.modeloCustomController.text = veiculo.modelo;
-    } else if (modeloMatch != null) {
-      controller.selectedModelo = modeloMatch;
-    } else if (veiculo.modelo.trim().isNotEmpty) {
-      controller.selectedModelo = otherOptionValue;
-      controller.modeloCustomController.text = veiculo.modelo;
-    }
+    controller.selectedModelo = modeloMatch ??
+        (veiculo.modelo.trim().isEmpty ? null : veiculo.modelo.trim());
 
     controller.corController.text = veiculo.cor;
     controller.placaController.text = veiculo.placa;
@@ -82,34 +70,17 @@ class VeiculoFormController extends ChangeNotifier {
     return null;
   }
 
-  bool get isOtherMarca => selectedMarca == otherOptionValue;
-  bool get isOtherModelo => selectedModelo == otherOptionValue;
+  String get marcaFinal => (selectedMarca ?? '').trim();
+  String get modeloFinal => (selectedModelo ?? '').trim();
 
-  String get marcaFinal => isOtherMarca
-      ? marcaCustomController.text.trim()
-      : (selectedMarca ?? '').trim();
-
-  String get modeloFinal => isOtherMarca
-      ? modeloCustomController.text.trim()
-      : isOtherModelo
-          ? modeloCustomController.text.trim()
-          : (selectedModelo ?? '').trim();
-
-  void setMarca(String? value) {
-    selectedMarca = value;
+  void setMarca(String value) {
+    selectedMarca = value.trim();
     selectedModelo = null;
-    if (value != otherOptionValue) {
-      marcaCustomController.clear();
-    }
-    modeloCustomController.clear();
     notifyListeners();
   }
 
-  void setModelo(String? value) {
-    selectedModelo = value;
-    if (value != otherOptionValue) {
-      modeloCustomController.clear();
-    }
+  void setModelo(String value) {
+    selectedModelo = value.trim();
     notifyListeners();
   }
 
@@ -117,8 +88,6 @@ class VeiculoFormController extends ChangeNotifier {
   void reset() {
     selectedMarca = null;
     selectedModelo = null;
-    marcaCustomController.clear();
-    modeloCustomController.clear();
     corController.clear();
     placaController.clear();
     anoController.clear();
@@ -146,8 +115,6 @@ class VeiculoFormController extends ChangeNotifier {
 
   @override
   void dispose() {
-    marcaCustomController.dispose();
-    modeloCustomController.dispose();
     corController.dispose();
     placaController.dispose();
     anoController.dispose();
@@ -170,116 +137,94 @@ class VeiculoFormFields extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<AppProvider>(context, listen: false);
-
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            DropdownButtonFormField<String>(
-              isExpanded: true,
-              initialValue: controller.selectedMarca,
-              decoration: formFieldDecoration(
-                label: 'Marca *',
-                prefixIcon: Icons.directions_car,
-              ),
-              items: [
-                ...provider.marcasDisponiveis.map<DropdownMenuItem<String>>(
-                  (m) => DropdownMenuItem<String>(value: m, child: Text(m)),
-                ),
-                const DropdownMenuItem<String>(
-                  value: VeiculoFormController.otherOptionValue,
-                  child: Text('Outra... (digitar)'),
-                ),
-              ],
-              onChanged: controller.setMarca,
-              validator: (value) =>
-                  (value == null || value.trim().isEmpty)
-                      ? 'Selecione a marca'
-                      : null,
-            ),
-            if (controller.isOtherMarca) ...[
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: controller.marcaCustomController,
-                decoration: formFieldDecoration(
-                  label: 'Digite a marca *',
-                  prefixIcon: Icons.edit,
-                ),
-                validator: (_) {
-                  if (!controller.isOtherMarca) return null;
-                  return controller.marcaCustomController.text.trim().isEmpty
-                      ? 'Informe a marca'
-                      : null;
-                },
-              ),
-            ],
-            const SizedBox(height: 16),
-            if (controller.selectedMarca == null)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Selecione a marca primeiro',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              )
-            else if (controller.isOtherMarca)
-              TextFormField(
-                controller: controller.modeloCustomController,
-                decoration: formFieldDecoration(
-                  label: 'Modelo *',
-                  prefixIcon: Icons.drive_eta,
-                ),
-                validator: (_) =>
-                    controller.modeloCustomController.text.trim().isEmpty
-                        ? 'Modelo é obrigatório'
-                        : null,
-              )
-            else
-              DropdownButtonFormField<String>(
-                isExpanded: true,
-                initialValue: controller.selectedModelo,
-                decoration: formFieldDecoration(
-                  label: 'Modelo *',
-                  prefixIcon: Icons.drive_eta,
-                ),
-                items: [
-                  ...provider
-                      .modelosDisponiveis(controller.selectedMarca)
-                      .map<DropdownMenuItem<String>>(
-                        (m) =>
-                            DropdownMenuItem<String>(value: m, child: Text(m)),
+            // Só este trecho (Marca/Modelo) escuta o AppProvider — a
+            // sincronização com a FIPE roda em background e chama
+            // notifyListeners() quando termina; sem esse Consumer aqui, o
+            // campo de Modelo ficava com a lista antiga/vazia até algo
+            // FORA do provider forçar rebuild (ex: trocar de marca de
+            // novo). Escopo deliberadamente restrito pra não reconstruir
+            // Cor/Placa/Ano/Observações toda vez que o AppProvider notificar
+            // por qualquer outro motivo (nova transação, orçamento, etc).
+            Consumer<AppProvider>(
+              builder: (context, provider, _) {
+                final marcasDisponiveis = provider.marcasDisponiveis;
+                final modelosDisponiveis = controller.selectedMarca == null
+                    ? const <String>[]
+                    : provider.modelosDisponiveis(controller.selectedMarca);
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    AppAutocompleteField(
+                      // Chave muda a cada seleção pra forçar o Autocomplete
+                      // a remontar com o initialValue novo — ele só lê
+                      // initialValue uma vez, na criação do campo interno.
+                      key: ValueKey('marca-${controller.selectedMarca ?? ''}'),
+                      label: 'Marca *',
+                      prefixIcon: Icons.directions_car,
+                      options: marcasDisponiveis,
+                      initialValue: controller.selectedMarca,
+                      onSelected: (valor) {
+                        if (!marcasDisponiveis.any(
+                          (m) => m.toLowerCase() == valor.toLowerCase(),
+                        )) {
+                          unawaited(
+                            provider.addMarcaModeloCustom(marca: valor),
+                          );
+                        }
+                        controller.setMarca(valor);
+                      },
+                      validator: (value) =>
+                          (value == null || value.trim().isEmpty)
+                              ? 'Selecione a marca'
+                              : null,
+                    ),
+                    const SizedBox(height: 16),
+                    if (controller.selectedMarca == null)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Selecione a marca primeiro',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      )
+                    else
+                      AppAutocompleteField(
+                        key: ValueKey(
+                          'modelo-${controller.selectedMarca}-${controller.selectedModelo ?? ''}',
+                        ),
+                        label: 'Modelo *',
+                        prefixIcon: Icons.drive_eta,
+                        options: modelosDisponiveis,
+                        initialValue: controller.selectedModelo,
+                        onSelected: (valor) {
+                          if (!modelosDisponiveis.any(
+                            (m) => m.toLowerCase() == valor.toLowerCase(),
+                          )) {
+                            unawaited(
+                              provider.addMarcaModeloCustom(
+                                marca: controller.selectedMarca!,
+                                modelo: valor,
+                              ),
+                            );
+                          }
+                          controller.setModelo(valor);
+                        },
+                        validator: (value) =>
+                            (value == null || value.trim().isEmpty)
+                                ? 'Selecione o modelo'
+                                : null,
                       ),
-                  const DropdownMenuItem<String>(
-                    value: VeiculoFormController.otherOptionValue,
-                    child: Text('Outro... (digitar)'),
-                  ),
-                ],
-                onChanged: controller.setModelo,
-                hint: const Text('Selecione o modelo'),
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty)
-                        ? 'Selecione o modelo'
-                        : null,
-              ),
-            if (!controller.isOtherMarca && controller.isOtherModelo) ...[
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: controller.modeloCustomController,
-                decoration: formFieldDecoration(
-                  label: 'Digite o modelo *',
-                  prefixIcon: Icons.edit,
-                ),
-                validator: (_) {
-                  if (!controller.isOtherModelo) return null;
-                  return controller.modeloCustomController.text.trim().isEmpty
-                      ? 'Digite o modelo'
-                      : null;
-                },
-              ),
-            ],
+                  ],
+                );
+              },
+            ),
             const SizedBox(height: 16),
             TextFormField(
               controller: controller.corController,

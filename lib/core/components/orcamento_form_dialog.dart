@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../utils/currency_input_formatter.dart';
+import '../utils/text_normalize.dart';
 import '../../models/cliente.dart';
 import '../../models/veiculo.dart';
 import '../../models/orcamento.dart';
@@ -11,6 +14,7 @@ import '../../providers/app_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../theme/app_theme.dart';
 import '../constants/app_constants.dart';
+import 'app_autocomplete_field.dart';
 import 'app_buttons.dart';
 import 'cliente_actions.dart';
 import 'form_styles.dart';
@@ -100,19 +104,8 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
     return (_servicoSelecionado ?? '').trim();
   }
 
-  String _normalize(String input) {
-    const comAcento = 'áàâãäéèêëíìîïóòôõöúùûüçÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇ';
-    const semAcento = 'aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC';
-
-    var out = input;
-    for (int i = 0; i < comAcento.length; i++) {
-      out = out.replaceAll(comAcento[i], semAcento[i]);
-    }
-    return out.toLowerCase().trim();
-  }
-
   String _artigoParaPeca(String peca) {
-    final p = _normalize(peca);
+    final p = normalizeText(peca);
 
     // Casos masculinos
     if (p == 'capo' ||
@@ -164,183 +157,6 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
   void _onDescontoChanged() {
     if (!mounted) return;
     setState(() {});
-  }
-
-  Future<void> _abrirSeletorPeca() async {
-    final selecionada = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final searchController = TextEditingController(text: _pecaSelecionada);
-        String filtro = _pecaSelecionada ?? '';
-
-        return StatefulBuilder(
-          builder: (ctx, setLocalState) {
-            final termos = _normalize(filtro);
-            final pecasFiltradas = AppConstants.pecas.where((p) {
-              if (termos.isEmpty) return true;
-              return _normalize(p).contains(termos);
-            }).toList();
-
-            final textoDigitado = filtro.trim();
-            final existeIgual = AppConstants.pecas.any(
-              (p) => _normalize(p) == _normalize(textoDigitado),
-            );
-
-            return Dialog(
-              backgroundColor: AppColors.surface,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.modal),
-              ),
-              child: Container(
-                width: 460,
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.of(ctx).size.height * 0.75,
-                ),
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Selecionar peça',
-                      style: AppText.title.copyWith(color: AppColors.primary),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: searchController,
-                      style: AppText.body.copyWith(color: AppColors.textPrimary),
-                      decoration: formFieldDecoration(
-                        label: 'Pesquisar peça',
-                        prefixIcon: Icons.search,
-                      ).copyWith(
-                        suffixIcon: filtro.isNotEmpty
-                            ? IconButton(
-                                onPressed: () {
-                                  searchController.clear();
-                                  setLocalState(() => filtro = '');
-                                },
-                                icon: const Icon(Icons.close),
-                              )
-                            : null,
-                      ),
-                      onChanged: (value) {
-                        setLocalState(() => filtro = value);
-                      },
-                    ),
-                    const SizedBox(height: 14),
-                    Expanded(
-                      child: Column(
-                        children: [
-                          if (textoDigitado.isNotEmpty && !existeIgual)
-                            Container(
-                              margin: const EdgeInsets.only(bottom: 10),
-                              decoration: BoxDecoration(
-                                color: AppColors.primary.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: AppColors.primary.withValues(alpha: 0.30),
-                                ),
-                              ),
-                              child: ListTile(
-                                leading: const Icon(
-                                  Icons.edit,
-                                  color: AppColors.primary,
-                                ),
-                                title: Text(
-                                  'Usar "$textoDigitado"',
-                                  style: AppText.body.copyWith(
-                                    color: AppColors.primary,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  'Adicionar peça digitada manualmente',
-                                  style: AppText.caption,
-                                ),
-                                onTap: () => Navigator.of(ctx).pop(textoDigitado),
-                              ),
-                            ),
-                          Expanded(
-                            child: pecasFiltradas.isEmpty
-                                ? Center(
-                                    child: Text(
-                                      'Nenhuma peça encontrada',
-                                      style: AppText.bodySecondary,
-                                    ),
-                                  )
-                                : ListView.separated(
-                                    itemCount: pecasFiltradas.length,
-                                    separatorBuilder: (_, __) => const Divider(
-                                      color: AppColors.line,
-                                      height: 1,
-                                    ),
-                                    itemBuilder: (_, index) {
-                                      final peca = pecasFiltradas[index];
-                                      final isSelected = peca == _pecaSelecionada;
-
-                                      return ListTile(
-                                        dense: true,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            AppRadius.field,
-                                          ),
-                                        ),
-                                        tileColor: isSelected
-                                            ? AppColors.primary.withValues(alpha: 0.10)
-                                            : Colors.transparent,
-                                        title: Text(
-                                          peca,
-                                          style: AppText.body.copyWith(
-                                            color: isSelected
-                                                ? AppColors.primary
-                                                : AppColors.textPrimary,
-                                            fontWeight: isSelected
-                                                ? FontWeight.w700
-                                                : FontWeight.w500,
-                                          ),
-                                        ),
-                                        onTap: () => Navigator.of(ctx).pop(peca),
-                                      );
-                                    },
-                                  ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        GhostButton(
-                          label: 'Cancelar',
-                          onPressed: () => Navigator.of(ctx).pop(),
-                        ),
-                        const SizedBox(width: 8),
-                        if (_pecaSelecionada != null && _pecaSelecionada!.isNotEmpty)
-                          GhostButton(
-                            label: 'Limpar peça',
-                            onPressed: () => Navigator.of(ctx).pop(''),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-
-    if (!mounted) return;
-    if (selecionada == null) return;
-
-    setState(() {
-      _pecaSelecionada = selecionada.isEmpty ? null : selecionada;
-      _pecaController.text = _pecaSelecionada ?? '';
-      _descricaoEditadaManual = false;
-      _atualizarDescricaoSugestao(force: true);
-    });
   }
 
   void _limparFormularioItem() {
@@ -1152,6 +968,8 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
   }
 
   Widget _buildServicoField() {
+    final servicosDisponiveis = Provider.of<AppProvider>(context).servicosDisponiveis;
+
     return DropdownButtonFormField<String>(
       isExpanded: true,
       initialValue: _servicoSelecionado,
@@ -1159,7 +977,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
         label: 'Serviço *',
         dense: true,
       ),
-      items: AppConstants.servicos
+      items: servicosDisponiveis
           .map(
             (s) => DropdownMenuItem(
               value: s,
@@ -1223,59 +1041,58 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
 
   Widget _buildPecaSelectorField() {
     final hasPeca = _pecaSelecionada != null && _pecaSelecionada!.isNotEmpty;
+    final provider = Provider.of<AppProvider>(context, listen: false);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InkWell(
-          borderRadius: BorderRadius.circular(AppRadius.field),
-          onTap: _abrirSeletorPeca,
-          child: InputDecorator(
-            decoration: formFieldDecoration(
-              label: 'Peça (opcional)',
-              dense: true,
-              prefixIcon: hasPeca ? Icons.car_repair : Icons.search,
-            ).copyWith(
-              floatingLabelBehavior: FloatingLabelBehavior.always,
-              suffixIcon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (hasPeca)
-                    IconButton(
-                      tooltip: 'Limpar peça',
-                      onPressed: () {
-                        setState(() {
-                          _pecaSelecionada = null;
-                          _pecaController.clear();
-                          _descricaoEditadaManual = false;
-                          _atualizarDescricaoSugestao(force: true);
-                        });
-                      },
-                      icon: const Icon(Icons.close),
-                    ),
-                  IconButton(
-                    tooltip: 'Selecionar peça',
-                    onPressed: _abrirSeletorPeca,
-                    icon: const Icon(Icons.arrow_drop_down),
-                  ),
-                ],
-              ),
-            ),
-            isEmpty: !hasPeca,
-            child: Text(
-              hasPeca ? _pecaSelecionada! : 'Clique para selecionar ou pesquisar',
-              style: AppText.body.copyWith(
-                color: hasPeca ? AppColors.textPrimary : AppColors.textSecondary,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
+        AppAutocompleteField(
+          // Chave muda a cada seleção/limpeza pra forçar o Autocomplete a
+          // remontar com o initialValue novo — ele só lê initialValue uma
+          // vez, na criação do campo interno.
+          key: ValueKey('peca-${_pecaSelecionada ?? ''}'),
+          label: 'Peça (opcional)',
+          prefixIcon: hasPeca ? Icons.car_repair : Icons.search,
+          options: provider.pecasDisponiveis,
+          initialValue: _pecaSelecionada,
+          onSelected: (valor) {
+            if (!provider.pecasDisponiveis.any(
+              (p) => normalizeText(p) == normalizeText(valor),
+            )) {
+              unawaited(provider.addPecaCustom(valor));
+            }
+            setState(() {
+              _pecaSelecionada = valor;
+              _pecaController.text = valor;
+              _descricaoEditadaManual = false;
+              _atualizarDescricaoSugestao(force: true);
+            });
+          },
         ),
         if (hasPeca) ...[
           const SizedBox(height: 6),
-          Text(
-            'Peça selecionada: ${_pecaSelecionada!}',
-            style: AppText.caption,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Peça selecionada: ${_pecaSelecionada!}',
+                  style: AppText.caption,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              GhostButton(
+                label: 'Limpar peça',
+                onPressed: () {
+                  setState(() {
+                    _pecaSelecionada = null;
+                    _pecaController.clear();
+                    _descricaoEditadaManual = false;
+                    _atualizarDescricaoSugestao(force: true);
+                  });
+                },
+              ),
+            ],
           ),
         ],
       ],
@@ -1591,6 +1408,15 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
 
     final descricao = _descricaoItemController.text.trim();
     if (descricao.isEmpty) return;
+
+    if (_isServicoManual) {
+      final provider = Provider.of<AppProvider>(context, listen: false);
+      if (!provider.servicosDisponiveis.any(
+        (s) => s.toLowerCase() == nomeServico.toLowerCase(),
+      )) {
+        unawaited(provider.addServicoCustom(nomeServico));
+      }
+    }
 
     setState(() {
       final novoItem = ItemOrcamento(

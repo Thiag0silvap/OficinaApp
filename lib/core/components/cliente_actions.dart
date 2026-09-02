@@ -227,6 +227,70 @@ void showVeiculoFormDialog(
           }
         }
 
+        if (ResponsiveUtils.isMobile(dialogContext)) {
+          return Scaffold(
+            backgroundColor: AppColors.surface,
+            appBar: AppBar(
+              backgroundColor: AppColors.surface,
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                onPressed:
+                    isSaving ? null : () => Navigator.pop(dialogContext),
+              ),
+              title: Text(
+                isEdit ? 'Editar Veículo' : 'Novo Veículo',
+                style: AppText.title.copyWith(color: AppColors.primary),
+              ),
+            ),
+            body: Form(
+              key: formKey,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: VeiculoFormFields(controller: controller),
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.fromLTRB(
+                      16,
+                      12,
+                      16,
+                      12 + MediaQuery.of(dialogContext).padding.bottom,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: AppColors.surface,
+                      border: Border(top: BorderSide(color: AppColors.line)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GhostButton(
+                            label: 'Cancelar',
+                            onPressed: isSaving
+                                ? null
+                                : () => Navigator.pop(dialogContext),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: PrimaryButton(
+                            label: 'Salvar',
+                            expanded: true,
+                            isLoading: isSaving,
+                            onPressed: submit,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
         final dialog = ResponsiveDialog(
           title: isEdit
               ? 'Editar Veículo - ${cliente.nome}'

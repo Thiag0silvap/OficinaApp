@@ -3,6 +3,11 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <!-- Necessário pro check de atualização (update_service.dart) e pra API
+         FIPE de marca/modelo (fipe_service.dart) — builds de release não
+         herdam a permissão de debug (só presente em
+         android/app/src/debug/AndroidManifest.xml). -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
