@@ -60,6 +60,16 @@ class AppProvider extends ChangeNotifier {
   List<Orcamento> get orcamentos => _orcamentos;
   List<Transacao> get transacoes => _transacoes;
 
+  // Seam de teste: popula _transacoes em memória, sem banco/rede, pra
+  // testar a lógica de agregação (saldo, resumoPorPeriodo, etc.) isolada
+  // de I/O. Nunca chamado em código de produção.
+  @visibleForTesting
+  void debugSetTransacoes(List<Transacao> transacoes) {
+    _transacoes
+      ..clear()
+      ..addAll(transacoes);
+  }
+
   bool get isLoading => _isLoading;
   String? get lastErrorMessage => _lastErrorMessage;
 
