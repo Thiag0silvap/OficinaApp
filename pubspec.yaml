@@ -50,6 +50,9 @@ dependencies:
   # Compartilhamento (novo — para backup e PDF via WhatsApp)
   share_plus: ^12.0.2
 
+  # Monitoramento de erros em produção
+  sentry_flutter: ^9.29.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

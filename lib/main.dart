@@ -1,7 +1,8 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'core/constants/app_constants.dart';
 import 'core/widgets/update_gate.dart';
@@ -14,7 +15,16 @@ import 'screens/register_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
+
+  await SentryFlutter.init(
+    (options) {
+      options.dsn =
+          'https://57a3d543d67783271471f88d3975123f@o4512053697773568.ingest.us.sentry.io/4512053720711168';
+      options.tracesSampleRate = 1.0;
+      options.environment = kReleaseMode ? 'production' : 'development';
+    },
+    appRunner: () => runApp(const MyApp()),
+  );
 }
 
 class MyApp extends StatelessWidget {
