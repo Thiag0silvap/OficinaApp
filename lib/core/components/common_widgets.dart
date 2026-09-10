@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'app_buttons.dart';
 import 'responsive_components.dart';
 // Reuse responsive helpers and widgets consolidated in responsive_components.dart
 
@@ -22,19 +23,13 @@ class HeaderWithAction extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        ResponsiveText(
-          title,
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: AppColors.primaryYellow,
-                fontWeight: FontWeight.bold,
-              ),
-        ),
-        ElevatedButton.icon(
-          onPressed: onAdd,
-          icon: const Icon(Icons.add),
+        Text(title, style: AppText.display),
+        PrimaryButton(
           label: ResponsiveUtils.isDesktop(context)
-              ? Text(addLabelLong)
-              : Text(addLabelShort),
+              ? addLabelLong
+              : addLabelShort,
+          icon: Icons.add,
+          onPressed: onAdd,
         ),
       ],
     );

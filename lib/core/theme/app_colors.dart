@@ -67,23 +67,6 @@ class AppColors {
   static const Color infoTint = Color(0xFF072D3D); // bg exato do par "Aprovado"
   static const Color dangerTint = Color(0x24E0645F); // ~14%, usado por "cancelado"
 
-  // ---------- Pares de pílula de status (tabela completa do handoff) ----------
-  // Prontos para quando o widget StatusPill for reescrito para usar os pares
-  // diretos (fora do escopo desta sprint). "Em andamento" e "Pago" ainda não
-  // têm uso no app hoje.
-  static const Color pillPendenteBg = Color(0xFF442E09);
-  static const Color pillPendenteFg = Color(0xFFFCC270);
-  static const Color pillAprovadoBg = Color(0xFF072D3D);
-  static const Color pillAprovadoFg = Color(0xFF70CCEE);
-  static const Color pillEmAndamentoBg = Color(0xFF33244B);
-  static const Color pillEmAndamentoFg = Color(0xFFCEB5FF);
-  static const Color pillConcluidoBg = Color(0xFF0D371A);
-  static const Color pillConcluidoFg = Color(0xFF7CDD93);
-  static const Color pillPagoBg = Color(0xFF033633);
-  static const Color pillPagoFg = Color(0xFF6ED9D2);
-  static const Color pillCanceladoBg = Color(0xFF292221);
-  static const Color pillCanceladoFg = Color(0xFF9B8B88);
-
   // ---------- Aliases de compatibilidade (telas pré-Sprint 0) ----------
   // As telas antigas ainda referenciam os nomes abaixo. Mantidos aqui para
   // não quebrar compilação; remover conforme cada tela for migrada para os

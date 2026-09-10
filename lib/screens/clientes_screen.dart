@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/theme/app_theme.dart';
 import '../core/components/app_buttons.dart';
+import '../core/components/app_card.dart';
 import '../core/components/responsive_components.dart';
 import '../core/components/common_widgets.dart';
 import '../core/components/orcamento_form_dialog.dart';
@@ -431,6 +432,8 @@ class _ClientesScreenState extends State<ClientesScreen> {
     AppProvider provider,
   ) {
     final isMobile = ResponsiveUtils.isMobile(context);
+    final isDesktop = ResponsiveUtils.isDesktop(context);
+    final fontMultiplier = ResponsiveUtils.getFontSizeMultiplier(context);
     final veiculos = provider.getVeiculosByCliente(cliente.id);
     final orcamentos = provider.getOrcamentosByCliente(cliente.id);
     final ultimoOrcamento = orcamentos.isEmpty
@@ -439,69 +442,136 @@ class _ClientesScreenState extends State<ClientesScreen> {
               ..sort((a, b) => b.dataCriacao.compareTo(a.dataCriacao)))
             .first;
 
-    return ResponsiveListCard(
-      title: cliente.nome,
-      subtitle:
-          '${cliente.telefone}${cliente.nomeSeguradora != null ? ' • ${cliente.nomeSeguradora}' : ''}',
-      leading: CircleAvatar(
-        backgroundColor: _getTipoClienteColor(cliente.tipo),
-        radius: isMobile ? 20 : 24,
-        child: Text(
-          cliente.nome.isNotEmpty ? cliente.nome[0].toUpperCase() : '?',
-          style: TextStyle(
-            color: AppColors.onPrimary,
-            fontWeight: FontWeight.bold,
-            fontSize: isMobile ? 14 : 18,
-          ),
+    final subtitle =
+        '${cliente.telefone}${cliente.nomeSeguradora != null ? ' • ${cliente.nomeSeguradora}' : ''}';
+    final leading = CircleAvatar(
+      backgroundColor: _getTipoClienteColor(cliente.tipo),
+      radius: isMobile ? 20 : 24,
+      child: Text(
+        cliente.nome.isNotEmpty ? cliente.nome[0].toUpperCase() : '?',
+        style: TextStyle(
+          color: AppColors.onPrimary,
+          fontWeight: FontWeight.bold,
+          fontSize: isMobile ? 14 : 18,
         ),
       ),
-      trailing: buildClienteMenu(context, provider, cliente),
+    );
+    final trailing = buildClienteMenu(context, provider, cliente);
+    final actions = isMobile
+        ? [
+            InfoChip(
+              icon: Icons.directions_car_outlined,
+              label:
+                  '${veiculos.length} veículo${veiculos.length == 1 ? '' : 's'}',
+            ),
+            InfoChip(
+              icon: Icons.description_outlined,
+              label:
+                  '${orcamentos.length} orçamento${orcamentos.length == 1 ? '' : 's'}',
+            ),
+            if (ultimoOrcamento != null)
+              InfoChip(
+                icon: Icons.schedule,
+                label:
+                    'Último ${Formatters.dateShort(ultimoOrcamento.dataCriacao)}',
+              ),
+          ]
+        : [
+            InfoChip(
+              icon: Icons.directions_car_outlined,
+              label:
+                  '${veiculos.length} veiculo${veiculos.length == 1 ? '' : 's'}',
+            ),
+            InfoChip(
+              icon: Icons.description_outlined,
+              label:
+                  '${orcamentos.length} orcamento${orcamentos.length == 1 ? '' : 's'}',
+            ),
+            if (ultimoOrcamento != null)
+              InfoChip(
+                icon: Icons.schedule,
+                label:
+                    'Ultimo em ${Formatters.dateShort(ultimoOrcamento.dataCriacao)}',
+              ),
+            PrimaryButton(
+              label: 'Orcamento',
+              icon: Icons.add_circle_outline,
+              onPressed: () => _showCreateOrcamentoDialog(context, cliente),
+            ),
+          ];
+
+    // Composição interna preservada de ResponsiveListCard/ResponsiveCard —
+    // só o container externo virou AppCard (raio/borda/sombra do design
+    // system). Padding responsivo mantido igual ao anterior
+    // (ResponsiveUtils.getCardPadding), não o default do AppCard.
+    return AppCard(
+      padding: ResponsiveUtils.getCardPadding(context),
       onTap: () => showDialog(
         context: context,
         builder: (_) => ClienteDetailDialog(cliente: cliente),
       ),
-      actions: isMobile
-          ? [
-              InfoChip(
-                icon: Icons.directions_car_outlined,
-                label:
-                    '${veiculos.length} veículo${veiculos.length == 1 ? '' : 's'}',
-              ),
-              InfoChip(
-                icon: Icons.description_outlined,
-                label:
-                    '${orcamentos.length} orçamento${orcamentos.length == 1 ? '' : 's'}',
-              ),
-              if (ultimoOrcamento != null)
-                InfoChip(
-                  icon: Icons.schedule,
-                  label:
-                      'Último ${Formatters.dateShort(ultimoOrcamento.dataCriacao)}',
+      child: Column(
+        children: [
+          Row(
+            children: [
+              leading,
+              SizedBox(width: isDesktop ? 16 : 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      cliente.nome,
+                      style: TextStyle(
+                        fontSize: (isDesktop ? 17 : 15) * fontMultiplier,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.white,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: (isDesktop ? 13 : 11) * fontMultiplier,
+                        color: AppColors.white.withValues(alpha: 0.7),
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-            ]
-          : [
-              InfoChip(
-                icon: Icons.directions_car_outlined,
-                label:
-                    '${veiculos.length} veiculo${veiculos.length == 1 ? '' : 's'}',
               ),
-              InfoChip(
-                icon: Icons.description_outlined,
-                label:
-                    '${orcamentos.length} orcamento${orcamentos.length == 1 ? '' : 's'}',
-              ),
-              if (ultimoOrcamento != null)
-                InfoChip(
-                  icon: Icons.schedule,
-                  label:
-                      'Ultimo em ${Formatters.dateShort(ultimoOrcamento.dataCriacao)}',
-                ),
-              PrimaryButton(
-                label: 'Orcamento',
-                icon: Icons.add_circle_outline,
-                onPressed: () => _showCreateOrcamentoDialog(context, cliente),
-              ),
+              trailing,
             ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: AppColors.border),
+          const SizedBox(height: 8),
+          LayoutBuilder(
+            builder: (ctx, c) {
+              final isNarrow = c.maxWidth < 420;
+              return Wrap(
+                alignment: WrapAlignment.start,
+                runAlignment: WrapAlignment.start,
+                spacing: 8,
+                runSpacing: 6,
+                children: actions
+                    .map(
+                      (w) => ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: isNarrow ? 96 : 108,
+                        ),
+                        child: w,
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 
