@@ -70,6 +70,16 @@ class AppProvider extends ChangeNotifier {
       ..addAll(transacoes);
   }
 
+  // Seam de teste: popula _veiculos em memória, sem banco/rede, pra
+  // testar a validação de duplicidade de placa isolada de I/O. Nunca
+  // chamado em código de produção.
+  @visibleForTesting
+  void debugSetVeiculos(List<Veiculo> veiculos) {
+    _veiculos
+      ..clear()
+      ..addAll(veiculos);
+  }
+
   bool get isLoading => _isLoading;
   String? get lastErrorMessage => _lastErrorMessage;
 
@@ -1354,6 +1364,9 @@ class AppProvider extends ChangeNotifier {
 
   String _onlyDigits(String value) => value.replaceAll(RegExp(r'[^0-9]'), '');
 
+  String _normalizePlaca(String p) =>
+      normalizeText(p).replaceAll(RegExp(r'[^a-z0-9]'), '');
+
   void _validateVeiculo(Veiculo veiculo) {
     if (veiculo.clienteId.trim().isEmpty ||
         veiculo.clienteId == '__pending__') {
@@ -1364,6 +1377,20 @@ class AppProvider extends ChangeNotifier {
     }
     if (veiculo.placa.trim().isEmpty) {
       throw StateError('Informe a placa do veiculo.');
+    }
+
+    // Compara só contra veículos ativos (o próprio _veiculos já é só
+    // ativos — getVeiculos() filtra no banco) e ignora o registro sendo
+    // editado, senão editar um veículo sem mudar a placa sempre bateria
+    // como duplicado dele mesmo.
+    final placaNormalizada = _normalizePlaca(veiculo.placa);
+    for (final outro in _veiculos) {
+      if (outro.id == veiculo.id) continue;
+      if (_normalizePlaca(outro.placa) == placaNormalizada) {
+        throw StateError(
+          'Já existe um veículo ativo cadastrado com esta placa: ${outro.placa}.',
+        );
+      }
     }
   }
 

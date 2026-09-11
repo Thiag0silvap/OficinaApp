@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oficina_app/models/transacao.dart';
+import 'package:oficina_app/models/veiculo.dart';
 import 'package:oficina_app/providers/app_provider.dart';
 
 Transacao _transacao({
@@ -18,6 +19,40 @@ Transacao _transacao({
     categoria: categoria,
     data: data,
   );
+}
+
+Veiculo _veiculo({
+  required String id,
+  required String clienteId,
+  required String placa,
+  String marca = 'Marca',
+  String modelo = 'Modelo',
+  String cor = 'Prata',
+}) {
+  return Veiculo(
+    id: id,
+    clienteId: clienteId,
+    marca: marca,
+    modelo: modelo,
+    cor: cor,
+    placa: placa,
+  );
+}
+
+// addVeiculo/updateVeiculo validam a placa ANTES de tocar em banco/auth
+// (_validateVeiculo roda antes de _ensureUserDbSelected), então o erro de
+// duplicidade sempre aparece primeiro quando existe. Nos casos em que a
+// validação DEVE passar, a chamada ainda lança 'Usuário não autenticado'
+// (não há banco/usuário real neste teste) — o que importa é que o erro
+// levantado não seja o de placa duplicada, provando que a validação em si
+// não bateu falso positivo.
+Future<Object?> _erroDe(Future<void> Function() acao) async {
+  try {
+    await acao();
+    return null;
+  } catch (e) {
+    return e;
+  }
 }
 
 void main() {
@@ -286,5 +321,98 @@ void main() {
       expect(result['label'], '+0%');
       expect(result['up'], isTrue);
     });
+  });
+
+  group('validação de placa duplicada (_validateVeiculo)', () {
+    test(
+      'duas tentativas com a mesma placa (mesmo formato) para clientes '
+      'diferentes: a segunda é bloqueada',
+      () async {
+        final provider = AppProvider();
+        provider.debugSetVeiculos([
+          _veiculo(id: 'v1', clienteId: 'cliente-1', placa: 'ABC1234'),
+        ]);
+
+        final erro = await _erroDe(
+          () => provider.addVeiculo(
+            _veiculo(id: 'v2', clienteId: 'cliente-2', placa: 'ABC1234'),
+          ),
+        );
+
+        expect(erro, isA<StateError>());
+        expect(
+          erro.toString(),
+          contains('Já existe um veículo ativo cadastrado com esta placa'),
+        );
+      },
+    );
+
+    test(
+      'placas com formatação diferente que normalizam igual também são '
+      'bloqueadas',
+      () async {
+        final provider = AppProvider();
+        provider.debugSetVeiculos([
+          _veiculo(id: 'v1', clienteId: 'cliente-1', placa: 'ABC-1234'),
+        ]);
+
+        final erro = await _erroDe(
+          () => provider.addVeiculo(
+            _veiculo(id: 'v2', clienteId: 'cliente-2', placa: 'abc1234'),
+          ),
+        );
+
+        expect(erro, isA<StateError>());
+        expect(
+          erro.toString(),
+          contains('Já existe um veículo ativo cadastrado com esta placa'),
+        );
+      },
+    );
+
+    test(
+      'editar outros campos de um veículo sem mudar a placa não bate como '
+      'duplicado dele mesmo',
+      () async {
+        final provider = AppProvider();
+        final original = _veiculo(
+          id: 'v1',
+          clienteId: 'cliente-1',
+          placa: 'ABC1234',
+        );
+        provider.debugSetVeiculos([original]);
+
+        final editado = original.copyWith(cor: 'Preto');
+        final erro = await _erroDe(() => provider.updateVeiculo(editado));
+
+        // Não há banco/usuário autenticado neste teste, então updateVeiculo
+        // ainda falha — mas o que importa aqui é que NÃO é o erro de placa
+        // duplicada, provando que a validação não colidiu com o próprio
+        // registro.
+        expect(erro, isA<StateError>());
+        expect(erro.toString(), isNot(contains('placa')));
+      },
+    );
+
+    test(
+      'placa de um veículo removido (soft delete) pode ser reaproveitada '
+      'em um novo cadastro',
+      () async {
+        final provider = AppProvider();
+        // _veiculos só contém ativos (getVeiculos() já filtra no banco) —
+        // um veículo removido simplesmente não aparece aqui, simulando o
+        // soft delete real.
+        provider.debugSetVeiculos([]);
+
+        final erro = await _erroDe(
+          () => provider.addVeiculo(
+            _veiculo(id: 'v2', clienteId: 'cliente-2', placa: 'ABC1234'),
+          ),
+        );
+
+        expect(erro, isA<StateError>());
+        expect(erro.toString(), isNot(contains('placa')));
+      },
+    );
   });
 }
