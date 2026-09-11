@@ -58,6 +58,7 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
               children: [
                 _Header(
                   countLabel: '${transacoes.length} transações',
+                  diaFiltro: _diaFiltro,
                   onAdd: () => _openAddDialog(context),
                   onRelatorio: () => Navigator.push(
                     context,
@@ -65,16 +66,15 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
                       builder: (_) => const RelatorioFinanceiroScreen(),
                     ),
                   ),
+                  onDiaChanged: (v) => setState(() => _diaFiltro = v),
                 ),
                 const SizedBox(height: AppSpacing.md),
                 _FiltersRow(
                   searchCtrl: _searchCtrl,
                   tipoFiltro: _tipoFiltro,
                   ordenacao: _ordenacao,
-                  diaFiltro: _diaFiltro,
                   onTipoChanged: (v) => setState(() => _tipoFiltro = v),
                   onOrdenacaoChanged: (v) => setState(() => _ordenacao = v),
-                  onDiaChanged: (v) => setState(() => _diaFiltro = v),
                   onSearchChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: AppSpacing.lg),
@@ -231,14 +231,103 @@ class _FinanceiroScreenState extends State<FinanceiroScreen> {
 
 class _Header extends StatelessWidget {
   final String countLabel;
+  final DateTime? diaFiltro;
   final VoidCallback onAdd;
   final VoidCallback onRelatorio;
+  final ValueChanged<DateTime?> onDiaChanged;
 
   const _Header({
     required this.countLabel,
+    required this.diaFiltro,
     required this.onAdd,
     required this.onRelatorio,
+    required this.onDiaChanged,
   });
+
+  Future<void> _abrirDatePicker(BuildContext context) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: diaFiltro ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+      builder: (ctx, child) {
+        return Theme(
+          data: Theme.of(ctx).copyWith(
+            colorScheme: Theme.of(ctx).colorScheme.copyWith(
+              primary: AppColors.primary,
+              surface: AppColors.elevated,
+            ),
+            dialogTheme: Theme.of(
+              ctx,
+            ).dialogTheme.copyWith(backgroundColor: AppColors.elevated),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) onDiaChanged(picked);
+  }
+
+  // Ao lado do botão de Relatório Financeiro: ícone quando não há filtro
+  // (mesmo estilo de GhostIconButton usado nos outros botões do header), e
+  // um pill pequeno (ícone + data + X de limpar) quando há um dia filtrado.
+  Widget _buildDiaFiltro(BuildContext context) {
+    const h = 48.0;
+    if (diaFiltro == null) {
+      return GhostIconButton(
+        icon: Icons.calendar_today_outlined,
+        tooltip: 'Filtrar por data',
+        onPressed: () => _abrirDatePicker(context),
+      );
+    }
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.button),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.button),
+        onTap: () => _abrirDatePicker(context),
+        child: Container(
+          height: h,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.button),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.calendar_today_outlined,
+                size: 16,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                DateFormat('dd/MM/yyyy').format(diaFiltro!),
+                style: AppText.body,
+              ),
+              const SizedBox(width: 6),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(999),
+                  onTap: () => onDiaChanged(null),
+                  child: const Padding(
+                    padding: EdgeInsets.all(2),
+                    child: Icon(
+                      Icons.close,
+                      size: 16,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -258,6 +347,8 @@ class _Header extends StatelessWidget {
             tooltip: 'Relatório Financeiro',
             onPressed: onRelatorio,
           ),
+          const SizedBox(width: 10),
+          _buildDiaFiltro(context),
           const SizedBox(width: 10),
           PrimaryButton(label: 'Nova', icon: Icons.add, onPressed: onAdd),
         ],
@@ -287,6 +378,8 @@ class _Header extends StatelessWidget {
           tooltip: 'Relatório Financeiro',
           onPressed: onRelatorio,
         ),
+        const SizedBox(width: 10),
+        _buildDiaFiltro(context),
         const SizedBox(width: 10),
         PrimaryButton(
           label: 'Nova Transação',
@@ -327,20 +420,16 @@ class _FiltersRow extends StatelessWidget {
   final TextEditingController searchCtrl;
   final _TipoFiltro tipoFiltro;
   final _Ordenacao ordenacao;
-  final DateTime? diaFiltro;
   final ValueChanged<_TipoFiltro> onTipoChanged;
   final ValueChanged<_Ordenacao> onOrdenacaoChanged;
-  final ValueChanged<DateTime?> onDiaChanged;
   final ValueChanged<String> onSearchChanged;
 
   const _FiltersRow({
     required this.searchCtrl,
     required this.tipoFiltro,
     required this.ordenacao,
-    required this.diaFiltro,
     required this.onTipoChanged,
     required this.onOrdenacaoChanged,
-    required this.onDiaChanged,
     required this.onSearchChanged,
   });
 
@@ -454,88 +543,6 @@ class _FiltersRow extends StatelessWidget {
       ),
     );
 
-    Future<void> abrirDatePicker() async {
-      final picked = await showDatePicker(
-        context: context,
-        initialDate: diaFiltro ?? DateTime.now(),
-        firstDate: DateTime(2020),
-        lastDate: DateTime(2100),
-        builder: (ctx, child) {
-          return Theme(
-            data: Theme.of(ctx).copyWith(
-              colorScheme: Theme.of(ctx).colorScheme.copyWith(
-                primary: AppColors.primary,
-                surface: AppColors.elevated,
-              ),
-              dialogTheme: Theme.of(ctx).dialogTheme.copyWith(
-                backgroundColor: AppColors.elevated,
-              ),
-            ),
-            child: child!,
-          );
-        },
-      );
-      if (picked != null) onDiaChanged(picked);
-    }
-
-    // Compacto: só o ícone quando não há filtro (mesmo estilo de
-    // GhostIconButton, usado em outros botões de ação da tela), e um pill
-    // pequeno (ícone + data + X de limpar) quando há — nunca largura total,
-    // diferente do pill de Tipo/Ordenação.
-    final diaPill = diaFiltro == null
-        ? GhostIconButton(
-            icon: Icons.calendar_today_outlined,
-            tooltip: 'Filtrar por data',
-            onPressed: abrirDatePicker,
-          )
-        : Material(
-            color: Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadius.button),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(AppRadius.button),
-              onTap: abrirDatePicker,
-              child: Container(
-                height: h,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(AppRadius.button),
-                  border: Border.all(color: AppColors.line),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.calendar_today_outlined,
-                      size: 16,
-                      color: AppColors.textSecondary,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      DateFormat('dd/MM/yyyy').format(diaFiltro!),
-                      style: AppText.body,
-                    ),
-                    const SizedBox(width: 6),
-                    Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(999),
-                        onTap: () => onDiaChanged(null),
-                        child: const Padding(
-                          padding: EdgeInsets.all(2),
-                          child: Icon(
-                            Icons.close,
-                            size: 16,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-
     if (isMobile) {
       return Column(
         children: [
@@ -548,8 +555,6 @@ class _FiltersRow extends StatelessWidget {
               Expanded(child: ordenacaoDropdown),
             ],
           ),
-          const SizedBox(height: 10),
-          Align(alignment: Alignment.centerLeft, child: diaPill),
         ],
       );
     }
@@ -561,8 +566,6 @@ class _FiltersRow extends StatelessWidget {
         tipoDropdown,
         const SizedBox(width: 10),
         ordenacaoDropdown,
-        const SizedBox(width: 10),
-        diaPill,
       ],
     );
   }
