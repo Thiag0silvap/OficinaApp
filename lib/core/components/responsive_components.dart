@@ -8,7 +8,6 @@ import '../widgets/app_logo.dart';
 import '../constants/app_version.dart';
 import '../../providers/app_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../services/db_service.dart';
 import '../../screens/empresa_screen.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -395,15 +394,16 @@ class ResponsiveLayout extends StatelessWidget {
       );
       return;
     }
+    if (!context.mounted) return;
 
     // Tenta confirmar a quem pertence este .db (via manifesto ao lado, se
     // existir). Se pertencer comprovadamente a outro usuário, recusa direto
     // — sem nem mostrar a confirmação, já que o resultado é certo. Se não
     // for possível confirmar o dono, deixa a decisão para o usuário, mas
     // com um aviso explícito do risco.
-    final manifest = await DBService.instance.findManifestForBackupFile(
-      selectedPath,
-    );
+    final manifest = await context
+        .read<AppProvider>()
+        .findManifestForBackupFile(selectedPath);
     if (!context.mounted) return;
 
     final currentUserId = context.read<AuthProvider>().currentUser?.id;
@@ -471,9 +471,9 @@ class ResponsiveLayout extends StatelessWidget {
     );
 
     try {
-      final restoredPath = await DBService.instance.restoreBackupFromFilePath(
-        selectedPath,
-      );
+      final restoredPath = await context
+          .read<AppProvider>()
+          .restoreBackupFromFilePath(selectedPath);
       if (!context.mounted) return;
       await context.read<AppProvider>().reloadActiveUserData();
       if (!context.mounted) return;
@@ -610,8 +610,9 @@ class ResponsiveLayout extends StatelessWidget {
                     const SnackBar(content: Text('Gerando backup...')),
                   );
                   try {
-                    final backupPath =
-                        await DBService.instance.exportBackupToUserDocuments();
+                    final backupPath = await context
+                        .read<AppProvider>()
+                        .exportBackupToUserDocuments();
                     // Compartilha o arquivo via share_plus
                     await Share.shareXFiles(
                       [XFile(backupPath)],
@@ -899,7 +900,8 @@ class ResponsiveLayout extends StatelessWidget {
                       const SnackBar(content: Text('Iniciando backup...')),
                     );
                     try {
-                      final backupPath = await DBService.instance
+                      final backupPath = await context
+                          .read<AppProvider>()
                           .exportBackupToUserDocuments();
                       messenger.showSnackBar(
                         SnackBar(

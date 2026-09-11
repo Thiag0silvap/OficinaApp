@@ -142,7 +142,8 @@ class _RelatorioFinanceiroScreenState
     try {
       final periodo = _periodo;
       final filename = PDFService.buildRelatorioFinanceiroFilename(periodo);
-      if (!context.mounted) return;
+      final empresa = await context.read<AppProvider>().getEmpresa();
+      if (!mounted) return;
       await showPdfPreviewDialog(
         context,
         title: 'Relatório Financeiro',
@@ -151,6 +152,7 @@ class _RelatorioFinanceiroScreenState
           periodo: periodo,
           resumoPorMes: resumoMensal,
           resumoPorCategoria: resumoCategoria,
+          empresa: empresa,
         ),
       );
     } catch (e) {

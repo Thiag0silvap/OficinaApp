@@ -4,7 +4,9 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constants/app_constants.dart';
+import '../models/backup_manifest.dart';
 import '../models/cliente.dart';
+import '../models/empresa.dart';
 import '../models/veiculo.dart';
 import '../models/orcamento.dart';
 import '../models/transacao.dart';
@@ -1170,6 +1172,29 @@ class AppProvider extends ChangeNotifier {
       return const [];
     }
   }
+
+  // ===================== EMPRESA / BACKUP =====================
+  //
+  // Passthrough direto pro DBService, sem try/catch nem cache em memória —
+  // ao contrário das outras entidades, cada chamador aqui já trata sua
+  // própria exceção (empresa_screen.dart, pdf_service.dart via callers,
+  // responsive_components.dart), então envolver o erro aqui mudaria o
+  // comportamento hoje já esperado por eles.
+
+  Future<Empresa?> getEmpresa() => _db.getEmpresa();
+
+  Future<void> saveEmpresa(Empresa empresa) => _db.saveEmpresa(empresa);
+
+  Future<void> updateEmpresa(Empresa empresa) => _db.updateEmpresa(empresa);
+
+  Future<BackupManifest?> findManifestForBackupFile(String dbFilePath) =>
+      _db.findManifestForBackupFile(dbFilePath);
+
+  Future<String> restoreBackupFromFilePath(String filePath) =>
+      _db.restoreBackupFromFilePath(filePath);
+
+  Future<String> exportBackupToUserDocuments() =>
+      _db.exportBackupToUserDocuments();
 
   // ===================== TRANSAÇÕES =====================
 

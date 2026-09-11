@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 import '../core/theme/app_theme.dart';
 import '../core/components/responsive_components.dart';
@@ -8,7 +9,7 @@ import '../core/utils/app_feedback.dart';
 import '../core/utils/phone_input_formatter.dart';
 import '../core/utils/cnpj_input_formatter.dart';
 import '../models/empresa.dart';
-import '../services/db_service.dart';
+import '../providers/app_provider.dart';
 
 class EmpresaScreen extends StatefulWidget {
   const EmpresaScreen({super.key});
@@ -43,7 +44,7 @@ class _EmpresaScreenState extends State<EmpresaScreen> {
 
   Future<void> _carregarEmpresa() async {
     try {
-      final empresa = await DBService.instance.getEmpresa();
+      final empresa = await context.read<AppProvider>().getEmpresa();
       if (!mounted) return;
 
       if (empresa != null) {
@@ -79,12 +80,13 @@ class _EmpresaScreenState extends State<EmpresaScreen> {
             : _cnpjController.text.trim(),
       );
 
-      final empresaExistente = await DBService.instance.getEmpresa();
+      final appProvider = context.read<AppProvider>();
+      final empresaExistente = await appProvider.getEmpresa();
 
       if (empresaExistente == null) {
-        await DBService.instance.saveEmpresa(empresa);
+        await appProvider.saveEmpresa(empresa);
       } else {
-        await DBService.instance.updateEmpresa(empresa);
+        await appProvider.updateEmpresa(empresa);
       }
 
       if (!mounted) return;

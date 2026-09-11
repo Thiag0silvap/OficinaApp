@@ -285,7 +285,8 @@ Widget _buildMoreMenu(
 /// direto). Lógica preservada da `OrderDetailScreen` original.
 Future<void> _sharePdfGeneric(BuildContext context, Orcamento o) async {
   try {
-    final bytes = await PDFService.generateOrcamentoPdf(o);
+    final empresa = await context.read<AppProvider>().getEmpresa();
+    final bytes = await PDFService.generateOrcamentoPdf(o, empresa: empresa);
     final filename = PDFService.buildPdfFilename(o);
 
     if (Platform.isAndroid || Platform.isIOS) {
@@ -306,7 +307,8 @@ Future<void> _sharePdfGeneric(BuildContext context, Orcamento o) async {
 /// `OrderDetailScreen` original.
 Future<void> _savePdfToDevice(BuildContext context, Orcamento o) async {
   try {
-    final bytes = await PDFService.generateOrcamentoPdf(o);
+    final empresa = await context.read<AppProvider>().getEmpresa();
+    final bytes = await PDFService.generateOrcamentoPdf(o, empresa: empresa);
     final filename = PDFService.buildPdfFilename(o);
     final dir = await getApplicationDocumentsDirectory();
     final file = File(p.join(dir.path, filename));

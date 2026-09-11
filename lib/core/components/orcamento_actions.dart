@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../theme/app_theme.dart';
 import 'status_pill.dart';
@@ -248,11 +249,13 @@ class OrcamentoActions {
     final title = o.status == OrcamentoStatus.concluido
         ? 'Nota de Serviço'
         : 'Orçamento';
+    final empresa = await context.read<AppProvider>().getEmpresa();
+    if (!context.mounted) return;
     await showPdfPreviewDialog(
       context,
       title: title,
       fileName: filename,
-      buildPdf: (_) => PDFService.generateOrcamentoPdf(o),
+      buildPdf: (_) => PDFService.generateOrcamentoPdf(o, empresa: empresa),
     );
   }
 
@@ -295,8 +298,12 @@ class OrcamentoActions {
   /// Gera o PDF do orçamento, salva na pasta do usuário e aciona o
   /// compartilhamento do arquivo (Android/iOS: share sheet do SO).
   /// Parte comum entre [compartilharPdf] e [pdfWhatsapp].
-  static Future<void> _gerarSalvarCompartilharPdf(Orcamento o) async {
-    final bytes = await PDFService.generateOrcamentoPdf(o);
+  static Future<void> _gerarSalvarCompartilharPdf(
+    Orcamento o,
+    AppProvider provider,
+  ) async {
+    final empresa = await provider.getEmpresa();
+    final bytes = await PDFService.generateOrcamentoPdf(o, empresa: empresa);
     final filename = PDFService.buildPdfFilename(o);
     final savedPath = await PdfFileService.savePdfToUserFolder(
       bytes: bytes,
@@ -313,7 +320,7 @@ class OrcamentoActions {
     Orcamento o,
   ) async {
     try {
-      await _gerarSalvarCompartilharPdf(o);
+      await _gerarSalvarCompartilharPdf(o, provider);
       if (!context.mounted) return;
       AppSnackbar.show(
         context,
@@ -348,7 +355,7 @@ class OrcamentoActions {
         );
         return;
       }
-      await _gerarSalvarCompartilharPdf(o);
+      await _gerarSalvarCompartilharPdf(o, provider);
       final mensagem =
           'Olá ${o.clienteNome}, segue seu orçamento referente ao veículo '
           '${o.veiculoDescricao}.';

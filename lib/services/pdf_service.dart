@@ -4,9 +4,9 @@ import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:pdf/pdf.dart';
 
+import '../models/empresa.dart';
 import '../models/orcamento.dart';
 import '../models/relatorio_financeiro.dart';
-import '../services/db_service.dart';
 
 class PDFService {
   /// Gera um nome de arquivo amigável e seguro (Windows/macOS/Linux) para PDFs.
@@ -45,7 +45,10 @@ class PDFService {
     return s;
   }
 
-  static Future<Uint8List> generateOrcamentoPdf(Orcamento o) async {
+  static Future<Uint8List> generateOrcamentoPdf(
+    Orcamento o, {
+    Empresa? empresa,
+  }) async {
     final regularFont = pw.Font.ttf(
       await rootBundle.load('assets/fonts/WorkSans-Regular.ttf'),
     );
@@ -63,8 +66,6 @@ class PDFService {
       locale: 'pt_BR',
       symbol: 'R\$ ',
     );
-
-    final empresa = await DBService.instance.getEmpresa();
 
     pw.MemoryImage? logoImage;
     try {
@@ -327,6 +328,7 @@ class PDFService {
     required PeriodoRelatorio periodo,
     required List<ResumoMensal> resumoPorMes,
     required List<ResumoCategoria> resumoPorCategoria,
+    Empresa? empresa,
   }) async {
     final regularFont = pw.Font.ttf(
       await rootBundle.load('assets/fonts/WorkSans-Regular.ttf'),
@@ -345,8 +347,6 @@ class PDFService {
       symbol: 'R\$ ',
     );
     final monthFormat = DateFormat('MMMM/yyyy', 'pt_BR');
-
-    final empresa = await DBService.instance.getEmpresa();
 
     pw.MemoryImage? logoImage;
     try {
