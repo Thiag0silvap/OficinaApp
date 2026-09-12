@@ -665,7 +665,7 @@ class DashboardScreen extends StatelessWidget {
     required int concluidosHoje,
   }) {
     final auth = context.watch<AuthProvider>();
-    final name = auth.currentUser?.name.trim() ?? '';
+    final name = auth.currentUser?.nome.trim() ?? '';
     final initial = name.isNotEmpty ? name.characters.first.toUpperCase() : '?';
     final isMobile = ResponsiveUtils.isMobile(context);
 

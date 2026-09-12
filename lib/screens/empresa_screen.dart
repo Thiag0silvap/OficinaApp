@@ -10,9 +10,15 @@ import '../core/utils/phone_input_formatter.dart';
 import '../core/utils/cnpj_input_formatter.dart';
 import '../models/empresa.dart';
 import '../providers/app_provider.dart';
+import '../services/supabase_client.dart';
 
 class EmpresaScreen extends StatefulWidget {
-  const EmpresaScreen({super.key});
+  const EmpresaScreen({super.key, this.onboarding = false});
+
+  /// true quando esta tela é mostrada como etapa obrigatória de onboarding
+  /// (ainda não existe empresa cadastrada para a oficina) — nesse caso, ao
+  /// salvar, navega direto para o dashboard em vez de só mostrar sucesso.
+  final bool onboarding;
 
   @override
   State<EmpresaScreen> createState() => _EmpresaScreenState();
@@ -35,6 +41,7 @@ class _EmpresaScreenState extends State<EmpresaScreen> {
 
   bool _loading = true;
   bool _saving = false;
+  String? _oficinaId;
 
   @override
   void initState() {
@@ -44,6 +51,17 @@ class _EmpresaScreenState extends State<EmpresaScreen> {
 
   Future<void> _carregarEmpresa() async {
     try {
+      final userId = SupabaseService.client.auth.currentUser?.id;
+      if (userId != null) {
+        final perfil = await SupabaseService.client
+            .from('perfis')
+            .select()
+            .eq('id', userId)
+            .maybeSingle();
+        _oficinaId = perfil?['oficina_id'] as String?;
+      }
+      if (!mounted) return;
+
       final empresa = await context.read<AppProvider>().getEmpresa();
       if (!mounted) return;
 
@@ -89,7 +107,15 @@ class _EmpresaScreenState extends State<EmpresaScreen> {
         await appProvider.updateEmpresa(empresa);
       }
 
+      await _sincronizarComSupabase(empresa);
+
       if (!mounted) return;
+
+      if (widget.onboarding) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+        return;
+      }
+
       AppFeedback.showSuccess(context, 'Dados da oficina salvos com sucesso!');
     } catch (e) {
       if (!mounted) return;
@@ -99,6 +125,41 @@ class _EmpresaScreenState extends State<EmpresaScreen> {
         setState(() => _saving = false);
       }
     }
+  }
+
+  /// Cria/atualiza a linha em `empresa` no Supabase para a oficina atual e
+  /// sincroniza o nome de volta em `oficinas.nome` — necessário pro
+  /// OnboardingGate (main.dart) detectar corretamente, no próximo login,
+  /// que o cadastro da empresa já foi concluído.
+  Future<void> _sincronizarComSupabase(Empresa empresa) async {
+    final oficinaId = _oficinaId;
+    if (oficinaId == null) return;
+
+    final client = SupabaseService.client;
+    final payload = {
+      'oficina_id': oficinaId,
+      'nome': empresa.nome,
+      'telefone': empresa.telefone,
+      'endereco': empresa.endereco,
+      'cnpj': empresa.cnpj,
+    };
+
+    final empresaExistenteSupabase = await client
+        .from('empresa')
+        .select()
+        .eq('oficina_id', oficinaId)
+        .maybeSingle();
+
+    if (empresaExistenteSupabase == null) {
+      await client.from('empresa').insert(payload);
+    } else {
+      await client.from('empresa').update(payload).eq('oficina_id', oficinaId);
+    }
+
+    await client.from('oficinas').update({'nome': empresa.nome}).eq(
+      'id',
+      oficinaId,
+    );
   }
 
   @override
@@ -244,17 +305,19 @@ class _EmpresaScreenState extends State<EmpresaScreen> {
 
                             Row(
                               children: [
-                                Expanded(
-                                  child: OutlinedButton(
-                                    onPressed: _saving
-                                        ? null
-                                        : () {
-                                            Navigator.of(context).maybePop();
-                                          },
-                                    child: const Text('Voltar'),
+                                if (!widget.onboarding) ...[
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: _saving
+                                          ? null
+                                          : () {
+                                              Navigator.of(context).maybePop();
+                                            },
+                                      child: const Text('Voltar'),
+                                    ),
                                   ),
-                                ),
-                                const SizedBox(width: 12),
+                                  const SizedBox(width: 12),
+                                ],
                                 Expanded(
                                   child: ElevatedButton(
                                     onPressed: _saving ? null : _salvar,

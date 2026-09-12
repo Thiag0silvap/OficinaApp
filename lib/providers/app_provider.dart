@@ -23,7 +23,6 @@ class AppProvider extends ChangeNotifier {
   String? _lastErrorMessage;
 
   String? _activeUserId;
-  bool _activeUserIsAdmin = false;
 
   static const _prefsKeyCustomMarcas = 'custom_vehicle_marcas';
   static const _prefsKeyCustomModelosPorMarca =
@@ -105,11 +104,9 @@ class AppProvider extends ChangeNotifier {
   void syncAuthUser(User? user) {
     final normalized = user?.id.trim();
     final next = (normalized == null || normalized.isEmpty) ? null : normalized;
-    final nextIsAdmin = user?.role == UserRole.admin;
     if (next == _activeUserId) return;
 
     _activeUserId = next;
-    _activeUserIsAdmin = nextIsAdmin;
 
     _clientes.clear();
     _veiculos.clear();
@@ -1290,17 +1287,13 @@ class AppProvider extends ChangeNotifier {
 
   Future<void> _reloadForActiveUser() async {
     final userIdAtStart = _activeUserId;
-    final isAdminAtStart = _activeUserIsAdmin;
 
     _isLoading = true;
     _lastErrorMessage = null;
     notifyListeners();
 
     try {
-      await _db.setActiveUserId(
-        userIdAtStart,
-        migrateLegacyIfNeeded: isAdminAtStart,
-      );
+      await _db.setActiveUserId(userIdAtStart);
 
       if (userIdAtStart == null) {
         return;

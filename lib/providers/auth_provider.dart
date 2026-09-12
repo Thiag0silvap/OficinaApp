@@ -1,207 +1,193 @@
-import 'dart:convert';
+import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' as supa;
 
 import '../models/user.dart';
 import '../services/app_logger.dart';
 import '../services/auth_service.dart';
-import '../services/secure_storage_service.dart';
+import '../services/supabase_client.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _service;
-  final SecureStorageService _secureStorage = SecureStorageService();
   User? _currentUser;
-  static const _prefsKey = 'auth_user';
-  static const _lastActiveKey = 'auth_last_active';
-  static const _savedCredsKey = 'auth_saved_creds';
+  StreamSubscription<supa.AuthState>? _authSub;
 
   AuthProvider({AuthService? service}) : _service = service ?? AuthService() {
     _init();
   }
 
-  Future<void> _init() async {
-    if (kDebugMode) {
-      try {
-        await _service.seedAdmin(password: '123456');
-      } catch (_) {}
+  void _init() {
+    _syncFromSupabaseUser(SupabaseService.client.auth.currentUser);
+    _authSub = SupabaseService.client.auth.onAuthStateChange.listen((state) {
+      _syncFromSupabaseUser(state.session?.user);
+    });
+  }
+
+  void _syncFromSupabaseUser(supa.User? supaUser) {
+    if (supaUser == null) {
+      _currentUser = null;
+    } else {
+      final metaNome = (supaUser.userMetadata?['nome'] as String?)?.trim();
+      final metaConvite = (supaUser.userMetadata?['convite'] as String?)
+          ?.trim();
+      _currentUser = User(
+        id: supaUser.id,
+        email: supaUser.email ?? '',
+        nome: (metaNome == null || metaNome.isEmpty)
+            ? (supaUser.email ?? '')
+            : metaNome,
+        convite: (metaConvite == null || metaConvite.isEmpty)
+            ? null
+            : metaConvite,
+      );
     }
-    await _restoreSession();
     notifyListeners();
   }
 
   User? get currentUser => _currentUser;
   bool get isAuthenticated => _currentUser != null;
 
-  List<User> get users => _service.getAllUsers();
+  /// Aplica um role já obtido em outra consulta (ex.: o OnboardingGate já
+  /// buscou o perfil inteiro e não precisa de um round-trip extra só pra
+  /// isso). Para buscar do zero, use [refreshRole].
+  void applyRole(String? role) {
+    final user = _currentUser;
+    if (user == null || role == null) return;
+    _currentUser = user.copyWith(role: role);
+    notifyListeners();
+  }
+
+  /// Busca perfis.role do usuário atual e atualiza currentUser. Não é
+  /// chamado automaticamente em _syncFromSupabaseUser: o perfil (e portanto
+  /// o role) só passa a existir depois do onboarding, que roda depois do
+  /// login/signup — chamar aqui cedo demais sempre acharia null.
+  Future<void> refreshRole() async {
+    final user = _currentUser;
+    if (user == null) return;
+    final perfil = await SupabaseService.client
+        .from('perfis')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+    applyRole(perfil?['role'] as String?);
+  }
 
   Future<String?> login({
-    required String name,
+    required String email,
     required String password,
-    bool rememberCredentials = true,
   }) async {
-    final normalizedName = name.trim().toLowerCase();
-    if (normalizedName.isEmpty || password.isEmpty) {
-      return 'Informe usuario e senha.';
+    final normalizedEmail = email.trim();
+    if (normalizedEmail.isEmpty || password.isEmpty) {
+      return 'Informe e-mail e senha.';
     }
 
-    final locked = await _service.isUserLockedOut(normalizedName);
-    if (locked) {
-      final remaining = await _service.getRemainingLockout(normalizedName);
-      final minutes = remaining == null
-          ? 5
-          : remaining.inMinutes.clamp(1, AuthService.lockoutDuration.inMinutes);
-      return 'Muitas tentativas. Tente novamente em aproximadamente $minutes minuto(s).';
+    try {
+      await _service.signIn(email: normalizedEmail, password: password);
+      await AppLogger.instance.info('Sessao iniciada para $normalizedEmail');
+      return null;
+    } on supa.AuthException catch (e) {
+      return _translateAuthError(e);
+    } catch (_) {
+      return 'Não foi possível entrar. Tente novamente.';
     }
-
-    final user = await _service.login(name, password);
-    if (user == null) return 'Credenciais invalidas';
-
-    _currentUser = user;
-    await _saveSession();
-    await _saveLastActive();
-
-    if (rememberCredentials) {
-      await _saveCredentials(name: name, password: password);
-    } else {
-      await _clearSavedCredentials();
-    }
-
-    notifyListeners();
-    await AppLogger.instance.info('Sessao iniciada para ${user.name}');
-    return null;
   }
 
   Future<String?> register({
-    required String name,
+    required String nome,
+    required String email,
     required String password,
-    bool rememberCredentials = true,
+    String? convite,
   }) async {
     final validation = _service.validateRegistration(
-      name: name,
+      nome: nome,
+      email: email,
       password: password,
     );
     if (validation != null) return validation;
 
-    final user = await _service.register(name: name, password: password);
-    if (user == null) return 'Usuario ja cadastrado';
+    final normalizedConvite = convite?.trim();
 
-    _currentUser = user;
-    await _saveSession();
-    await _saveLastActive();
-
-    if (rememberCredentials) {
-      await _saveCredentials(name: name, password: password);
-    } else {
-      await _clearSavedCredentials();
+    try {
+      final response = await _service.signUp(
+        nome: nome.trim(),
+        email: email.trim(),
+        password: password,
+        convite: (normalizedConvite == null || normalizedConvite.isEmpty)
+            ? null
+            : normalizedConvite,
+      );
+      // Sincroniza direto da resposta em vez de esperar o stream de
+      // onAuthStateChange: quem chama register() precisa saber JÁ nesta
+      // volta, via isAuthenticated, se a conta ficou confirmada na hora
+      // (sessão presente) ou se falta confirmar o e-mail (sessão nula).
+      _syncFromSupabaseUser(response.session?.user);
+      await AppLogger.instance.info('Cadastro realizado para ${email.trim()}');
+      return null;
+    } on supa.AuthException catch (e) {
+      return _translateAuthError(e);
+    } catch (_) {
+      return 'Não foi possível criar a conta. Tente novamente.';
     }
+  }
 
-    notifyListeners();
-    await AppLogger.instance.info('Sessao criada para ${user.name}');
-    return null;
+  Future<String?> resetPassword(String email) async {
+    final normalizedEmail = email.trim();
+    if (normalizedEmail.isEmpty) {
+      return 'Informe seu e-mail.';
+    }
+    try {
+      await _service.resetPassword(normalizedEmail);
+      return null;
+    } on supa.AuthException catch (e) {
+      return _translateAuthError(e);
+    } catch (_) {
+      return 'Não foi possível enviar o e-mail de redefinição.';
+    }
   }
 
   Future<void> logout() async {
-    final currentName = _currentUser?.name;
-    _currentUser = null;
-    await _secureStorage.delete(_prefsKey);
-    await _secureStorage.delete(_lastActiveKey);
-    notifyListeners();
-    if (currentName != null) {
-      await AppLogger.instance.info('Logout realizado para $currentName');
+    final currentEmail = _currentUser?.email;
+    await _service.signOut();
+    if (currentEmail != null) {
+      await AppLogger.instance.info('Logout realizado para $currentEmail');
     }
   }
 
-  Future<void> _saveSession() async {
-    if (_currentUser == null) return;
-    await _secureStorage.write(_prefsKey, jsonEncode(_currentUser!.toMap()));
+  String? _pendingNotice;
+
+  /// Guarda uma mensagem pra ser mostrada na próxima tela que a ler (ex.:
+  /// LoginScreen, após um logout forçado por código de convite inválido) —
+  /// necessário porque quem detecta o erro (OnboardingGate) é desmontado
+  /// assim que o logout muda isAuthenticated, antes de poder mostrar um
+  /// SnackBar com o próprio context.
+  void setPendingNotice(String message) {
+    _pendingNotice = message;
   }
 
-  Future<void> _saveLastActive() async {
-    await _secureStorage.write(
-      _lastActiveKey,
-      DateTime.now().toIso8601String(),
-    );
+  String? consumePendingNotice() {
+    final notice = _pendingNotice;
+    _pendingNotice = null;
+    return notice;
   }
 
-  Future<void> _saveCredentials({
-    required String name,
-    required String password,
-  }) async {
-    final map = {'name': name, 'password': ''};
-    await _secureStorage.write(_savedCredsKey, jsonEncode(map));
-  }
-
-  Future<void> _clearSavedCredentials() async {
-    await _secureStorage.delete(_savedCredsKey);
-  }
-
-  Future<Map<String, String>?> getSavedCredentials() async {
-    final secureValue = await _secureStorage.read(_savedCredsKey);
-    if (secureValue != null) {
-      return _decodeCredentials(secureValue);
+  String _translateAuthError(supa.AuthException e) {
+    final msg = e.message.toLowerCase();
+    if (msg.contains('invalid login credentials')) {
+      return 'E-mail ou senha inválidos.';
     }
-
-    final prefs = await SharedPreferences.getInstance();
-    final legacy = prefs.getString(_savedCredsKey);
-    if (legacy == null) return null;
-    await _secureStorage.write(_savedCredsKey, legacy);
-    await prefs.remove(_savedCredsKey);
-    return _decodeCredentials(legacy);
-  }
-
-  Map<String, String>? _decodeCredentials(String raw) {
-    try {
-      final m = jsonDecode(raw) as Map<String, dynamic>;
-      return {'name': m['name'] ?? '', 'password': ''};
-    } catch (_) {
-      return null;
+    if (msg.contains('user already registered')) {
+      return 'Já existe uma conta com este e-mail.';
     }
-  }
-
-  Future<void> _restoreSession() async {
-    final s = await _readWithMigration(_prefsKey);
-    final last = await _readWithMigration(_lastActiveKey);
-
-    if (s == null) return;
-
-    try {
-      final map = jsonDecode(s) as Map<String, dynamic>;
-      final savedUser = User.fromMap(map);
-
-      if (last != null) {
-        try {
-          final lastDt = DateTime.parse(last);
-          final diff = DateTime.now().difference(lastDt);
-          if (diff.inMinutes <= 10) {
-            _currentUser = savedUser;
-            notifyListeners();
-            await AppLogger.instance.info(
-              'Sessao restaurada para ${savedUser.name}',
-            );
-            return;
-          }
-        } catch (_) {}
-      }
-
-      _currentUser = null;
-    } catch (_) {}
-  }
-
-  Future<String?> _readWithMigration(String key) async {
-    final secureValue = await _secureStorage.read(key);
-    if (secureValue != null) return secureValue;
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final legacy = prefs.getString(key);
-      if (legacy == null) return null;
-      await _secureStorage.write(key, legacy);
-      await prefs.remove(key);
-      return legacy;
-    } catch (_) {
-      return null;
+    if (msg.contains('email not confirmed')) {
+      return 'Confirme seu e-mail antes de entrar.';
     }
+    return e.message;
+  }
+
+  @override
+  void dispose() {
+    _authSub?.cancel();
+    super.dispose();
   }
 }

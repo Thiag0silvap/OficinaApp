@@ -1468,7 +1468,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
         DateTime.now().millisecondsSinceEpoch.toString();
 
     final currentObs = _observacoesController.text.trim();
-    final responsavel = auth.currentUser?.name;
+    final responsavel = auth.currentUser?.nome;
 
     final desconto =
         (_aplicarDesconto && _descontoController.text.trim().isNotEmpty)

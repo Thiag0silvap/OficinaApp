@@ -15,17 +15,24 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
+  final nomeController = TextEditingController();
+  final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  final nameController = TextEditingController();
+  final codigoConviteController = TextEditingController();
+  final FocusNode _emailFocus = FocusNode();
   final FocusNode _passwordFocus = FocusNode();
   bool _loading = false;
   bool _obscurePassword = true;
-  bool _rememberCredentials = true;
+
+  static final _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
   @override
   void dispose() {
-    nameController.dispose();
+    nomeController.dispose();
+    emailController.dispose();
     passwordController.dispose();
+    codigoConviteController.dispose();
+    _emailFocus.dispose();
     _passwordFocus.dispose();
     super.dispose();
   }
@@ -106,7 +113,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                'Cadastre um usuario para acessar o sistema.',
+                                'Cadastre-se para acessar o sistema.',
                                 textAlign: TextAlign.center,
                                 style: Theme.of(context).textTheme.bodyMedium
                                     ?.copyWith(
@@ -115,23 +122,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               ),
                               const SizedBox(height: 18),
                               TextFormField(
-                                controller: nameController,
+                                controller: nomeController,
                                 textInputAction: TextInputAction.next,
-                                autofillHints: const [AutofillHints.newUsername],
+                                autofillHints: const [AutofillHints.name],
                                 onFieldSubmitted: (_) =>
-                                    _passwordFocus.requestFocus(),
+                                    _emailFocus.requestFocus(),
                                 decoration: const InputDecoration(
-                                  labelText: 'Usuario',
+                                  labelText: 'Nome',
                                   prefixIcon: Icon(Icons.person_outline),
                                 ),
                                 validator: (v) {
                                   final value = v?.trim() ?? '';
-                                  if (value.isEmpty) return 'Usuario e obrigatorio';
-                                  if (value.length < 3) {
-                                    return 'Usuario deve ter ao menos 3 caracteres';
-                                  }
-                                  if (RegExp(r'[^a-zA-Z0-9._-]').hasMatch(value)) {
-                                    return 'Use apenas letras, numeros, ponto, underline ou hifen';
+                                  if (value.isEmpty) return 'Nome e obrigatorio';
+                                  return null;
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: emailController,
+                                focusNode: _emailFocus,
+                                keyboardType: TextInputType.emailAddress,
+                                textInputAction: TextInputAction.next,
+                                autofillHints: const [AutofillHints.email],
+                                onFieldSubmitted: (_) =>
+                                    _passwordFocus.requestFocus(),
+                                decoration: const InputDecoration(
+                                  labelText: 'E-mail',
+                                  prefixIcon: Icon(Icons.email_outlined),
+                                ),
+                                validator: (v) {
+                                  final value = v?.trim() ?? '';
+                                  if (value.isEmpty) return 'E-mail e obrigatorio';
+                                  if (!_emailRegex.hasMatch(value)) {
+                                    return 'Informe um e-mail valido';
                                   }
                                   return null;
                                 },
@@ -178,31 +201,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   return null;
                                 },
                               ),
-                              const SizedBox(height: 10),
-                              Row(
-                                children: [
-                                  Checkbox(
-                                    value: _rememberCredentials,
-                                    onChanged: (v) => setState(
-                                      () => _rememberCredentials = v ?? true,
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: Text(
-                                      'Lembrar credenciais neste computador',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodyMedium
-                                          ?.copyWith(
-                                            color: AppColors.white.withValues(
-                                              alpha: 0.9,
-                                            ),
-                                          ),
-                                    ),
-                                  ),
-                                ],
-                              ),
                               const SizedBox(height: 12),
+                              TextFormField(
+                                controller: codigoConviteController,
+                                textInputAction: TextInputAction.done,
+                                textCapitalization: TextCapitalization.characters,
+                                onFieldSubmitted: (_) => _submit(),
+                                decoration: const InputDecoration(
+                                  labelText: 'Código de convite (opcional)',
+                                  prefixIcon: Icon(Icons.group_add_outlined),
+                                ),
+                              ),
+                              const SizedBox(height: 18),
                               SizedBox(
                                 height: 48,
                                 child: ElevatedButton(
@@ -238,15 +248,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _loading = true);
     final provider = Provider.of<AuthProvider>(context, listen: false);
     final err = await provider.register(
-      name: nameController.text.trim(),
+      nome: nomeController.text.trim(),
+      email: emailController.text.trim(),
       password: passwordController.text,
-      rememberCredentials: _rememberCredentials,
+      convite: codigoConviteController.text.trim().isEmpty
+          ? null
+          : codigoConviteController.text.trim(),
     );
     if (!mounted) return;
     setState(() => _loading = false);
+
     if (err != null) {
       AppFeedback.showError(context, err);
+      return;
+    }
+
+    if (provider.isAuthenticated) {
+      // Conta já confirmada (confirmação de e-mail desligada) — segue pra
+      // '/' (AuthWrapper) que cria oficina/perfil e decide o próximo passo
+      // (EmpresaScreen ou dashboard) via OnboardingGate.
+      Navigator.pushReplacementNamed(context, '/');
     } else {
+      // Confirmação de e-mail pendente: sem sessão ainda, não dá pra criar
+      // oficina/perfil (RLS exige usuário autenticado). Volta pro login.
+      AppFeedback.showSuccess(
+        context,
+        'Conta criada! Confirme seu e-mail para poder entrar.',
+      );
       Navigator.pop(context);
     }
   }

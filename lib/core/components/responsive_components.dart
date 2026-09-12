@@ -8,7 +8,9 @@ import '../widgets/app_logo.dart';
 import '../constants/app_version.dart';
 import '../../providers/app_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../screens/convidar_colaborador_screen.dart';
 import '../../screens/empresa_screen.dart';
+import '../../screens/equipe_screen.dart';
 import 'package:share_plus/share_plus.dart';
 
 // --- Responsive utilities (consolidated)
@@ -589,6 +591,7 @@ class ResponsiveLayout extends StatelessWidget {
   }
 
   Widget _buildMobileLayout(BuildContext context) {
+    final isAdmin = context.watch<AuthProvider>().currentUser?.role == 'admin';
     return Scaffold(
       appBar: AppBar(
         title: const AppBarLogo(),
@@ -602,6 +605,18 @@ class ResponsiveLayout extends StatelessWidget {
                 case 'empresa':
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const EmpresaScreen()),
+                  );
+                  break;
+                case 'equipe':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const EquipeScreen()),
+                  );
+                  break;
+                case 'convidar':
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const ConvidarColaboradorScreen(),
+                    ),
                   );
                   break;
                 case 'backup':
@@ -640,8 +655,8 @@ class ResponsiveLayout extends StatelessWidget {
                   break;
               }
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
+            itemBuilder: (_) => [
+              const PopupMenuItem(
                 value: 'empresa',
                 child: Row(children: [
                   Icon(Icons.business, size: 18),
@@ -649,7 +664,25 @@ class ResponsiveLayout extends StatelessWidget {
                   Text('Dados da Oficina'),
                 ]),
               ),
-              PopupMenuItem(
+              if (isAdmin) ...const [
+                PopupMenuItem(
+                  value: 'equipe',
+                  child: Row(children: [
+                    Icon(Icons.groups, size: 18),
+                    SizedBox(width: 10),
+                    Text('Equipe'),
+                  ]),
+                ),
+                PopupMenuItem(
+                  value: 'convidar',
+                  child: Row(children: [
+                    Icon(Icons.person_add_alt_1, size: 18),
+                    SizedBox(width: 10),
+                    Text('Convidar Colaborador'),
+                  ]),
+                ),
+              ],
+              const PopupMenuItem(
                 value: 'backup',
                 child: Row(children: [
                   Icon(Icons.cloud_upload, size: 18),
@@ -657,7 +690,7 @@ class ResponsiveLayout extends StatelessWidget {
                   Text('Backup'),
                 ]),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'restaurar',
                 child: Row(children: [
                   Icon(Icons.restore, size: 18),
@@ -665,7 +698,7 @@ class ResponsiveLayout extends StatelessWidget {
                   Text('Restaurar backup'),
                 ]),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'ajuda',
                 child: Row(children: [
                   Icon(Icons.help, size: 18),
@@ -673,8 +706,8 @@ class ResponsiveLayout extends StatelessWidget {
                   Text('Ajuda'),
                 ]),
               ),
-              PopupMenuDivider(),
-              PopupMenuItem(
+              const PopupMenuDivider(),
+              const PopupMenuItem(
                 value: 'sair',
                 child: Row(children: [
                   Icon(Icons.logout, size: 18, color: Colors.redAccent),
@@ -803,6 +836,7 @@ class ResponsiveLayout extends StatelessWidget {
   }
 
   Widget _buildSideNavigationDrawer(BuildContext context) {
+    final isAdmin = context.watch<AuthProvider>().currentUser?.role == 'admin';
     return Container(
       width: 280,
       color: AppColors.surface,
@@ -890,6 +924,32 @@ class ResponsiveLayout extends StatelessWidget {
                     );
                   },
                 ),
+                if (isAdmin) ...[
+                  _buildDrawerActionItem(
+                    context,
+                    icon: Icons.groups,
+                    title: 'Equipe',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const EquipeScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  _buildDrawerActionItem(
+                    context,
+                    icon: Icons.person_add_alt_1,
+                    title: 'Convidar Colaborador',
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ConvidarColaboradorScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ],
                 _buildDrawerActionItem(
                   context,
                   icon: Icons.cloud_upload,

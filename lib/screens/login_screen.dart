@@ -16,32 +16,33 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final nameController = TextEditingController();
+  final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final FocusNode _passwordFocus = FocusNode();
   bool _loading = false;
   bool _obscurePassword = true;
-  bool _rememberCredentials = true;
+
+  static final _emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    // Mensagem deixada por um logout forçado (ex.: código de convite
+    // inválido/expirado no OnboardingGate) — o widget que detectou o erro
+    // já foi desmontado a essa altura, então a mensagem viaja pelo
+    // AuthProvider em vez de um SnackBar direto.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final provider = Provider.of<AuthProvider>(context, listen: false);
-      final creds = await provider.getSavedCredentials();
-      if (!mounted) return;
-      if (creds != null) {
-        nameController.text = creds['name'] ?? '';
-        passwordController.text = '';
-        setState(() => _rememberCredentials = (creds['name'] ?? '').isNotEmpty);
+      final notice = context.read<AuthProvider>().consumePendingNotice();
+      if (notice != null) {
+        AppFeedback.showError(context, notice);
       }
     });
   }
 
   @override
   void dispose() {
-    nameController.dispose();
+    emailController.dispose();
     passwordController.dispose();
     _passwordFocus.dispose();
     super.dispose();
@@ -77,20 +78,21 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: AppSpacing.xl),
                         TextFormField(
-                          controller: nameController,
+                          controller: emailController,
+                          keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
-                          autofillHints: const [AutofillHints.username],
+                          autofillHints: const [AutofillHints.email],
                           onFieldSubmitted: (_) =>
                               _passwordFocus.requestFocus(),
                           decoration: const InputDecoration(
-                            labelText: 'Usuario',
-                            prefixIcon: Icon(Icons.person_outline),
+                            labelText: 'E-mail',
+                            prefixIcon: Icon(Icons.email_outlined),
                           ),
                           validator: (v) {
                             final value = v?.trim() ?? '';
-                            if (value.isEmpty) return 'Usuario e obrigatorio';
-                            if (value.length < 3) {
-                              return 'Usuario deve ter ao menos 3 caracteres';
+                            if (value.isEmpty) return 'E-mail e obrigatorio';
+                            if (!_emailRegex.hasMatch(value)) {
+                              return 'Informe um e-mail valido';
                             }
                             return null;
                           },
@@ -132,23 +134,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             return null;
                           },
                         ),
-                        const SizedBox(height: AppSpacing.sm),
-                        Row(
-                          children: [
-                            Checkbox(
-                              value: _rememberCredentials,
-                              onChanged: (v) => setState(
-                                () => _rememberCredentials = v ?? true,
-                              ),
-                            ),
-                            Expanded(
-                              child: Text(
-                                'Lembrar usuario neste computador',
-                                style: AppText.bodySecondary,
-                              ),
-                            ),
-                          ],
-                        ),
                         const SizedBox(height: AppSpacing.md),
                         _loading
                             ? const SizedBox(
@@ -172,10 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: AppSpacing.md),
                         Center(
                           child: TextButton(
-                            onPressed: () => AppFeedback.showInfo(
-                              context,
-                              'Recuperacao de senha ainda nao esta disponivel.',
-                            ),
+                            onPressed: _loading ? null : _esqueciSenha,
                             child: Text(
                               'Esqueci minha senha',
                               style: AppText.bodySecondary,
@@ -218,9 +200,8 @@ class _LoginScreenState extends State<LoginScreen> {
     FocusManager.instance.primaryFocus?.unfocus();
 
     final err = await provider.login(
-      name: nameController.text.trim(),
+      email: emailController.text.trim(),
       password: passwordController.text,
-      rememberCredentials: _rememberCredentials,
     );
     if (!mounted) return;
     setState(() => _loading = false);
@@ -228,6 +209,35 @@ class _LoginScreenState extends State<LoginScreen> {
       AppFeedback.showError(context, err);
       return;
     }
-    Navigator.pushReplacementNamed(context, '/home');
+    // Volta pra '/' (AuthWrapper) em vez de ir direto pra '/home': o
+    // OnboardingGate precisa rodar em todo login pra decidir entre
+    // EmpresaScreen (onboarding pendente) e o dashboard.
+    Navigator.pushReplacementNamed(context, '/');
+  }
+
+  Future<void> _esqueciSenha() async {
+    final email = emailController.text.trim();
+    if (email.isEmpty || !_emailRegex.hasMatch(email)) {
+      AppFeedback.showError(
+        context,
+        'Informe seu e-mail no campo acima para receber as instrucoes.',
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    final provider = Provider.of<AuthProvider>(context, listen: false);
+    final err = await provider.resetPassword(email);
+    if (!mounted) return;
+    setState(() => _loading = false);
+
+    if (err != null) {
+      AppFeedback.showError(context, err);
+      return;
+    }
+    AppFeedback.showSuccess(
+      context,
+      'Enviamos um e-mail com instrucoes para redefinir sua senha.',
+    );
   }
 }
