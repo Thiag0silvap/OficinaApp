@@ -53,6 +53,9 @@ dependencies:
   # Monitoramento de erros em produção
   sentry_flutter: ^9.29.0
 
+  # Backend (Supabase) — Fase 3: só o cliente, sem auth/dados ainda
+  supabase_flutter: ^2.17.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

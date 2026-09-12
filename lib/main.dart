@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/constants/app_constants.dart';
 import 'core/widgets/update_gate.dart';
@@ -23,7 +24,13 @@ Future<void> main() async {
       options.tracesSampleRate = 1.0;
       options.environment = kReleaseMode ? 'production' : 'development';
     },
-    appRunner: () => runApp(const MyApp()),
+    appRunner: () async {
+      await Supabase.initialize(
+        url: 'https://gjuiniwuljlxfvzyepwy.supabase.co',
+        publishableKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdqdWluaXd1bGpseGZ2enllcHd5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkxNzQ4NjQsImV4cCI6MjEwNDc1MDg2NH0.47xiDoEWA3A2tUh3hViXb1-kQFCZC77qncMfo36tN8Y',
+      );
+      runApp(const MyApp());
+    },
   );
 }
 
