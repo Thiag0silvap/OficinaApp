@@ -12,6 +12,7 @@ import '../models/orcamento.dart';
 import '../models/transacao.dart';
 import '../models/veiculo.dart';
 import '../core/constants/app_version.dart';
+import '../core/id_generator.dart';
 import 'app_logger.dart';
 
 class DBService {
@@ -901,6 +902,70 @@ WHERE orcamentoId IS NOT NULL
           },
         )
         .toList();
+  }
+
+  // ================= OPERAÇÕES PENDENTES (fila de sync) =================
+
+  /// Grava ou substitui uma operação pendente. Deduplicação por
+  /// entidade+registroId+operacao: se já existir uma pendente para o
+  /// mesmo registro com a mesma operação, substitui pelo payload mais
+  /// recente (evita reenviar 5 edições intermediárias já obsoletas).
+  Future<void> upsertOperacaoPendente({
+    required String entidade,
+    required String operacao,
+    required String registroId,
+    required String? payloadJson,
+  }) async {
+    final db = await database;
+    final existente = await db.query(
+      "operacoes_pendentes",
+      where: "entidade = ? AND registro_id = ? AND operacao = ?",
+      whereArgs: [entidade, registroId, operacao],
+      limit: 1,
+    );
+    if (existente.isNotEmpty) {
+      await db.update(
+        "operacoes_pendentes",
+        {
+          'payload': payloadJson,
+          'criado_em': DateTime.now().toIso8601String(),
+        },
+        where: "id = ?",
+        whereArgs: [existente.first['id']],
+      );
+      return;
+    }
+    await db.insert("operacoes_pendentes", {
+      'id': gerarId(),
+      'entidade': entidade,
+      'operacao': operacao,
+      'registro_id': registroId,
+      'payload': payloadJson,
+      'criado_em': DateTime.now().toIso8601String(),
+      'tentativas': 0,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getOperacoesPendentes() async {
+    final db = await database;
+    return db.query("operacoes_pendentes", orderBy: "criado_em ASC");
+  }
+
+  Future<void> removerOperacaoPendente(String id) async {
+    final db = await database;
+    await db.delete(
+      "operacoes_pendentes",
+      where: "id = ?",
+      whereArgs: [id],
+    );
+  }
+
+  Future<void> incrementarTentativaOperacaoPendente(String id) async {
+    final db = await database;
+    await db.rawUpdate(
+      "UPDATE operacoes_pendentes SET tentativas = tentativas + 1 WHERE id = ?",
+      [id],
+    );
   }
 
   // ================= EMPRESA =================
