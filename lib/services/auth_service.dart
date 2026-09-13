@@ -45,6 +45,7 @@ class AuthService {
     return _auth.signUp(
       email: email,
       password: password,
+      emailRedirectTo: 'graucar://login-callback',
       data: {
         'nome': nome,
         if (convite != null && convite.isNotEmpty) 'convite': convite,
@@ -60,7 +61,7 @@ class AuthService {
   }
 
   Future<void> resetPassword(String email) {
-    return _auth.resetPasswordForEmail(email);
+    return _auth.resetPasswordForEmail(email, redirectTo: 'graucar://login-callback');
   }
 
   Future<void> signOut() => _auth.signOut();
