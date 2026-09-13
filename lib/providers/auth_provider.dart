@@ -73,6 +73,31 @@ class AuthProvider extends ChangeNotifier {
     applyRole(perfil?['role'] as String?);
   }
 
+  /// Aplica um oficina_id já obtido em outra consulta (ex.: o OnboardingGate
+  /// já buscou o perfil inteiro e não precisa de um round-trip extra só pra
+  /// isso). Para buscar do zero, use [refreshOficinaId].
+  void applyOficinaId(String? oficinaId) {
+    final user = _currentUser;
+    if (user == null || oficinaId == null) return;
+    _currentUser = user.copyWith(oficinaId: oficinaId);
+    notifyListeners();
+  }
+
+  /// Busca perfis.oficina_id do usuário atual e atualiza currentUser. Não é
+  /// chamado automaticamente em _syncFromSupabaseUser: o perfil (e portanto
+  /// o oficina_id) só passa a existir depois do onboarding, que roda depois
+  /// do login/signup — chamar aqui cedo demais sempre acharia null.
+  Future<void> refreshOficinaId() async {
+    final user = _currentUser;
+    if (user == null) return;
+    final perfil = await SupabaseService.client
+        .from('perfis')
+        .select('oficina_id')
+        .eq('id', user.id)
+        .maybeSingle();
+    applyOficinaId(perfil?['oficina_id'] as String?);
+  }
+
   Future<String?> login({
     required String email,
     required String password,

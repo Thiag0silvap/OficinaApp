@@ -203,11 +203,13 @@ class _OnboardingGateState extends State<OnboardingGate> {
       // Perfil acabou de ser criado agora (fluxo normal ou RPC de
       // convite) — não temos o role em mãos, busca do banco.
       await authProvider.refreshRole();
+      authProvider.applyOficinaId(oficinaId);
     } else {
       oficinaId = perfil['oficina_id'] as String;
       // Já buscamos o perfil inteiro acima (inclui role) — evita um
       // round-trip extra só pra isso.
       authProvider.applyRole(perfil['role'] as String?);
+      authProvider.applyOficinaId(perfil['oficina_id'] as String?);
     }
 
     final empresa = await client
