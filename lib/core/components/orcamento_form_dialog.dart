@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
+import '../id_generator.dart';
 import '../utils/currency_input_formatter.dart';
 import '../utils/text_normalize.dart';
 import '../../models/cliente.dart';
@@ -1464,8 +1465,7 @@ class _OrcamentoFormDialogState extends State<OrcamentoFormDialog> {
     final appProvider = Provider.of<AppProvider>(context, listen: false);
     final auth = Provider.of<AuthProvider>(context, listen: false);
 
-    final id = widget.orcamentoEditar?.id ??
-        DateTime.now().millisecondsSinceEpoch.toString();
+    final id = widget.orcamentoEditar?.id ?? gerarId();
 
     final currentObs = _observacoesController.text.trim();
     final responsavel = auth.currentUser?.nome;

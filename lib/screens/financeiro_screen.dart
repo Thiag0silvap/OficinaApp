@@ -7,6 +7,7 @@ import '../core/components/app_buttons.dart';
 import '../core/components/app_card.dart';
 import '../core/components/form_styles.dart';
 import '../core/components/responsive_components.dart';
+import '../core/id_generator.dart';
 import '../core/theme/app_theme.dart';
 import '../core/utils/app_feedback.dart';
 import '../core/utils/currency_input_formatter.dart';
@@ -1179,7 +1180,7 @@ class _NovaTransacaoDialogState extends State<_NovaTransacaoDialog> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     final t = Transacao(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: gerarId(),
       tipo: _tipo,
       descricao: desc,
       valor: valor,

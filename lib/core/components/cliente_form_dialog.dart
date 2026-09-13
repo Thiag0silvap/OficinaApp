@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../models/cliente.dart';
 import '../../models/veiculo.dart';
 import '../../providers/app_provider.dart';
+import '../id_generator.dart';
 import '../theme/app_theme.dart';
 import '../utils/cnpj_input_formatter.dart';
 import '../utils/phone_input_formatter.dart';
@@ -113,7 +114,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
 
     final provider = Provider.of<AppProvider>(context, listen: false);
     final veiculo = _veiculoFormController.buildVeiculo(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: gerarId(),
       clienteId: '__pending__',
     );
 
@@ -183,7 +184,7 @@ class _ClienteFormDialogState extends State<ClienteFormDialog> {
 
     setState(() => _isSaving = true);
 
-    final clienteId = DateTime.now().millisecondsSinceEpoch.toString();
+    final clienteId = gerarId();
 
     final cliente = Cliente(
       id: clienteId,

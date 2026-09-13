@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/cliente.dart';
 import '../../models/veiculo.dart';
 import '../../providers/app_provider.dart';
+import '../id_generator.dart';
 import 'app_buttons.dart';
 import 'cliente_form_dialog.dart';
 import 'orcamento_form_dialog.dart';
@@ -184,9 +185,7 @@ void showVeiculoFormDialog(
           );
 
           final veiculo = controller.buildVeiculo(
-            id:
-                veiculoEditar?.id ??
-                DateTime.now().millisecondsSinceEpoch.toString(),
+            id: veiculoEditar?.id ?? gerarId(),
             clienteId: cliente.id,
           );
 

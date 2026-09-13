@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/constants/app_constants.dart';
+import '../core/id_generator.dart';
 import '../models/backup_manifest.dart';
 import '../models/cliente.dart';
 import '../models/empresa.dart';
@@ -1083,7 +1084,7 @@ class AppProvider extends ChangeNotifier {
       await _db.updateOrcamento(atualizado);
 
       final transacao = Transacao(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        id: gerarId(),
         tipo: TipoTransacao.entrada,
         descricao: 'Pagamento serviço - ${atual.clienteNome}',
         valor: atual.valorTotal,
