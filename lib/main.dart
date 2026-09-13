@@ -7,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/constants/app_constants.dart';
 import 'core/id_generator.dart';
+import 'core/utils/error_translator.dart';
 import 'core/widgets/update_gate.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/app_provider.dart';
@@ -167,7 +168,13 @@ class OnboardingGate extends StatefulWidget {
 }
 
 class _OnboardingGateState extends State<OnboardingGate> {
-  late final Future<bool> _precisaEmpresaFuture = _ensureOnboarding();
+  late Future<bool> _precisaEmpresaFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _precisaEmpresaFuture = _ensureOnboarding();
+  }
 
   Future<bool> _ensureOnboarding() async {
     final client = SupabaseService.client;
@@ -299,9 +306,23 @@ class _OnboardingGateState extends State<OnboardingGate> {
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Erro ao carregar dados da sua conta: ${snapshot.error}',
-                  textAlign: TextAlign.center,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      traduzirErro(snapshot.error!),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _precisaEmpresaFuture = _ensureOnboarding();
+                        });
+                      },
+                      child: const Text('Tentar novamente'),
+                    ),
+                  ],
                 ),
               ),
             ),
