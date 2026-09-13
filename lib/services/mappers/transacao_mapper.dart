@@ -6,6 +6,8 @@ Map<String, dynamic> paraSupabase(
   double? valorOriginal,
   DateTime? editadoEm,
 }) {
+  final valorOriginalFinal = valorOriginal ?? t.valorOriginal;
+  final editadoEmFinal = editadoEm ?? t.editadoEm;
   return {
     'id': t.id,
     'oficina_id': oficinaId,
@@ -16,8 +18,8 @@ Map<String, dynamic> paraSupabase(
     'data': t.data.toIso8601String(),
     'orcamento_id': t.orcamentoId,
     'observacoes': t.observacoes,
-    if (valorOriginal != null) 'valor_original': valorOriginal,
-    if (editadoEm != null) 'editado_em': editadoEm.toIso8601String(),
+    if (valorOriginalFinal != null) 'valor_original': valorOriginalFinal,
+    if (editadoEmFinal != null) 'editado_em': editadoEmFinal.toIso8601String(),
   };
 }
 

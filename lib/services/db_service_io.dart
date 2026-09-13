@@ -660,6 +660,17 @@ WHERE orcamentoId IS NOT NULL
     );
   }
 
+  Future<void> updateTransacao(Transacao t) async {
+    final db = await database;
+
+    await db.update(
+      "transacoes",
+      t.toMap(),
+      where: "id = ?",
+      whereArgs: [t.id],
+    );
+  }
+
   Future<Transacao?> getTransacaoById(String id) async {
     final db = await database;
 
@@ -750,6 +761,16 @@ WHERE orcamentoId IS NOT NULL
     );
   }
 
+  Future<void> deleteMarcaModeloCustom(String id) async {
+    final db = await database;
+
+    await db.delete(
+      "marcas_modelos_custom",
+      where: "id = ?",
+      whereArgs: [id],
+    );
+  }
+
   Future<List<Map<String, String?>>> getMarcasModelosCustom() async {
     final db = await database;
     final result = await db.query("marcas_modelos_custom");
@@ -781,6 +802,16 @@ WHERE orcamentoId IS NOT NULL
     );
   }
 
+  Future<void> deletePecaCustom(String id) async {
+    final db = await database;
+
+    await db.delete(
+      "pecas_custom",
+      where: "id = ?",
+      whereArgs: [id],
+    );
+  }
+
   Future<List<String>> getPecasCustom() async {
     final db = await database;
     final result = await db.query("pecas_custom");
@@ -803,6 +834,16 @@ WHERE orcamentoId IS NOT NULL
         'servico': normalizedServico,
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> deleteServicoCustom(String id) async {
+    final db = await database;
+
+    await db.delete(
+      "servicos_custom",
+      where: "id = ?",
+      whereArgs: [id],
     );
   }
 

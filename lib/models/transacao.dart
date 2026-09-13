@@ -9,6 +9,8 @@ class Transacao {
   final DateTime data;
   final String? orcamentoId;
   final String? observacoes;
+  final double? valorOriginal;
+  final DateTime? editadoEm;
 
   Transacao({
     required this.id,
@@ -19,6 +21,8 @@ class Transacao {
     required this.data,
     this.orcamentoId,
     this.observacoes,
+    this.valorOriginal,
+    this.editadoEm,
   });
 
   Transacao copyWith({
@@ -30,6 +34,8 @@ class Transacao {
     DateTime? data,
     String? orcamentoId,
     String? observacoes,
+    double? valorOriginal,
+    DateTime? editadoEm,
   }) {
     return Transacao(
       id: id ?? this.id,
@@ -40,6 +46,8 @@ class Transacao {
       data: data ?? this.data,
       orcamentoId: orcamentoId ?? this.orcamentoId,
       observacoes: observacoes ?? this.observacoes,
+      valorOriginal: valorOriginal ?? this.valorOriginal,
+      editadoEm: editadoEm ?? this.editadoEm,
     );
   }
 
@@ -53,6 +61,8 @@ class Transacao {
       'data': data.toIso8601String(),
       'orcamentoId': orcamentoId,
       'observacoes': observacoes,
+      'valorOriginal': valorOriginal,
+      'editadoEm': editadoEm?.toIso8601String(),
     };
   }
 
@@ -84,6 +94,11 @@ class Transacao {
       data: DateTime.parse(map['data']),
       orcamentoId: map['orcamentoId'],
       observacoes: map['observacoes'],
+      valorOriginal:
+          map['valorOriginal'] != null ? _toDouble(map['valorOriginal']) : null,
+      editadoEm: map['editadoEm'] != null
+          ? DateTime.parse(map['editadoEm'])
+          : null,
     );
   }
 }

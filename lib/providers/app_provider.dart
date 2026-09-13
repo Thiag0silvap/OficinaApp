@@ -14,7 +14,12 @@ import '../models/transacao.dart';
 import '../services/app_logger.dart';
 import '../services/db_service.dart';
 import '../services/fipe_service.dart';
+import '../services/mappers/catalogo_custom_mapper.dart' as catalogo_mapper;
 import '../services/mappers/cliente_mapper.dart' as cliente_mapper;
+import '../services/mappers/nota_mapper.dart' as nota_mapper;
+import '../services/mappers/orcamento_mapper.dart' as orcamento_mapper;
+import '../services/mappers/transacao_mapper.dart' as transacao_mapper;
+import '../services/mappers/veiculo_mapper.dart' as veiculo_mapper;
 import '../services/sync_service.dart';
 import '../models/nota.dart';
 import '../models/relatorio_financeiro.dart';
@@ -200,6 +205,21 @@ class AppProvider extends ChangeNotifier {
     if (!hasMarcaBase && !hasMarcaCustom) {
       _customMarcas.add(fixedMarca);
       await _db.insertMarcaModeloCustom(marca: fixedMarca);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'marcas_modelos_custom',
+            operacao: 'criar',
+            registroId: '${fixedMarca.toLowerCase()}|',
+            payload: catalogo_mapper.marcaModeloParaSupabase(
+              id: '${fixedMarca.toLowerCase()}|',
+              marca: fixedMarca,
+              oficinaId: oficinaId,
+            ),
+          ),
+        );
+      }
     }
 
     final fixedModelo = _prettyName(modelo ?? '');
@@ -224,6 +244,24 @@ class AppProvider extends ChangeNotifier {
           marca: fixedMarca,
           modelo: fixedModelo,
         );
+        final oficinaId = _oficinaId;
+        if (oficinaId != null) {
+          unawaited(
+            SyncService().sincronizar(
+              entidade: 'marcas_modelos_custom',
+              operacao: 'criar',
+              registroId:
+                  '${fixedMarca.toLowerCase()}|${fixedModelo.toLowerCase()}',
+              payload: catalogo_mapper.marcaModeloParaSupabase(
+                id:
+                    '${fixedMarca.toLowerCase()}|${fixedModelo.toLowerCase()}',
+                marca: fixedMarca,
+                modelo: fixedModelo,
+                oficinaId: oficinaId,
+              ),
+            ),
+          );
+        }
       }
     }
 
@@ -268,6 +306,21 @@ class AppProvider extends ChangeNotifier {
     if (!hasBase && !hasCustom) {
       _customPecas.add(fixed);
       await _db.insertPecaCustom(fixed);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'pecas_custom',
+            operacao: 'criar',
+            registroId: fixed.toLowerCase(),
+            payload: catalogo_mapper.pecaParaSupabase(
+              id: fixed.toLowerCase(),
+              peca: fixed,
+              oficinaId: oficinaId,
+            ),
+          ),
+        );
+      }
     }
 
     notifyListeners();
@@ -288,9 +341,339 @@ class AppProvider extends ChangeNotifier {
     if (!hasBase && !hasCustom) {
       _customServicos.add(fixed);
       await _db.insertServicoCustom(fixed);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'servicos_custom',
+            operacao: 'criar',
+            registroId: fixed.toLowerCase(),
+            payload: catalogo_mapper.servicoParaSupabase(
+              id: fixed.toLowerCase(),
+              servico: fixed,
+              oficinaId: oficinaId,
+            ),
+          ),
+        );
+      }
     }
 
     notifyListeners();
+  }
+
+  /// Renomeia uma peça customizada. Como o id é derivado do próprio texto,
+  /// "editar" é implementado como excluir o registro antigo + criar um
+  /// novo com o texto corrigido — não é um update de verdade. NÃO
+  /// retroage em orçamentos já criados com o texto antigo (o texto já
+  /// gravado neles não muda).
+  Future<void> editarPecaCustom(String pecaAntiga, String pecaNova) async {
+    try {
+      final fixedAntiga = _sentenceCase(pecaAntiga);
+      final fixedNova = _sentenceCase(pecaNova);
+      if (fixedNova.isEmpty || fixedAntiga == fixedNova) return;
+
+      await _ensureUserDbSelected();
+
+      final idAntigo = fixedAntiga.toLowerCase();
+      final idNovo = fixedNova.toLowerCase();
+
+      await _db.deletePecaCustom(idAntigo);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'pecas_custom',
+            operacao: 'excluir',
+            registroId: idAntigo,
+          ),
+        );
+      }
+
+      await _db.insertPecaCustom(fixedNova);
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'pecas_custom',
+            operacao: 'criar',
+            registroId: idNovo,
+            payload: catalogo_mapper.pecaParaSupabase(
+              id: idNovo,
+              peca: fixedNova,
+              oficinaId: oficinaId,
+            ),
+          ),
+        );
+      }
+
+      _customPecas.remove(fixedAntiga);
+      if (!_customPecas.contains(fixedNova)) {
+        _customPecas.add(fixedNova);
+      }
+      notifyListeners();
+      unawaited(
+        AppLogger.instance.info(
+          'Peça customizada renomeada: $fixedAntiga -> $fixedNova',
+        ),
+      );
+    } catch (e) {
+      _recordError('Erro ao editar peça customizada: $e');
+      rethrow;
+    }
+  }
+
+  /// Exclui uma peça customizada. NÃO afeta orçamentos que já usam esse
+  /// texto (o texto gravado neles permanece).
+  Future<void> deletePecaCustom(String peca) async {
+    try {
+      final fixed = _sentenceCase(peca);
+      if (fixed.isEmpty) return;
+
+      await _ensureUserDbSelected();
+      final id = fixed.toLowerCase();
+
+      await _db.deletePecaCustom(id);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'pecas_custom',
+            operacao: 'excluir',
+            registroId: id,
+          ),
+        );
+      }
+
+      _customPecas.remove(fixed);
+      notifyListeners();
+      unawaited(
+        AppLogger.instance.warning('Peça customizada excluída: $fixed'),
+      );
+    } catch (e) {
+      _recordError('Erro ao excluir peça customizada: $e');
+      rethrow;
+    }
+  }
+
+  /// Renomeia um serviço customizado. Como o id é derivado do próprio
+  /// texto, "editar" é implementado como excluir o registro antigo + criar
+  /// um novo com o texto corrigido — não é um update de verdade. NÃO
+  /// retroage em orçamentos já criados com o texto antigo (o texto já
+  /// gravado neles não muda).
+  Future<void> editarServicoCustom(
+    String servicoAntigo,
+    String servicoNovo,
+  ) async {
+    try {
+      final fixedAntigo = _sentenceCase(servicoAntigo);
+      final fixedNovo = _sentenceCase(servicoNovo);
+      if (fixedNovo.isEmpty || fixedAntigo == fixedNovo) return;
+
+      await _ensureUserDbSelected();
+
+      final idAntigo = fixedAntigo.toLowerCase();
+      final idNovo = fixedNovo.toLowerCase();
+
+      await _db.deleteServicoCustom(idAntigo);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'servicos_custom',
+            operacao: 'excluir',
+            registroId: idAntigo,
+          ),
+        );
+      }
+
+      await _db.insertServicoCustom(fixedNovo);
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'servicos_custom',
+            operacao: 'criar',
+            registroId: idNovo,
+            payload: catalogo_mapper.servicoParaSupabase(
+              id: idNovo,
+              servico: fixedNovo,
+              oficinaId: oficinaId,
+            ),
+          ),
+        );
+      }
+
+      _customServicos.remove(fixedAntigo);
+      if (!_customServicos.contains(fixedNovo)) {
+        _customServicos.add(fixedNovo);
+      }
+      notifyListeners();
+      unawaited(
+        AppLogger.instance.info(
+          'Serviço customizado renomeado: $fixedAntigo -> $fixedNovo',
+        ),
+      );
+    } catch (e) {
+      _recordError('Erro ao editar serviço customizado: $e');
+      rethrow;
+    }
+  }
+
+  /// Exclui um serviço customizado. NÃO afeta orçamentos que já usam esse
+  /// texto (o texto gravado neles permanece).
+  Future<void> deleteServicoCustom(String servico) async {
+    try {
+      final fixed = _sentenceCase(servico);
+      if (fixed.isEmpty) return;
+
+      await _ensureUserDbSelected();
+      final id = fixed.toLowerCase();
+
+      await _db.deleteServicoCustom(id);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'servicos_custom',
+            operacao: 'excluir',
+            registroId: id,
+          ),
+        );
+      }
+
+      _customServicos.remove(fixed);
+      notifyListeners();
+      unawaited(
+        AppLogger.instance.warning('Serviço customizado excluído: $fixed'),
+      );
+    } catch (e) {
+      _recordError('Erro ao excluir serviço customizado: $e');
+      rethrow;
+    }
+  }
+
+  /// Renomeia uma marca customizada (e, se especificado, um modelo
+  /// específico dela). Segue o mesmo princípio de excluir+recriar dos
+  /// demais catálogos custom, adaptado para o id composto marca|modelo.
+  Future<void> editarMarcaModeloCustom({
+    required String marcaAntiga,
+    String? modeloAntigo,
+    required String marcaNova,
+    String? modeloNovo,
+  }) async {
+    try {
+      final fixedMarcaAntiga = _prettyName(marcaAntiga);
+      final fixedModeloAntigo = _prettyName(modeloAntigo ?? '');
+      final fixedMarcaNova = _prettyName(marcaNova);
+      final fixedModeloNovo = _prettyName(modeloNovo ?? '');
+      if (fixedMarcaNova.isEmpty) return;
+
+      await _ensureUserDbSelected();
+
+      final idAntigo =
+          '${fixedMarcaAntiga.toLowerCase()}|${fixedModeloAntigo.toLowerCase()}';
+      final idNovo =
+          '${fixedMarcaNova.toLowerCase()}|${fixedModeloNovo.toLowerCase()}';
+
+      await _db.deleteMarcaModeloCustom(idAntigo);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'marcas_modelos_custom',
+            operacao: 'excluir',
+            registroId: idAntigo,
+          ),
+        );
+      }
+
+      await _db.insertMarcaModeloCustom(
+        marca: fixedMarcaNova,
+        modelo: fixedModeloNovo.isEmpty ? null : fixedModeloNovo,
+      );
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'marcas_modelos_custom',
+            operacao: 'criar',
+            registroId: idNovo,
+            payload: catalogo_mapper.marcaModeloParaSupabase(
+              id: idNovo,
+              marca: fixedMarcaNova,
+              modelo: fixedModeloNovo.isEmpty ? null : fixedModeloNovo,
+              oficinaId: oficinaId,
+            ),
+          ),
+        );
+      }
+
+      if (fixedModeloAntigo.isEmpty) {
+        _customMarcas.remove(fixedMarcaAntiga);
+        if (!_customMarcas.contains(fixedMarcaNova)) {
+          _customMarcas.add(fixedMarcaNova);
+        }
+      } else {
+        _customModelosPorMarca[fixedMarcaAntiga]?.remove(fixedModeloAntigo);
+        if (fixedModeloNovo.isNotEmpty) {
+          final list = _customModelosPorMarca.putIfAbsent(
+            fixedMarcaNova,
+            () => <String>[],
+          );
+          if (!list.contains(fixedModeloNovo)) list.add(fixedModeloNovo);
+        }
+      }
+      notifyListeners();
+      unawaited(
+        AppLogger.instance.info(
+          'Marca/modelo customizado renomeado: $idAntigo -> $idNovo',
+        ),
+      );
+    } catch (e) {
+      _recordError('Erro ao editar marca/modelo customizado: $e');
+      rethrow;
+    }
+  }
+
+  /// Exclui uma marca customizada (ou um modelo específico dela, se
+  /// [modelo] for informado). NÃO afeta orçamentos que já usam esse texto.
+  Future<void> deleteMarcaModeloCustom({
+    required String marca,
+    String? modelo,
+  }) async {
+    try {
+      final fixedMarca = _prettyName(marca);
+      final fixedModelo = _prettyName(modelo ?? '');
+      if (fixedMarca.isEmpty) return;
+
+      await _ensureUserDbSelected();
+      final id = '${fixedMarca.toLowerCase()}|${fixedModelo.toLowerCase()}';
+
+      await _db.deleteMarcaModeloCustom(id);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'marcas_modelos_custom',
+            operacao: 'excluir',
+            registroId: id,
+          ),
+        );
+      }
+
+      if (fixedModelo.isEmpty) {
+        _customMarcas.remove(fixedMarca);
+        _customModelosPorMarca.remove(fixedMarca);
+      } else {
+        _customModelosPorMarca[fixedMarca]?.remove(fixedModelo);
+      }
+      notifyListeners();
+      unawaited(
+        AppLogger.instance.warning(
+          'Marca/modelo customizado excluído: $id',
+        ),
+      );
+    } catch (e) {
+      _recordError('Erro ao excluir marca/modelo customizado: $e');
+      rethrow;
+    }
   }
 
   String _prettyName(String input) {
@@ -857,6 +1240,17 @@ class AppProvider extends ChangeNotifier {
       _validateVeiculo(veiculo);
       await _ensureUserDbSelected();
       await _db.insertVeiculo(veiculo);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'veiculos',
+            operacao: 'criar',
+            registroId: veiculo.id,
+            payload: veiculo_mapper.paraSupabase(veiculo, oficinaId),
+          ),
+        );
+      }
       _veiculos.add(veiculo);
       notifyListeners();
       unawaited(
@@ -873,6 +1267,17 @@ class AppProvider extends ChangeNotifier {
       _validateVeiculo(veiculo);
       await _ensureUserDbSelected();
       await _db.updateVeiculo(veiculo);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'veiculos',
+            operacao: 'editar',
+            registroId: veiculo.id,
+            payload: veiculo_mapper.paraSupabase(veiculo, oficinaId),
+          ),
+        );
+      }
       final index = _veiculos.indexWhere((v) => v.id == veiculo.id);
       if (index != -1) {
         _veiculos[index] = veiculo;
@@ -897,6 +1302,17 @@ class AppProvider extends ChangeNotifier {
       await _ensureUserDbSelected();
       final atualizado = _veiculos[index].copyWith(ativo: false);
       await _db.updateVeiculo(atualizado);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'veiculos',
+            operacao: 'editar',
+            registroId: atualizado.id,
+            payload: veiculo_mapper.paraSupabase(atualizado, oficinaId),
+          ),
+        );
+      }
       _veiculos.removeAt(index);
       notifyListeners();
       unawaited(
@@ -915,6 +1331,17 @@ class AppProvider extends ChangeNotifier {
       await _ensureUserDbSelected();
       final atualizado = veiculo.copyWith(ativo: true);
       await _db.updateVeiculo(atualizado);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'veiculos',
+            operacao: 'editar',
+            registroId: atualizado.id,
+            payload: veiculo_mapper.paraSupabase(atualizado, oficinaId),
+          ),
+        );
+      }
       final index = _veiculos.indexWhere((v) => v.id == atualizado.id);
       if (index != -1) {
         _veiculos[index] = atualizado;
@@ -939,6 +1366,17 @@ class AppProvider extends ChangeNotifier {
       _validateOrcamento(o);
       await _ensureUserDbSelected();
       await _db.insertOrcamento(o);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'orcamentos',
+            operacao: 'criar',
+            registroId: o.id,
+            payload: orcamento_mapper.paraSupabase(o, oficinaId),
+          ),
+        );
+      }
       _orcamentos.add(o);
       notifyListeners();
       unawaited(AppLogger.instance.info('Orcamento criado: ${o.id}'));
@@ -953,6 +1391,17 @@ class AppProvider extends ChangeNotifier {
       _validateOrcamento(o);
       await _ensureUserDbSelected();
       await _db.updateOrcamento(o);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'orcamentos',
+            operacao: 'editar',
+            registroId: o.id,
+            payload: orcamento_mapper.paraSupabase(o, oficinaId),
+          ),
+        );
+      }
       final index = _orcamentos.indexWhere((x) => x.id == o.id);
       if (index != -1) {
         _orcamentos[index] = o;
@@ -977,6 +1426,16 @@ class AppProvider extends ChangeNotifier {
         );
       }
       await _db.deleteOrcamento(id);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'orcamentos',
+            operacao: 'excluir',
+            registroId: id,
+          ),
+        );
+      }
       _orcamentos.removeWhere((o) => o.id == id);
       notifyListeners();
       unawaited(AppLogger.instance.warning('Orcamento removido: $id'));
@@ -1002,6 +1461,17 @@ class AppProvider extends ChangeNotifier {
 
       await _ensureUserDbSelected();
       await _db.updateOrcamento(atualizado);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'orcamentos',
+            operacao: 'editar',
+            registroId: atualizado.id,
+            payload: orcamento_mapper.paraSupabase(atualizado, oficinaId),
+          ),
+        );
+      }
       _orcamentos[index] = atualizado;
       notifyListeners();
       unawaited(AppLogger.instance.info('Orcamento aprovado: $id'));
@@ -1024,6 +1494,17 @@ class AppProvider extends ChangeNotifier {
 
       await _ensureUserDbSelected();
       await _db.updateOrcamento(atualizado);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'orcamentos',
+            operacao: 'editar',
+            registroId: atualizado.id,
+            payload: orcamento_mapper.paraSupabase(atualizado, oficinaId),
+          ),
+        );
+      }
       _orcamentos[index] = atualizado;
       notifyListeners();
       unawaited(
@@ -1057,6 +1538,17 @@ class AppProvider extends ChangeNotifier {
 
       await _ensureUserDbSelected();
       await _db.updateOrcamento(atualizado);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'orcamentos',
+            operacao: 'editar',
+            registroId: atualizado.id,
+            payload: orcamento_mapper.paraSupabase(atualizado, oficinaId),
+          ),
+        );
+      }
 
       // ✅ Gera nota apenas uma vez
       // Mantendo compatibilidade com seu fluxo atual
@@ -1066,6 +1558,16 @@ class AppProvider extends ChangeNotifier {
       final nota = Nota.fromOrcamento(atualizado);
       try {
         await _db.insertNota(nota);
+        if (oficinaId != null) {
+          unawaited(
+            SyncService().sincronizar(
+              entidade: 'notas',
+              operacao: 'criar',
+              registroId: nota.id,
+              payload: nota_mapper.paraSupabase(nota, oficinaId),
+            ),
+          );
+        }
       } catch (e) {
         unawaited(
           AppLogger.instance.error(
@@ -1111,6 +1613,20 @@ class AppProvider extends ChangeNotifier {
         );
 
         await _db.updateOrcamento(atualizadoExistente);
+        final oficinaId = _oficinaId;
+        if (oficinaId != null) {
+          unawaited(
+            SyncService().sincronizar(
+              entidade: 'orcamentos',
+              operacao: 'editar',
+              registroId: atualizadoExistente.id,
+              payload: orcamento_mapper.paraSupabase(
+                atualizadoExistente,
+                oficinaId,
+              ),
+            ),
+          );
+        }
         _orcamentos[index] = atualizadoExistente;
 
         if (!_transacoes.any((t) => t.id == transacaoExistente.id)) {
@@ -1132,6 +1648,17 @@ class AppProvider extends ChangeNotifier {
       );
 
       await _db.updateOrcamento(atualizado);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'orcamentos',
+            operacao: 'editar',
+            registroId: atualizado.id,
+            payload: orcamento_mapper.paraSupabase(atualizado, oficinaId),
+          ),
+        );
+      }
 
       final transacao = Transacao(
         id: gerarId(),
@@ -1145,6 +1672,16 @@ class AppProvider extends ChangeNotifier {
 
       _validateTransacao(transacao);
       await _db.insertTransacao(transacao);
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'transacoes',
+            operacao: 'criar',
+            registroId: transacao.id,
+            payload: transacao_mapper.paraSupabase(transacao, oficinaId),
+          ),
+        );
+      }
 
       _orcamentos[index] = atualizado;
       _transacoes.add(transacao);
@@ -1195,6 +1732,17 @@ class AppProvider extends ChangeNotifier {
 
       await _ensureUserDbSelected();
       await _db.updateOrcamento(atualizado);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'orcamentos',
+            operacao: 'editar',
+            registroId: atualizado.id,
+            payload: orcamento_mapper.paraSupabase(atualizado, oficinaId),
+          ),
+        );
+      }
       _orcamentos[index] = atualizado;
       notifyListeners();
       unawaited(AppLogger.instance.warning('Orcamento cancelado: $id'));
@@ -1251,6 +1799,17 @@ class AppProvider extends ChangeNotifier {
       _validateTransacao(t);
       await _ensureUserDbSelected();
       await _db.insertTransacao(t);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'transacoes',
+            operacao: 'criar',
+            registroId: t.id,
+            payload: transacao_mapper.paraSupabase(t, oficinaId),
+          ),
+        );
+      }
       _transacoes.add(t);
       notifyListeners();
       unawaited(AppLogger.instance.info('Transacao adicionada: ${t.id}'));
@@ -1299,6 +1858,17 @@ class AppProvider extends ChangeNotifier {
             tipoAtendimento: atual.tipoAtendimento,
           );
           await _db.updateOrcamento(revertido);
+          final oficinaId = _oficinaId;
+          if (oficinaId != null) {
+            unawaited(
+              SyncService().sincronizar(
+                entidade: 'orcamentos',
+                operacao: 'editar',
+                registroId: revertido.id,
+                payload: orcamento_mapper.paraSupabase(revertido, oficinaId),
+              ),
+            );
+          }
           _orcamentos[index] = revertido;
           notifyListeners();
           unawaited(
@@ -1315,11 +1885,71 @@ class AppProvider extends ChangeNotifier {
 
     try {
       await _db.deleteTransacao(id);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'transacoes',
+            operacao: 'excluir',
+            registroId: id,
+          ),
+        );
+      }
       _transacoes.removeWhere((t) => t.id == id);
       notifyListeners();
       unawaited(AppLogger.instance.warning('Transacao removida: $id'));
     } catch (e) {
       _recordError('Erro ao excluir transacao: $e');
+      rethrow;
+    }
+  }
+
+  /// Atualiza uma transação existente. Se o valor for alterado em relação
+  /// ao valor atual, grava um rastro de auditoria (valorOriginal = valor
+  /// anterior, editadoEm = agora) em vez de sobrescrever silenciosamente —
+  /// mudar outros campos (descrição, categoria, etc.) sem tocar o valor
+  /// não gera esse rastro.
+  Future<void> updateTransacao(Transacao t) async {
+    try {
+      _validateTransacao(t);
+      await _ensureUserDbSelected();
+
+      final atual = _transacoes
+          .where((x) => x.id == t.id)
+          .cast<Transacao?>()
+          .firstOrNull;
+
+      Transacao paraGravar = t;
+      if (atual != null && atual.valor != t.valor) {
+        paraGravar = t.copyWith(
+          valorOriginal: atual.valorOriginal ?? atual.valor,
+          editadoEm: DateTime.now(),
+        );
+      }
+
+      await _db.updateTransacao(paraGravar);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'transacoes',
+            operacao: 'editar',
+            registroId: paraGravar.id,
+            payload: transacao_mapper.paraSupabase(paraGravar, oficinaId),
+          ),
+        );
+      }
+
+      final index = _transacoes.indexWhere((x) => x.id == t.id);
+      if (index != -1) {
+        _transacoes[index] = paraGravar;
+        notifyListeners();
+        unawaited(
+          AppLogger.instance.info('Transacao atualizada: ${paraGravar.id}'),
+        );
+      }
+    } catch (e) {
+      _recordError('Erro ao atualizar transacao: $e');
       rethrow;
     }
   }
