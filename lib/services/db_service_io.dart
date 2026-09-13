@@ -366,6 +366,21 @@ atualizadoEm TEXT
 )
 ''',
     );
+    await _ensureTableExists(
+      db,
+      'operacoes_pendentes',
+      '''
+CREATE TABLE operacoes_pendentes(
+id TEXT PRIMARY KEY,
+entidade TEXT NOT NULL,
+operacao TEXT NOT NULL,
+registro_id TEXT NOT NULL,
+payload TEXT,
+criado_em TEXT NOT NULL,
+tentativas INTEGER DEFAULT 0
+)
+''',
+    );
 
     await _ensureColumnExists(db, 'clientes', 'endereco', 'TEXT');
     await _ensureColumnExists(db, 'clientes', 'dataCadastro', 'TEXT');
@@ -375,10 +390,12 @@ atualizadoEm TEXT
     await _ensureColumnExists(db, 'clientes', 'cnpj', 'TEXT');
     await _ensureColumnExists(db, 'clientes', 'contato', 'TEXT');
     await _ensureColumnExists(db, 'clientes', 'ativo', 'INTEGER DEFAULT 1');
+    await _ensureColumnExists(db, 'clientes', 'atualizado_em', 'TEXT');
 
     await _ensureColumnExists(db, 'veiculos', 'cor', 'TEXT');
     await _ensureColumnExists(db, 'veiculos', 'observacoes', 'TEXT');
     await _ensureColumnExists(db, 'veiculos', 'ativo', 'INTEGER DEFAULT 1');
+    await _ensureColumnExists(db, 'veiculos', 'atualizado_em', 'TEXT');
 
     // Correção retroativa defensiva: o DEFAULT 1 acima já faz o SQLite
     // preencher `ativo = 1` em linhas pré-existentes ao adicionar a coluna
@@ -398,8 +415,12 @@ atualizadoEm TEXT
     await _ensureColumnExists(db, 'orcamentos', 'dataPrevistaEntrega', 'TEXT');
     await _ensureColumnExists(db, 'orcamentos', 'tipoAtendimento', 'TEXT');
     await _ensureColumnExists(db, 'orcamentos', 'motivoCancelamento', 'TEXT');
+    await _ensureColumnExists(db, 'orcamentos', 'atualizado_em', 'TEXT');
 
     await _ensureColumnExists(db, 'transacoes', 'observacoes', 'TEXT');
+    await _ensureColumnExists(db, 'transacoes', 'atualizado_em', 'TEXT');
+    await _ensureColumnExists(db, 'transacoes', 'valor_original', 'REAL');
+    await _ensureColumnExists(db, 'transacoes', 'editado_em', 'TEXT');
 
     await _ensureColumnExists(db, 'notas', 'clienteId', 'TEXT');
     await _ensureColumnExists(db, 'notas', 'veiculoId', 'TEXT');
@@ -407,8 +428,18 @@ atualizadoEm TEXT
     await _ensureColumnExists(db, 'notas', 'itens', 'TEXT');
     await _ensureColumnExists(db, 'notas', 'valorTotal', 'REAL');
     await _ensureColumnExists(db, 'notas', 'dataEmissao', 'TEXT');
+    await _ensureColumnExists(db, 'notas', 'atualizado_em', 'TEXT');
 
     await _ensureColumnExists(db, 'empresa', 'cnpj', 'TEXT');
+
+    await _ensureColumnExists(db, 'pecas_custom', 'atualizado_em', 'TEXT');
+    await _ensureColumnExists(db, 'servicos_custom', 'atualizado_em', 'TEXT');
+    await _ensureColumnExists(
+      db,
+      'marcas_modelos_custom',
+      'atualizado_em',
+      'TEXT',
+    );
 
     await _migrateLegacyData(db);
     await _createIndexes(db);
