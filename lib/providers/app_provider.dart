@@ -14,6 +14,8 @@ import '../models/transacao.dart';
 import '../services/app_logger.dart';
 import '../services/db_service.dart';
 import '../services/fipe_service.dart';
+import '../services/mappers/cliente_mapper.dart' as cliente_mapper;
+import '../services/sync_service.dart';
 import '../models/nota.dart';
 import '../models/relatorio_financeiro.dart';
 import '../models/user.dart';
@@ -24,6 +26,7 @@ class AppProvider extends ChangeNotifier {
   String? _lastErrorMessage;
 
   String? _activeUserId;
+  String? _oficinaId;
 
   static const _prefsKeyCustomMarcas = 'custom_vehicle_marcas';
   static const _prefsKeyCustomModelosPorMarca =
@@ -86,6 +89,7 @@ class AppProvider extends ChangeNotifier {
   String? get lastErrorMessage => _lastErrorMessage;
 
   String? get activeUserId => _activeUserId;
+  String? get oficinaId => _oficinaId;
 
   void clearLastError() {
     _lastErrorMessage = null;
@@ -103,6 +107,8 @@ class AppProvider extends ChangeNotifier {
   // ===================== AUTH SYNC =====================
 
   void syncAuthUser(User? user) {
+    _oficinaId = user?.oficinaId;
+
     final normalized = user?.id.trim();
     final next = (normalized == null || normalized.isEmpty) ? null : normalized;
     if (next == _activeUserId) return;
@@ -715,6 +721,17 @@ class AppProvider extends ChangeNotifier {
       _validateCliente(cliente);
       await _ensureUserDbSelected();
       await _db.insertCliente(cliente);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'clientes',
+            operacao: 'criar',
+            registroId: cliente.id,
+            payload: cliente_mapper.paraSupabase(cliente, oficinaId),
+          ),
+        );
+      }
       _clientes.add(cliente);
       notifyListeners();
       unawaited(AppLogger.instance.info('Cliente adicionado: ${cliente.nome}'));
@@ -729,6 +746,17 @@ class AppProvider extends ChangeNotifier {
       _validateCliente(cliente);
       await _ensureUserDbSelected();
       await _db.updateCliente(cliente);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'clientes',
+            operacao: 'editar',
+            registroId: cliente.id,
+            payload: cliente_mapper.paraSupabase(cliente, oficinaId),
+          ),
+        );
+      }
       final index = _clientes.indexWhere((c) => c.id == cliente.id);
       if (index != -1) {
         _clientes[index] = cliente;
@@ -756,6 +784,17 @@ class AppProvider extends ChangeNotifier {
 
       final clienteOculto = _clientes[index].copyWith(ativo: false);
       await _db.updateCliente(clienteOculto);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'clientes',
+            operacao: 'editar',
+            registroId: clienteOculto.id,
+            payload: cliente_mapper.paraSupabase(clienteOculto, oficinaId),
+          ),
+        );
+      }
       _clientes.removeAt(index);
 
       final veiculosDoCliente = _veiculos
@@ -783,6 +822,17 @@ class AppProvider extends ChangeNotifier {
       await _ensureUserDbSelected();
       final atualizado = cliente.copyWith(ativo: true);
       await _db.updateCliente(atualizado);
+      final oficinaId = _oficinaId;
+      if (oficinaId != null) {
+        unawaited(
+          SyncService().sincronizar(
+            entidade: 'clientes',
+            operacao: 'editar',
+            registroId: atualizado.id,
+            payload: cliente_mapper.paraSupabase(atualizado, oficinaId),
+          ),
+        );
+      }
       final index = _clientes.indexWhere((c) => c.id == atualizado.id);
       if (index != -1) {
         _clientes[index] = atualizado;
@@ -1338,6 +1388,19 @@ class AppProvider extends ChangeNotifier {
       await _carregarCatalogoFipeDoCache();
       if (_activeUserId != userIdAtStart) return;
       _sincronizarFipeMarcasSeNecessario();
+
+      if (_activeUserId != userIdAtStart) return;
+      // Tenta esvaziar a fila de operações pendentes agora que os dados
+      // do usuário foram recarregados (login/troca de conta é um bom
+      // sinal de que há conexão disponível). Falha aqui não deve quebrar
+      // o carregamento normal do app — é best-effort, silencioso.
+      unawaited(
+        SyncService().processarPendencias().catchError((e) {
+          unawaited(
+            AppLogger.instance.warning('Falha ao processar pendências de sync: $e'),
+          );
+        }),
+      );
     } catch (e) {
       _recordError('Erro ao recarregar dados do AppProvider: $e');
     } finally {
