@@ -6,37 +6,26 @@ class SecureStorageService {
   static const String _fallbackPrefix = 'secure_fallback_v1_';
 
   Future<void> write(String key, String value) async {
-    try {
-      await _storage.write(key: key, value: value);
-      // best-effort cleanup of any fallback value
-      try {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.remove('$_fallbackPrefix$key');
-      } catch (_) {}
-    } catch (_) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('$_fallbackPrefix$key', value);
-    }
+    await _storage.write(key: key, value: value);
   }
 
   Future<String?> read(String key) async {
-    try {
-      final v = await _storage.read(key: key);
-      if (v != null) return v;
-    } catch (_) {
-      // ignore and fallback
-    }
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('$_fallbackPrefix$key');
+    return _storage.read(key: key);
   }
 
   Future<void> delete(String key) async {
+    await _storage.delete(key: key);
+  }
+
+  /// Remove qualquer entrada residual em texto plano deixada por versões
+  /// anteriores do app, que usavam SharedPreferences como fallback do
+  /// secure storage. Best-effort: nunca lança erro.
+  Future<void> clearLegacyFallback(String key) async {
     try {
-      await _storage.delete(key: key);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('$_fallbackPrefix$key');
     } catch (_) {
-      // ignore and fallback
+      // limpeza de dado legado: falha aqui não deve afetar o app.
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('$_fallbackPrefix$key');
   }
 }

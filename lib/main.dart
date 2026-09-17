@@ -19,6 +19,10 @@ import 'screens/register_screen.dart';
 import 'services/supabase_client.dart';
 import 'services/supabase_local_storage.dart';
 
+/// Chaves de breadcrumb.data que podem carregar corpo de requisição/resposta
+/// HTTP e nunca devem ser enviadas ao Sentry.
+const _sentrySensitiveBodyKeys = {'request_body', 'response_body', 'body'};
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -28,6 +32,51 @@ Future<void> main() async {
           'https://57a3d543d67783271471f88d3975123f@o4512053697773568.ingest.us.sentry.io/4512053720711168';
       options.tracesSampleRate = 1.0;
       options.environment = kReleaseMode ? 'production' : 'development';
+      // Não envia dados pessoais adicionais (ex: IP do usuário) por padrão.
+      options.sendDefaultPii = false;
+      // Breadcrumbs de HTTP (ou que contenham corpo de requisição/resposta)
+      // não devem carregar o conteúdo do body — só metadados como
+      // url/method/status_code/duration.
+      options.beforeBreadcrumb = (Breadcrumb? breadcrumb, Hint hint) {
+        final data = breadcrumb?.data;
+        if (data == null) return breadcrumb;
+
+        final category = breadcrumb?.category?.toLowerCase() ?? '';
+        final type = breadcrumb?.type?.toLowerCase() ?? '';
+        final isHttpRelated =
+            category.contains('http') || type.contains('http');
+        final hasSensitiveBodyKey =
+            data.keys.any((k) => _sentrySensitiveBodyKeys.contains(
+                  k.toLowerCase(),
+                ));
+
+        if (isHttpRelated || hasSensitiveBodyKey) {
+          for (final key in _sentrySensitiveBodyKeys) {
+            data.remove(key);
+          }
+        }
+        return breadcrumb;
+      };
+      // Remove corpo/cabeçalhos de requisição e resposta antes de enviar o
+      // evento — mantém só o que é estritamente método/url/status.
+      options.beforeSend = (SentryEvent event, Hint hint) {
+        final request = event.request;
+        if (request != null) {
+          event.request = SentryRequest(
+            url: request.url,
+            method: request.method,
+          );
+        }
+
+        final response = event.contexts.response;
+        if (response != null) {
+          event.contexts.response = SentryResponse(
+            statusCode: response.statusCode,
+          );
+        }
+
+        return event;
+      };
     },
     appRunner: () async {
       await Supabase.initialize(
