@@ -15,13 +15,7 @@ class SupabaseSecureLocalStorage extends LocalStorage {
 
   @override
   Future<void> initialize() async {
-    try {
-      await _storage.clearLegacyFallback(_sessionKey);
-    } catch (_) {
-      await AppLogger.instance.warning(
-        'Falha ao limpar sessão legada em texto plano do secure storage',
-      );
-    }
+    await _storage.clearLegacyFallback(_sessionKey);
   }
 
   @override
@@ -29,9 +23,9 @@ class SupabaseSecureLocalStorage extends LocalStorage {
     try {
       final value = await _storage.read(_sessionKey);
       return value != null;
-    } catch (_) {
+    } catch (e) {
       await AppLogger.instance.warning(
-        'Falha ao ler sessão do secure storage',
+        'Falha ao ler sessão do secure storage: ${e.runtimeType}',
       );
       return false;
     }
@@ -41,9 +35,9 @@ class SupabaseSecureLocalStorage extends LocalStorage {
   Future<String?> accessToken() async {
     try {
       return await _storage.read(_sessionKey);
-    } catch (_) {
+    } catch (e) {
       await AppLogger.instance.warning(
-        'Falha ao ler sessão do secure storage',
+        'Falha ao ler sessão do secure storage: ${e.runtimeType}',
       );
       return null;
     }
@@ -53,9 +47,9 @@ class SupabaseSecureLocalStorage extends LocalStorage {
   Future<void> removePersistedSession() async {
     try {
       await _storage.delete(_sessionKey);
-    } catch (_) {
+    } catch (e) {
       await AppLogger.instance.warning(
-        'Falha ao remover sessão do secure storage',
+        'Falha ao remover sessão do secure storage: ${e.runtimeType}',
       );
     }
   }
@@ -64,9 +58,9 @@ class SupabaseSecureLocalStorage extends LocalStorage {
   Future<void> persistSession(String persistSessionString) async {
     try {
       await _storage.write(_sessionKey, persistSessionString);
-    } catch (_) {
+    } catch (e) {
       await AppLogger.instance.warning(
-        'Falha ao persistir sessão no secure storage',
+        'Falha ao persistir sessão no secure storage: ${e.runtimeType}',
       );
     }
   }
