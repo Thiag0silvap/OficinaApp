@@ -14,6 +14,7 @@ import '../models/veiculo.dart';
 import '../core/constants/app_version.dart';
 import '../core/id_generator.dart';
 import 'app_logger.dart';
+import 'mappers/catalogo_custom_mapper.dart' as catalogo_mapper;
 
 class DBService {
   DBService._();
@@ -262,7 +263,8 @@ observacoes TEXT,
 observacoesCliente TEXT,
 observacoesInternas TEXT,
 dataPrevistaEntrega TEXT,
-tipoAtendimento TEXT
+tipoAtendimento TEXT,
+motivoCancelamento TEXT
 )
 ''',
     );
@@ -1008,6 +1010,196 @@ WHERE orcamentoId IS NOT NULL
     await db.rawUpdate(
       "UPDATE operacoes_pendentes SET tentativas = tentativas + 1 WHERE id = ?",
       [id],
+    );
+  }
+
+  /// Existe pendência de sync (qualquer operação) para esse registro?
+  /// Usado pelo espelho remoto (abaixo) pra nunca sobrescrever um registro
+  /// local com edição ainda não confirmada no Supabase.
+  Future<bool> temPendenciaPara(String entidade, String registroId) async {
+    final db = await database;
+    return _temPendenciaPara(db, entidade, registroId);
+  }
+
+  /// Mesma consulta que [temPendenciaPara], mas aceita um [DatabaseExecutor]
+  /// (Database OU Transaction) — necessário pra ser chamada de DENTRO de
+  /// uma `db.transaction()` já aberta (usar `db` ali de novo, em vez de
+  /// `txn`, travaria/fugiria da atomicidade da transação).
+  Future<bool> _temPendenciaPara(
+    DatabaseExecutor executor,
+    String entidade,
+    String registroId, {
+    String? operacao,
+  }) async {
+    final rows = await executor.query(
+      "operacoes_pendentes",
+      where: operacao != null
+          ? "entidade = ? AND registro_id = ? AND operacao = ?"
+          : "entidade = ? AND registro_id = ?",
+      whereArgs: operacao != null
+          ? [entidade, registroId, operacao]
+          : [entidade, registroId],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
+  // ================= ESPELHO REMOTO (leitura online-first) =================
+  //
+  // Grava localmente uma lista vinda do Supabase, registro por registro
+  // (upsert por id via ConflictAlgorithm.replace — NUNCA delete-all +
+  // reinsert como o cache FIPE faz, isso apagaria qualquer registro local
+  // criado offline que ainda não chegou no Supabase). Registro com
+  // pendência de sync é pulado: o dado local (mais recente, ainda não
+  // confirmado) tem prioridade sobre o que veio do Supabase (potencialmente
+  // desatualizado).
+  //
+  // reconciliarDelecao=true também remove localmente qualquer id que NÃO
+  // veio na lista remota E não tem pendência de "criar" — só faz sentido
+  // pra entidades com delete físico (Orcamento, Transacao, catálogos
+  // custom). Cliente/Veiculo nunca chamam com true: são soft-delete
+  // (ativo=false), que já vem refletido na própria leitura, nunca some da
+  // lista remota por ter sido "excluído".
+  Future<void> _aplicarListaRemota<T>({
+    required String tabela,
+    required List<T> registros,
+    required String Function(T) idOf,
+    required Map<String, dynamic> Function(T) toLocalMap,
+    bool reconciliarDelecao = false,
+  }) async {
+    final db = await database;
+
+    await db.transaction((txn) async {
+      for (final registro in registros) {
+        final id = idOf(registro);
+        final pendente = await _temPendenciaPara(txn, tabela, id);
+        if (pendente) continue;
+
+        await txn.insert(
+          tabela,
+          toLocalMap(registro),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      if (!reconciliarDelecao) return;
+
+      final idsRemotos = registros.map(idOf).toSet();
+      final linhasLocais = await txn.query(tabela, columns: ['id']);
+      final idsLocais = linhasLocais.map((row) => row['id'] as String).toSet();
+
+      for (final idLocal in idsLocais.difference(idsRemotos)) {
+        final pendenteCriar = await _temPendenciaPara(
+          txn,
+          tabela,
+          idLocal,
+          operacao: 'criar',
+        );
+        if (pendenteCriar) continue;
+
+        await txn.delete(tabela, where: "id = ?", whereArgs: [idLocal]);
+      }
+    });
+  }
+
+  Future<void> aplicarClientesRemoto(List<Cliente> registros) {
+    return _aplicarListaRemota<Cliente>(
+      tabela: 'clientes',
+      registros: registros,
+      idOf: (c) => c.id,
+      toLocalMap: (c) => c.toMap(),
+    );
+  }
+
+  Future<void> aplicarVeiculosRemoto(List<Veiculo> registros) {
+    return _aplicarListaRemota<Veiculo>(
+      tabela: 'veiculos',
+      registros: registros,
+      idOf: (v) => v.id,
+      toLocalMap: (v) => v.toMap(),
+    );
+  }
+
+  Future<void> aplicarOrcamentosRemoto(List<Orcamento> registros) {
+    return _aplicarListaRemota<Orcamento>(
+      tabela: 'orcamentos',
+      registros: registros,
+      idOf: (o) => o.id,
+      toLocalMap: _serializeOrcamento,
+      reconciliarDelecao: true,
+    );
+  }
+
+  Future<void> aplicarTransacoesRemoto(List<Transacao> registros) {
+    return _aplicarListaRemota<Transacao>(
+      tabela: 'transacoes',
+      registros: registros,
+      idOf: (t) => t.id,
+      toLocalMap: (t) => t.toMap(),
+      reconciliarDelecao: true,
+    );
+  }
+
+  /// Nota é create-only (nunca editada nem deletada — ver AppProvider),
+  /// então reconciliarDelecao fica false mesmo ela tendo delete físico no
+  /// schema: não existe fluxo que apague uma nota, local ou remotamente.
+  Future<void> aplicarNotasRemoto(List<Nota> registros) {
+    return _aplicarListaRemota<Nota>(
+      tabela: 'notas',
+      registros: registros,
+      idOf: (n) => n.id,
+      toLocalMap: _serializeNota,
+    );
+  }
+
+  /// Recebe as linhas CRUAS do Supabase (com `id`) — aplica
+  /// [catalogo_mapper.marcaModeloFromSupabase] aqui dentro, preservando o
+  /// `id` que esse mapper descarta de propósito (ver typedef
+  /// `CatalogosCustomRemoto` em sync_service.dart).
+  Future<void> aplicarMarcasModelosCustomRemoto(
+    List<Map<String, dynamic>> registros,
+  ) {
+    return _aplicarListaRemota<Map<String, dynamic>>(
+      tabela: 'marcas_modelos_custom',
+      registros: registros,
+      idOf: (row) => row['id'] as String,
+      toLocalMap: (row) {
+        final marcaModelo = catalogo_mapper.marcaModeloFromSupabase(row);
+        return {
+          'id': row['id'],
+          'marca': marcaModelo['marca'],
+          'modelo': marcaModelo['modelo'],
+        };
+      },
+      reconciliarDelecao: true,
+    );
+  }
+
+  Future<void> aplicarPecasCustomRemoto(List<Map<String, dynamic>> registros) {
+    return _aplicarListaRemota<Map<String, dynamic>>(
+      tabela: 'pecas_custom',
+      registros: registros,
+      idOf: (row) => row['id'] as String,
+      toLocalMap: (row) => {
+        'id': row['id'],
+        'peca': catalogo_mapper.pecaFromSupabase(row),
+      },
+      reconciliarDelecao: true,
+    );
+  }
+
+  Future<void> aplicarServicosCustomRemoto(
+    List<Map<String, dynamic>> registros,
+  ) {
+    return _aplicarListaRemota<Map<String, dynamic>>(
+      tabela: 'servicos_custom',
+      registros: registros,
+      idOf: (row) => row['id'] as String,
+      toLocalMap: (row) => {
+        'id': row['id'],
+        'servico': catalogo_mapper.servicoFromSupabase(row),
+      },
+      reconciliarDelecao: true,
     );
   }
 

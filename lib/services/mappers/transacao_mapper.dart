@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import '../../models/transacao.dart';
+import '../app_logger.dart';
 
 Map<String, dynamic> paraSupabase(
   Transacao t,
@@ -29,5 +32,47 @@ String _tipoParaSupabase(TipoTransacao tipo) {
       return 'entrada';
     case TipoTransacao.saida:
       return 'saida';
+  }
+}
+
+/// Reconstrói uma [Transacao] a partir da linha crua (snake_case)
+/// devolvida pelo supabase_flutter. `oficina_id` é ignorado de propósito —
+/// não é campo do model.
+Transacao transacaoFromSupabase(Map<String, dynamic> map) {
+  return Transacao(
+    id: map['id'] as String? ?? '',
+    tipo: _tipoFromSupabase(map['tipo'] as String?),
+    descricao: map['descricao'] as String? ?? '',
+    valor: (map['valor'] as num?)?.toDouble() ?? 0.0,
+    categoria: map['categoria'] as String? ?? '',
+    data: _dataFromSupabase(map),
+    orcamentoId: map['orcamento_id'] as String?,
+    observacoes: map['observacoes'] as String?,
+    valorOriginal: (map['valor_original'] as num?)?.toDouble(),
+    editadoEm: map['editado_em'] != null
+        ? DateTime.parse(map['editado_em'] as String)
+        : null,
+  );
+}
+
+DateTime _dataFromSupabase(Map<String, dynamic> map) {
+  final raw = map['data'];
+  if (raw != null) return DateTime.parse(raw as String);
+  final id = map['id'] ?? 'desconhecido';
+  unawaited(
+    AppLogger.instance.warning(
+      'Transação $id veio do Supabase sem data — usando DateTime.now() como fallback',
+    ),
+  );
+  return DateTime.now();
+}
+
+TipoTransacao _tipoFromSupabase(String? tipo) {
+  switch (tipo) {
+    case 'saida':
+      return TipoTransacao.saida;
+    case 'entrada':
+    default:
+      return TipoTransacao.entrada;
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 
 import '../core/constants/app_constants.dart';
 import '../core/id_generator.dart';
@@ -2036,6 +2037,107 @@ class AppProvider extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+
+    // ============ LEITURA ONLINE-FIRST (segundo plano) ============
+    //
+    // A tela já está populada com o cache local acima — daqui pra baixo
+    // NÃO toca em _isLoading de propósito, pra não reintroduzir
+    // skeleton/loading toda vez que o app atualiza em segundo plano.
+    // Busca tudo do Supabase primeiro; só se TODAS as buscas derem certo é
+    // que grava o espelho local e relê — uma falha no meio não deixa o
+    // espelho parcialmente atualizado.
+    if (userIdAtStart == null || _activeUserId != userIdAtStart) return;
+
+    final oficinaId = _oficinaId;
+    if (oficinaId == null) return;
+
+    try {
+      final sync = SyncService();
+      final clientesRemoto = await sync.buscarClientesRemoto(oficinaId);
+      final veiculosRemoto = await sync.buscarVeiculosRemoto(oficinaId);
+      final orcamentosRemoto = await sync.buscarOrcamentosRemoto(oficinaId);
+      final transacoesRemoto = await sync.buscarTransacoesRemoto(oficinaId);
+      final notasRemoto = await sync.buscarNotasRemoto(oficinaId);
+      final catalogosRemoto = await sync.buscarCatalogosCustomRemoto(oficinaId);
+
+      if (_activeUserId != userIdAtStart) return;
+
+      // aplicarXRemoto (DBService, Etapa 2) já protege registros com
+      // pendência de sync e reconcilia deleção onde aplicável — nunca
+      // sobrescreve/apaga dado local mais recente que o Supabase ainda não
+      // confirmou.
+      await _db.aplicarClientesRemoto(clientesRemoto);
+      await _db.aplicarVeiculosRemoto(veiculosRemoto);
+      await _db.aplicarOrcamentosRemoto(orcamentosRemoto);
+      await _db.aplicarTransacoesRemoto(transacoesRemoto);
+      await _db.aplicarNotasRemoto(notasRemoto);
+      await _db.aplicarMarcasModelosCustomRemoto(catalogosRemoto.marcasModelos);
+      await _db.aplicarPecasCustomRemoto(catalogosRemoto.pecas);
+      await _db.aplicarServicosCustomRemoto(catalogosRemoto.servicos);
+
+      if (_activeUserId != userIdAtStart) return;
+
+      // Relê do SQLite local (não usa as listas *Remoto direto) — assim a
+      // proteção de pendência já aplicada no espelho acima se reflete
+      // corretamente no que vai pra tela.
+      final clientesDB = await _db.getClientes();
+      final veiculosDB = await _db.getVeiculos();
+      final orcamentosDB = await _db.getOrcamentos();
+      final transacoesDB = await _db.getTransacoes();
+      final catalogo = await _fetchVehicleCatalogFromDb();
+      final pecasCustomDB = await _db.getPecasCustom();
+      final servicosCustomDB = await _db.getServicosCustom();
+
+      if (_activeUserId != userIdAtStart) return;
+
+      _clientes
+        ..clear()
+        ..addAll(clientesDB);
+      _veiculos
+        ..clear()
+        ..addAll(veiculosDB);
+      _orcamentos
+        ..clear()
+        ..addAll(orcamentosDB);
+      _transacoes
+        ..clear()
+        ..addAll(transacoesDB);
+      _customMarcas
+        ..clear()
+        ..addAll(catalogo.marcas);
+      _customModelosPorMarca
+        ..clear()
+        ..addAll(catalogo.modelosPorMarca);
+      _customPecas
+        ..clear()
+        ..addAll(pecasCustomDB);
+      _customServicos
+        ..clear()
+        ..addAll(servicosCustomDB);
+
+      _lastErrorMessage = null;
+      notifyListeners();
+    } on PostgrestException catch (e) {
+      // Erro real (RLS, dado inválido, etc.) — mostra ao usuário, mas
+      // mantém as listas em memória como estavam (carregamento local do
+      // passo 1): não apaga nem zera nada.
+      if (_activeUserId != userIdAtStart) return;
+      _recordError('Erro ao buscar dados atualizados do Supabase: $e');
+      notifyListeners();
+    } on AuthException catch (e) {
+      if (_activeUserId != userIdAtStart) return;
+      _recordError('Erro ao buscar dados atualizados do Supabase: $e');
+      notifyListeners();
+    } catch (e) {
+      // Falha de conectividade — esperada em uso offline normal.
+      // Silenciosa de propósito: não seta _lastErrorMessage (não é erro
+      // pro usuário ver), só registra pra diagnóstico.
+      unawaited(
+        AppLogger.instance.info(
+          'Leitura online-first não conseguiu buscar do Supabase (provável offline): $e',
+        ),
+      );
     }
   }
 
