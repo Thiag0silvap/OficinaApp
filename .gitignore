@@ -53,3 +53,6 @@ app.*.map.json
 # PDFs gerados pelo app (dados reais de clientes)
 /PDFs/
 designer/
+
+# Supabase CLI (cache local, nunca versionar)
+supabase/.temp/
