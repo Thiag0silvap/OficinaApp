@@ -56,3 +56,7 @@ designer/
 
 # Supabase CLI (cache local, nunca versionar)
 supabase/.temp/
+
+# Claude Code (estado local de máquina/sessão, nunca versionar)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
