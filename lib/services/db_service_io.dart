@@ -18,7 +18,7 @@ import 'app_logger.dart';
 class DBService {
   DBService._();
   static final DBService instance = DBService._();
-  static const int schemaVersion = 3;
+  static const int schemaVersion = 4;
   static const String _backupFolderName = 'OficinaAppBackups';
 
   Database? _database;
@@ -422,6 +422,8 @@ tentativas INTEGER DEFAULT 0
     await _ensureColumnExists(db, 'transacoes', 'atualizado_em', 'TEXT');
     await _ensureColumnExists(db, 'transacoes', 'valor_original', 'REAL');
     await _ensureColumnExists(db, 'transacoes', 'editado_em', 'TEXT');
+    await _ensureColumnExists(db, 'transacoes', 'valorOriginal', 'REAL');
+    await _ensureColumnExists(db, 'transacoes', 'editadoEm', 'TEXT');
 
     await _ensureColumnExists(db, 'notas', 'clienteId', 'TEXT');
     await _ensureColumnExists(db, 'notas', 'veiculoId', 'TEXT');
