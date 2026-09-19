@@ -205,16 +205,17 @@ class AppProvider extends ChangeNotifier {
     );
     if (!hasMarcaBase && !hasMarcaCustom) {
       _customMarcas.add(fixedMarca);
-      await _db.insertMarcaModeloCustom(marca: fixedMarca);
+      final id = gerarId();
+      await _db.insertMarcaModeloCustom(id: id, marca: fixedMarca);
       final oficinaId = _oficinaId;
       if (oficinaId != null) {
         unawaited(
           SyncService().sincronizar(
             entidade: 'marcas_modelos_custom',
             operacao: 'criar',
-            registroId: '${fixedMarca.toLowerCase()}|',
+            registroId: id,
             payload: catalogo_mapper.marcaModeloParaSupabase(
-              id: '${fixedMarca.toLowerCase()}|',
+              id: id,
               marca: fixedMarca,
               oficinaId: oficinaId,
             ),
@@ -241,7 +242,9 @@ class AppProvider extends ChangeNotifier {
 
       if (!hasModeloBase && !hasModeloCustom) {
         list.add(fixedModelo);
+        final id = gerarId();
         await _db.insertMarcaModeloCustom(
+          id: id,
           marca: fixedMarca,
           modelo: fixedModelo,
         );
@@ -251,11 +254,9 @@ class AppProvider extends ChangeNotifier {
             SyncService().sincronizar(
               entidade: 'marcas_modelos_custom',
               operacao: 'criar',
-              registroId:
-                  '${fixedMarca.toLowerCase()}|${fixedModelo.toLowerCase()}',
+              registroId: id,
               payload: catalogo_mapper.marcaModeloParaSupabase(
-                id:
-                    '${fixedMarca.toLowerCase()}|${fixedModelo.toLowerCase()}',
+                id: id,
                 marca: fixedMarca,
                 modelo: fixedModelo,
                 oficinaId: oficinaId,
@@ -306,16 +307,17 @@ class AppProvider extends ChangeNotifier {
     );
     if (!hasBase && !hasCustom) {
       _customPecas.add(fixed);
-      await _db.insertPecaCustom(fixed);
+      final id = gerarId();
+      await _db.insertPecaCustom(fixed, id: id);
       final oficinaId = _oficinaId;
       if (oficinaId != null) {
         unawaited(
           SyncService().sincronizar(
             entidade: 'pecas_custom',
             operacao: 'criar',
-            registroId: fixed.toLowerCase(),
+            registroId: id,
             payload: catalogo_mapper.pecaParaSupabase(
-              id: fixed.toLowerCase(),
+              id: id,
               peca: fixed,
               oficinaId: oficinaId,
             ),
@@ -341,16 +343,17 @@ class AppProvider extends ChangeNotifier {
     );
     if (!hasBase && !hasCustom) {
       _customServicos.add(fixed);
-      await _db.insertServicoCustom(fixed);
+      final id = gerarId();
+      await _db.insertServicoCustom(fixed, id: id);
       final oficinaId = _oficinaId;
       if (oficinaId != null) {
         unawaited(
           SyncService().sincronizar(
             entidade: 'servicos_custom',
             operacao: 'criar',
-            registroId: fixed.toLowerCase(),
+            registroId: id,
             payload: catalogo_mapper.servicoParaSupabase(
-              id: fixed.toLowerCase(),
+              id: id,
               servico: fixed,
               oficinaId: oficinaId,
             ),
@@ -375,22 +378,24 @@ class AppProvider extends ChangeNotifier {
 
       await _ensureUserDbSelected();
 
-      final idAntigo = fixedAntiga.toLowerCase();
-      final idNovo = fixedNova.toLowerCase();
-
-      await _db.deletePecaCustom(idAntigo);
+      final idAntigo = await _db.idDePecaCustom(fixedAntiga);
       final oficinaId = _oficinaId;
-      if (oficinaId != null) {
-        unawaited(
-          SyncService().sincronizar(
-            entidade: 'pecas_custom',
-            operacao: 'excluir',
-            registroId: idAntigo,
-          ),
-        );
+
+      if (idAntigo != null) {
+        await _db.deletePecaCustom(idAntigo);
+        if (oficinaId != null) {
+          unawaited(
+            SyncService().sincronizar(
+              entidade: 'pecas_custom',
+              operacao: 'excluir',
+              registroId: idAntigo,
+            ),
+          );
+        }
       }
 
-      await _db.insertPecaCustom(fixedNova);
+      final idNovo = gerarId();
+      await _db.insertPecaCustom(fixedNova, id: idNovo);
       if (oficinaId != null) {
         unawaited(
           SyncService().sincronizar(
@@ -430,18 +435,20 @@ class AppProvider extends ChangeNotifier {
       if (fixed.isEmpty) return;
 
       await _ensureUserDbSelected();
-      final id = fixed.toLowerCase();
+      final id = await _db.idDePecaCustom(fixed);
 
-      await _db.deletePecaCustom(id);
-      final oficinaId = _oficinaId;
-      if (oficinaId != null) {
-        unawaited(
-          SyncService().sincronizar(
-            entidade: 'pecas_custom',
-            operacao: 'excluir',
-            registroId: id,
-          ),
-        );
+      if (id != null) {
+        await _db.deletePecaCustom(id);
+        final oficinaId = _oficinaId;
+        if (oficinaId != null) {
+          unawaited(
+            SyncService().sincronizar(
+              entidade: 'pecas_custom',
+              operacao: 'excluir',
+              registroId: id,
+            ),
+          );
+        }
       }
 
       _customPecas.remove(fixed);
@@ -471,22 +478,24 @@ class AppProvider extends ChangeNotifier {
 
       await _ensureUserDbSelected();
 
-      final idAntigo = fixedAntigo.toLowerCase();
-      final idNovo = fixedNovo.toLowerCase();
-
-      await _db.deleteServicoCustom(idAntigo);
+      final idAntigo = await _db.idDeServicoCustom(fixedAntigo);
       final oficinaId = _oficinaId;
-      if (oficinaId != null) {
-        unawaited(
-          SyncService().sincronizar(
-            entidade: 'servicos_custom',
-            operacao: 'excluir',
-            registroId: idAntigo,
-          ),
-        );
+
+      if (idAntigo != null) {
+        await _db.deleteServicoCustom(idAntigo);
+        if (oficinaId != null) {
+          unawaited(
+            SyncService().sincronizar(
+              entidade: 'servicos_custom',
+              operacao: 'excluir',
+              registroId: idAntigo,
+            ),
+          );
+        }
       }
 
-      await _db.insertServicoCustom(fixedNovo);
+      final idNovo = gerarId();
+      await _db.insertServicoCustom(fixedNovo, id: idNovo);
       if (oficinaId != null) {
         unawaited(
           SyncService().sincronizar(
@@ -526,18 +535,20 @@ class AppProvider extends ChangeNotifier {
       if (fixed.isEmpty) return;
 
       await _ensureUserDbSelected();
-      final id = fixed.toLowerCase();
+      final id = await _db.idDeServicoCustom(fixed);
 
-      await _db.deleteServicoCustom(id);
-      final oficinaId = _oficinaId;
-      if (oficinaId != null) {
-        unawaited(
-          SyncService().sincronizar(
-            entidade: 'servicos_custom',
-            operacao: 'excluir',
-            registroId: id,
-          ),
-        );
+      if (id != null) {
+        await _db.deleteServicoCustom(id);
+        final oficinaId = _oficinaId;
+        if (oficinaId != null) {
+          unawaited(
+            SyncService().sincronizar(
+              entidade: 'servicos_custom',
+              operacao: 'excluir',
+              registroId: id,
+            ),
+          );
+        }
       }
 
       _customServicos.remove(fixed);
@@ -569,24 +580,28 @@ class AppProvider extends ChangeNotifier {
 
       await _ensureUserDbSelected();
 
-      final idAntigo =
-          '${fixedMarcaAntiga.toLowerCase()}|${fixedModeloAntigo.toLowerCase()}';
-      final idNovo =
-          '${fixedMarcaNova.toLowerCase()}|${fixedModeloNovo.toLowerCase()}';
-
-      await _db.deleteMarcaModeloCustom(idAntigo);
+      final idAntigo = await _db.idDeMarcaModeloCustom(
+        marca: fixedMarcaAntiga,
+        modelo: fixedModeloAntigo.isEmpty ? null : fixedModeloAntigo,
+      );
       final oficinaId = _oficinaId;
-      if (oficinaId != null) {
-        unawaited(
-          SyncService().sincronizar(
-            entidade: 'marcas_modelos_custom',
-            operacao: 'excluir',
-            registroId: idAntigo,
-          ),
-        );
+
+      if (idAntigo != null) {
+        await _db.deleteMarcaModeloCustom(idAntigo);
+        if (oficinaId != null) {
+          unawaited(
+            SyncService().sincronizar(
+              entidade: 'marcas_modelos_custom',
+              operacao: 'excluir',
+              registroId: idAntigo,
+            ),
+          );
+        }
       }
 
+      final idNovo = gerarId();
       await _db.insertMarcaModeloCustom(
+        id: idNovo,
         marca: fixedMarcaNova,
         modelo: fixedModeloNovo.isEmpty ? null : fixedModeloNovo,
       );
@@ -624,7 +639,9 @@ class AppProvider extends ChangeNotifier {
       notifyListeners();
       unawaited(
         AppLogger.instance.info(
-          'Marca/modelo customizado renomeado: $idAntigo -> $idNovo',
+          'Marca/modelo customizado renomeado: '
+          '$fixedMarcaAntiga|$fixedModeloAntigo -> '
+          '$fixedMarcaNova|$fixedModeloNovo',
         ),
       );
     } catch (e) {
@@ -645,18 +662,23 @@ class AppProvider extends ChangeNotifier {
       if (fixedMarca.isEmpty) return;
 
       await _ensureUserDbSelected();
-      final id = '${fixedMarca.toLowerCase()}|${fixedModelo.toLowerCase()}';
+      final id = await _db.idDeMarcaModeloCustom(
+        marca: fixedMarca,
+        modelo: fixedModelo.isEmpty ? null : fixedModelo,
+      );
 
-      await _db.deleteMarcaModeloCustom(id);
-      final oficinaId = _oficinaId;
-      if (oficinaId != null) {
-        unawaited(
-          SyncService().sincronizar(
-            entidade: 'marcas_modelos_custom',
-            operacao: 'excluir',
-            registroId: id,
-          ),
-        );
+      if (id != null) {
+        await _db.deleteMarcaModeloCustom(id);
+        final oficinaId = _oficinaId;
+        if (oficinaId != null) {
+          unawaited(
+            SyncService().sincronizar(
+              entidade: 'marcas_modelos_custom',
+              operacao: 'excluir',
+              registroId: id,
+            ),
+          );
+        }
       }
 
       if (fixedModelo.isEmpty) {
@@ -668,7 +690,7 @@ class AppProvider extends ChangeNotifier {
       notifyListeners();
       unawaited(
         AppLogger.instance.warning(
-          'Marca/modelo customizado excluído: $id',
+          'Marca/modelo customizado excluído: $fixedMarca|$fixedModelo',
         ),
       );
     } catch (e) {
@@ -900,11 +922,15 @@ class AppProvider extends ChangeNotifier {
       }
 
       for (final marca in legacyMarcas) {
-        await _db.insertMarcaModeloCustom(marca: marca);
+        await _db.insertMarcaModeloCustom(id: gerarId(), marca: marca);
       }
       for (final entry in legacyModelosPorMarca.entries) {
         for (final modelo in entry.value) {
-          await _db.insertMarcaModeloCustom(marca: entry.key, modelo: modelo);
+          await _db.insertMarcaModeloCustom(
+            id: gerarId(),
+            marca: entry.key,
+            modelo: modelo,
+          );
         }
       }
 

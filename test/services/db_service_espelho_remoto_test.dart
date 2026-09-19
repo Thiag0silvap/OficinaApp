@@ -182,7 +182,7 @@ void main() {
     test('upsert e reconciliação de deleção funcionam com linhas cruas (id preservado)', () async {
       await freshTestUserId();
 
-      await db.insertPecaCustom('Peça antiga');
+      await db.insertPecaCustom('Peça antiga', id: 'peca-antiga-id');
 
       // Lista remota vazia + sem pendência -> reconciliação remove a peça.
       await db.aplicarPecasCustomRemoto([]);

@@ -746,13 +746,12 @@ WHERE orcamentoId IS NOT NULL
   // ================= CATÁLOGO MARCA/MODELO (por conta) =================
 
   Future<void> insertMarcaModeloCustom({
+    required String id,
     required String marca,
     String? modelo,
   }) async {
     final db = await database;
     final normalizedModelo = (modelo ?? '').trim();
-    final id =
-        '${marca.trim().toLowerCase()}|${normalizedModelo.toLowerCase()}';
 
     await db.insert(
       "marcas_modelos_custom",
@@ -763,6 +762,33 @@ WHERE orcamentoId IS NOT NULL
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  /// Busca o id real (UUID) de uma linha de marca/modelo custom a partir do
+  /// texto (comparação case-insensitive). [modelo] nulo/vazio é tratado como
+  /// IS NULL, coerente com como a coluna é gravada quando só a marca é
+  /// customizada. Retorna null se não encontrar nenhuma linha.
+  Future<String?> idDeMarcaModeloCustom({
+    required String marca,
+    String? modelo,
+  }) async {
+    final db = await database;
+    final normalizedModelo = (modelo ?? '').trim();
+
+    final result = await db.query(
+      "marcas_modelos_custom",
+      columns: ['id'],
+      where: normalizedModelo.isEmpty
+          ? "LOWER(marca) = LOWER(?) AND modelo IS NULL"
+          : "LOWER(marca) = LOWER(?) AND LOWER(modelo) = LOWER(?)",
+      whereArgs: normalizedModelo.isEmpty
+          ? [marca.trim()]
+          : [marca.trim(), normalizedModelo],
+      limit: 1,
+    );
+
+    if (result.isEmpty) return null;
+    return result.first['id'] as String?;
   }
 
   Future<void> deleteMarcaModeloCustom(String id) async {
@@ -791,10 +817,9 @@ WHERE orcamentoId IS NOT NULL
 
   // ================= CATÁLOGO PEÇAS/SERVIÇOS (por conta) =================
 
-  Future<void> insertPecaCustom(String peca) async {
+  Future<void> insertPecaCustom(String peca, {required String id}) async {
     final db = await database;
     final normalizedPeca = peca.trim();
-    final id = normalizedPeca.toLowerCase();
 
     await db.insert(
       "pecas_custom",
@@ -804,6 +829,23 @@ WHERE orcamentoId IS NOT NULL
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  /// Busca o id real (UUID) de uma peça custom a partir do texto
+  /// (comparação case-insensitive). Retorna null se não encontrar.
+  Future<String?> idDePecaCustom(String peca) async {
+    final db = await database;
+
+    final result = await db.query(
+      "pecas_custom",
+      columns: ['id'],
+      where: "LOWER(peca) = LOWER(?)",
+      whereArgs: [peca.trim()],
+      limit: 1,
+    );
+
+    if (result.isEmpty) return null;
+    return result.first['id'] as String?;
   }
 
   Future<void> deletePecaCustom(String id) async {
@@ -826,10 +868,12 @@ WHERE orcamentoId IS NOT NULL
         .toList();
   }
 
-  Future<void> insertServicoCustom(String servico) async {
+  Future<void> insertServicoCustom(
+    String servico, {
+    required String id,
+  }) async {
     final db = await database;
     final normalizedServico = servico.trim();
-    final id = normalizedServico.toLowerCase();
 
     await db.insert(
       "servicos_custom",
@@ -839,6 +883,23 @@ WHERE orcamentoId IS NOT NULL
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
+  }
+
+  /// Busca o id real (UUID) de um serviço custom a partir do texto
+  /// (comparação case-insensitive). Retorna null se não encontrar.
+  Future<String?> idDeServicoCustom(String servico) async {
+    final db = await database;
+
+    final result = await db.query(
+      "servicos_custom",
+      columns: ['id'],
+      where: "LOWER(servico) = LOWER(?)",
+      whereArgs: [servico.trim()],
+      limit: 1,
+    );
+
+    if (result.isEmpty) return null;
+    return result.first['id'] as String?;
   }
 
   Future<void> deleteServicoCustom(String id) async {
