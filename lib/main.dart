@@ -8,7 +8,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/app_constants.dart';
 import 'core/id_generator.dart';
 import 'core/utils/error_translator.dart';
-import 'core/widgets/update_gate.dart';
 import 'core/theme/app_theme.dart';
 import 'providers/app_provider.dart';
 import 'providers/auth_provider.dart';
@@ -16,6 +15,7 @@ import 'screens/empresa_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/supabase_client.dart';
 import 'services/supabase_local_storage.dart';
 
@@ -137,7 +137,7 @@ class MyApp extends StatelessWidget {
         locale: const Locale('pt', 'BR'),
         initialRoute: '/',
         routes: {
-          '/': (_) => const UpdateGate(child: AuthWrapper()),
+          '/': (_) => const SplashScreen(),
           '/home': (_) => const HomeScreen(),
           '/login': (_) => const LoginScreen(),
           '/register': (_) => const RegisterScreen(),
@@ -167,22 +167,6 @@ class WebNotSupportedScreen extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-class AuthWrapper extends StatelessWidget {
-  const AuthWrapper({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-    if (!auth.isAuthenticated) return const LoginScreen();
-    return OnboardingGate(
-      key: ValueKey(auth.currentUser!.id),
-      userId: auth.currentUser!.id,
-      nome: auth.currentUser!.nome,
-      convite: auth.currentUser!.convite,
     );
   }
 }

@@ -61,6 +61,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.7
   sqflite_common_ffi: ^2.3.7+1
   # msix removido — exclusivo de Windows
 
@@ -95,5 +96,15 @@ flutter_icons:
   android: true
   ios: true
   image_path: assets/images/logo.png
+
+flutter_native_splash:
+  color: "0B0D11"
+  image: assets/images/logo.png
+  android: true
+  ios: false
+  web: false
+  android_12:
+    color: "0B0D11"
+    image: assets/images/logo.png
 
 # msix_config removido — exclusivo de Windows
